@@ -110,15 +110,52 @@ against.
   overridden/deleted on contradiction), so the deletion mechanism is
   verified but the effectiveness is a null result on N=30. The plan omitted
   this test until 2026-11-09; it is now Phase 1 Step 6 (§3.6).
-- **No manuscript exists.** There is no `paper/` directory and no README in
-  the repo. The "E-RAG Implementation Guide: End to End" (55-page PDF, cited
-  as the primary specification in `research/method.md` and `research/audit.md`)
-  lived on the original author's Windows machine and is not in the repo.
-  The paper's hypothesis as *stated by its authors* has therefore not been
-  read here; §1 and the hypothesis below are inferred from the code and the
-  repo docs (see the note at the end of §3.6 and §9). If the manuscript or
-  the Guide PDF is supplied, it becomes the source of truth and this plan is
-  corrected against it.
+- **The report exists — hypothesis now stated, not inferred.** The user
+  supplied the project report on 2026-11-09
+  (`~/workspace/user/files/ERAG_Human_Style_Research_Report_FULL_ONE.pdf`,
+  62 pages, dated 4 Nov 2026, @Jit). It contains the three plan versions
+  (Appendix A latest consolidated master report, Appendix B revised 15-day
+  plan, Appendix C original five-phase plan E1–E14) and the formal
+  hypothesis table H1–H6. Primary research question: "Can evidence-aware
+  uncertainty estimation and claim-level verification guide adaptive
+  retrieval in multi-hop RAG, improving answer reliability at a reasonable
+  computational cost?" H1 (E-RAG beats Standard RAG) and H4 (adaptive
+  retrieval beats the no-adaptive ablation at acceptable cost, latency ≤3×
+  Standard) are the CONFIRMATORY tests (McNemar paired EM, Holm correction
+  across the two); every other comparison — **including E-RAG vs IRCoT** —
+  is exploratory, reported with intervals only. H2: NLI macro-F1 and
+  contradicted-class recall ≥0.70. H3: self-consistency AUROC excludes 0.5.
+  H5: memory cuts retrieval with ΔEM ≥ −0.02, descriptive only (N≈30
+  stream). H6: gains concentrate where initial retrieval missed a paragraph.
+  Verified directly from the extracted text (not just a delegated summary).
+  Consequence for this plan: the Phase 2 pre-registered verdict (§4.2)
+  tests TA vs IRCoT, which the report labels exploratory; the confirmatory
+  H1/H4 analyses are a separate open decision (§9).
+- **Retriever correction (verified from the report text).** All three plan
+  versions fix ONE retriever — all-MiniLM-L6-v2 + FAISS, top-3 — and insist
+  it stay constant ("one model, one retriever and one question set"). BM25
+  appears once, as a departure note (dense instead of BM25, the original
+  IRCoT's retriever). BGE/E5 appear nowhere. The four-retriever Phase 5 and
+  the BM25-first adaptive work are later repo developments, NOT in this
+  report — and the user's recollection of a multi-retriever version in this
+  file is not supported by the file's text. Unresolved: whether a different
+  file/version holds the multi-retriever plan, or the memory is of the Phase
+  5 work. Do not assert a multi-retriever plan version exists until the user
+  confirms.
+- **Report's only measured numbers.** Phase 1 baseline (50 HotpotQA dev,
+  MiniLM, gpt-oss-20b): EM 0.54, F1 0.634, recall 0.73, 7/50 unknown.
+  Phase 2 regression: EM ~0.56 → ~0.28 when the epistemic layer entered the
+  end-to-end pipeline — unresolved in the report, with the 0.54 vs 0.56
+  baseline discrepancy flagged in the document itself. The repo's current
+  numbers (Reference Test-400 EM 0.4525) show recovery past 0.28, but the
+  report contains no record of that resolution. Report's cost expectation:
+  worst case ~18 calls/Q for 2-hop E-RAG; TrueAdaptive measured 4.78.
+- **No manuscript text exists.** The report is a plan + status report with a
+  paper blueprint (two working titles, claim-to-evidence map), not a paper
+  draft: no abstract/introduction/conclusion text. The Implementation Guide
+  PDF (55 pp) is still not in the repo. Team (Appendix C): GITA Autonomous
+  College, Soumya Swarup Kar, Saumojit Santra, Temburu Akhil, Adapakala
+  Manoj.
 
 ### 2.2 Frozen baselines (the numbers everything is compared against)
 
@@ -350,14 +387,16 @@ system.
   Test-400 and the paper reports it as a null: the override mechanism is
   verified, the effectiveness is not demonstrated on the available stream.
   A null here does not block Phase 2; it scopes the paper's claims.
-- **Note on the hypothesis (honest limitation).** There is no manuscript in
-  the repo, and the Implementation Guide PDF is not in the repo either — so
-  the hypothesis above is inferred from the code (`src/systems/memory.py`,
-  `src/systems/erag.py`), the E5 spec, and decisions D-009. It is the best
-  available statement, not the authors' own words. If the manuscript or the
-  Guide is supplied, the hypothesis statement in this plan is corrected
-  against it before Phase 4, and any tuning step whose rationale depends on
-  the hypothesis is re-checked.
+- **Note on the hypothesis (now verified, not inferred).** The hypothesis
+  in §3.6's first bullet is the report's own statement (primary RQ + H1–H6,
+  see §2.1), verified from the report's text 2026-11-09. One consequence is
+  recorded here rather than silently assumed: per the report, E-RAG vs IRCoT
+  is an *exploratory* comparison; the confirmatory tests are H1 (vs Standard
+  RAG) and H4 (vs the no-adaptive ablation). The Phase 2 verdict (§4.2) as
+  written tests the exploratory comparison — see §9 for the open decision on
+  adding the confirmatory H1/H4 analyses. The Implementation Guide PDF is
+  still not in the repo; if it is supplied, the hypothesis statement is
+  re-checked against it.
 
 ### 3.7 What is explicitly NOT in Phase 1
 
@@ -578,6 +617,7 @@ TrueAdaptive v1 and for steps 1–2.
 | 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Open — user's call, before step 4 starts; if undecided, step 4 is skipped and `theta_abs` stays 0.4 |
 | 3 | Keep step-1 re-read if Test-400 shows no gain | The pre-registered verdict (§4.2) | Decided by test, not by dev |
 | 3b | Memory in the frozen Test-400 system (on or off) | Step 6 gate (§3.6): stream A/B gain or call reduction, override test passes | Open — decided by step 6, before the §4.1 freeze |
+| 3c | Add the report's confirmatory H1/H4 analyses to Phase 2 (H1: TA vs Standard, paired bootstrap + McNemar; H4: adaptive vs no-adaptive ablation — needs a Test-400 ablation run) | The report (Nov 4) labels E-RAG vs IRCoT exploratory; H1/H4 are confirmatory with Holm correction | Open — the §4.2 verdict as written tests the exploratory comparison |
 | 4 | When (and whether) to push `trueadaptive` to origin | User, each time | Open — nothing pushed so far |
 | 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
 | 6 | Paper venue | User, after results exist | Open — Springer was the forwarded prompt's suggestion, not a decision |
