@@ -11,28 +11,30 @@
 3. `intfloat/e5-base-v2` Dense Bi-Encoder (768d, Asymmetric `query: ` / `passage: `)
 4. `BAAI/bge-base-en-v1.5` Dense Bi-Encoder (768d, Instruction-Tuned Query Prefix)
 
+> **Correction note — 2026-11-09 (audit H1/H2, `docs/audit-cache-dataset-integrity.md`):** This report originally stated that all 12 conditions used `meta-llama/llama-3.3-70b-versatile` and priced the Cost / 1k column at that model's Groq rates ($0.059 input / $0.079 output per 1M tokens). The generator actually used was `openai/gpt-oss-20b` (`configs/base.yaml`; MLflow params; cache keys). The model name has been corrected in all three places it appeared, and the Cost / 1k column — in the table below, in `four_retriever_benchmark.csv`, and in `enriched_multi_hop_dynamics.csv` — has been re-priced at the Groq 20B rates already used by the cost report ($0.10 input / $0.20 output per 1M tokens), recomputed from mean in/out tokens in `results/enriched/*_test.jsonl` (e.g. E-RAG-Balanced + MiniLM: $0.3025 → **$0.5542**/1k). The cost-tier figures in §F were updated to the same rates. A "Live Calls/Q" column (mean `llm_calls − cache_hits`) was added to both CSVs, and a cache-sharing disclosure was added in §F. No EM, F1, recall, or call-count value was changed.
+
 ---
 
 ## Heading A: Executive Summary & Full $3 \times 4$ Matrix
 
 ### Quantitative Benchmark Matrix ($N = 400$)
 
-The table below compiles the empirical performance across all 12 experimental conditions on the frozen HotpotQA Test-400 benchmark. All conditions share identical generator configurations (`meta-llama/llama-3.3-70b-versatile` via Groq API), reader prompts, evaluation normalizers, and distractor candidate sets.
+The table below compiles the empirical performance across all 12 experimental conditions on the frozen HotpotQA Test-400 benchmark. All conditions share identical generator configurations (`openai/gpt-oss-20b` via Groq API), reader prompts, evaluation normalizers, and distractor candidate sets.
 
 | Paradigm | Retriever Architecture | Exact Match (EM) | Token F1 | Gold Para Recall | All-Gold Rate | Mean Docs | Coverage | Selective EM | ECE | Brier Score | AUROC | Mean Calls | Mean Tokens | Cost / 1k ($) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Standard RAG** | BM25 (Sparse) | 0.4025 | 0.5461 | 0.7425 | 0.5200 | 3.00 | 0.7550 | 0.5331 | 0.5975 | 0.5975 | 0.5000 | 1.00 | 566.5 | 0.0345 |
-| **Standard RAG** | MiniLM (Dense 384d) | 0.4050 | 0.5384 | 0.7438 | 0.5300 | 3.00 | 0.7750 | 0.5226 | 0.5950 | 0.5950 | 0.5000 | 1.00 | 539.0 | 0.0330 |
-| **Standard RAG** | E5-base-v2 (Dense 768d) | 0.4400 | 0.5966 | 0.8313 | 0.6875 | 3.00 | 0.8425 | 0.5223 | 0.5600 | 0.5600 | 0.5000 | 1.00 | 535.2 | 0.0327 |
-| **Standard RAG** | BGE-base-en-v1.5 (Dense 768d) | 0.4525 | 0.5935 | 0.8438 | 0.7075 | 3.00 | 0.8450 | 0.5355 | 0.5475 | 0.5475 | 0.5000 | 1.00 | 537.1 | 0.0328 |
-| **IRCoT-Controlled** | BM25 (Sparse) | 0.4100 | 0.5552 | 0.7950 | 0.6150 | 3.47 | 0.7725 | 0.5307 | 0.5900 | 0.5900 | 0.5000 | 2.59 | 1744.1 | 0.1062 |
-| **IRCoT-Controlled** | MiniLM (Dense 384d) | 0.4250 | 0.5581 | 0.7825 | 0.6075 | 3.29 | 0.7850 | 0.5414 | 0.5750 | 0.5750 | 0.5000 | 2.51 | 1522.5 | 0.0932 |
-| **IRCoT-Controlled** | E5-base-v2 (Dense 768d) | 0.4575 | 0.6059 | 0.8575 | 0.7400 | 3.32 | 0.8500 | 0.5382 | 0.5425 | 0.5425 | 0.5000 | 2.57 | 1574.5 | 0.0961 |
-| **IRCoT-Controlled** | BGE-base-en-v1.5 (Dense 768d) | 0.4650 | 0.6060 | 0.8650 | 0.7475 | 3.31 | 0.8525 | 0.5455 | 0.5350 | 0.5350 | 0.5000 | 2.55 | 1558.0 | 0.0952 |
-| **E-RAG-Balanced** | BM25 (Sparse) | 0.4450 | 0.5813 | 0.9287 | 0.8650 | 4.78 | 0.7550 | 0.5894 | 0.3914 | 0.2861 | 0.7290 | 8.95 | 5520.8 | 0.3383 |
-| **E-RAG-Balanced** | MiniLM (Dense 384d) | 0.4475 | 0.5709 | 0.9062 | 0.8275 | 4.42 | 0.7375 | 0.6068 | 0.3851 | 0.2834 | 0.7331 | 8.56 | 4915.5 | 0.3025 |
-| **E-RAG-Balanced** | E5-base-v2 (Dense 768d) | 0.4900 | 0.6167 | 0.9363 | 0.8825 | 4.25 | 0.7850 | 0.6242 | 0.3810 | 0.2814 | 0.6976 | 8.12 | 4525.9 | 0.2783 |
-| **E-RAG-Balanced** | BGE-base-en-v1.5 (Dense 768d) | 0.4800 | 0.6067 | 0.9463 | 0.9000 | 4.25 | 0.7800 | 0.6154 | 0.3887 | 0.2871 | 0.6793 | 8.19 | 4524.4 | 0.2784 |
+| **Standard RAG** | BM25 (Sparse) | 0.4025 | 0.5461 | 0.7425 | 0.5200 | 3.00 | 0.7550 | 0.5331 | 0.5975 | 0.5975 | 0.5000 | 1.00 | 566.5 | 0.0619 |
+| **Standard RAG** | MiniLM (Dense 384d) | 0.4050 | 0.5384 | 0.7438 | 0.5300 | 3.00 | 0.7750 | 0.5226 | 0.5950 | 0.5950 | 0.5000 | 1.00 | 539.0 | 0.0598 |
+| **Standard RAG** | E5-base-v2 (Dense 768d) | 0.4400 | 0.5966 | 0.8313 | 0.6875 | 3.00 | 0.8425 | 0.5223 | 0.5600 | 0.5600 | 0.5000 | 1.00 | 535.2 | 0.0589 |
+| **Standard RAG** | BGE-base-en-v1.5 (Dense 768d) | 0.4525 | 0.5935 | 0.8438 | 0.7075 | 3.00 | 0.8450 | 0.5355 | 0.5475 | 0.5475 | 0.5000 | 1.00 | 537.1 | 0.0583 |
+| **IRCoT-Controlled** | BM25 (Sparse) | 0.4100 | 0.5552 | 0.7950 | 0.6150 | 3.47 | 0.7725 | 0.5307 | 0.5900 | 0.5900 | 0.5000 | 2.59 | 1744.1 | 0.1908 |
+| **IRCoT-Controlled** | MiniLM (Dense 384d) | 0.4250 | 0.5581 | 0.7825 | 0.6075 | 3.29 | 0.7850 | 0.5414 | 0.5750 | 0.5750 | 0.5000 | 2.51 | 1522.5 | 0.1692 |
+| **IRCoT-Controlled** | E5-base-v2 (Dense 768d) | 0.4575 | 0.6059 | 0.8575 | 0.7400 | 3.32 | 0.8500 | 0.5382 | 0.5425 | 0.5425 | 0.5000 | 2.57 | 1574.5 | 0.1735 |
+| **IRCoT-Controlled** | BGE-base-en-v1.5 (Dense 768d) | 0.4650 | 0.6060 | 0.8650 | 0.7475 | 3.31 | 0.8525 | 0.5455 | 0.5350 | 0.5350 | 0.5000 | 2.55 | 1558.0 | 0.1689 |
+| **E-RAG-Balanced** | BM25 (Sparse) | 0.4450 | 0.5813 | 0.9287 | 0.8650 | 4.78 | 0.7550 | 0.5894 | 0.3914 | 0.2861 | 0.7290 | 8.95 | 5520.8 | 0.6151 |
+| **E-RAG-Balanced** | MiniLM (Dense 384d) | 0.4475 | 0.5709 | 0.9062 | 0.8275 | 4.42 | 0.7375 | 0.6068 | 0.3851 | 0.2834 | 0.7331 | 8.56 | 4915.5 | 0.5542 |
+| **E-RAG-Balanced** | E5-base-v2 (Dense 768d) | 0.4900 | 0.6167 | 0.9363 | 0.8825 | 4.25 | 0.7850 | 0.6242 | 0.3810 | 0.2814 | 0.6976 | 8.12 | 4525.9 | 0.5090 |
+| **E-RAG-Balanced** | BGE-base-en-v1.5 (Dense 768d) | 0.4800 | 0.6067 | 0.9463 | 0.9000 | 4.25 | 0.7800 | 0.6154 | 0.3887 | 0.2871 | 0.6793 | 8.19 | 4524.4 | 0.5096 |
 
 ### Core Quantitative Takeaways
 
@@ -166,23 +168,27 @@ A critical contribution of the E-RAG framework is delivering trustworthy, well-c
 Evaluating multi-hop architectures requires examining the trade-off frontier between Accuracy (EM), Gold Paragraph Recall, and Inference Cost ($/1k questions).
 
 ### Cost-Accuracy Frontier
-- **Low-Cost Tier ($0.03 - $0.04 / 1k):** Standard RAG across all retrievers executes exactly 1 LLM call (~535–566 tokens) per question. While cheap, its accuracy is strictly capped at 40.25%–45.25% EM due to lack of iterative bridge retrieval.
-- **Mid-Cost Tier ($0.09 - $0.11 / 1k):** IRCoT introduces 2.5–2.6 LLM calls and ~1500–1700 tokens per question. However, due to distractor ingestion, each additional dollar spent yields diminishing accuracy returns (+0.75 pp on BM25, +1.25 pp on BGE).
-- **High-Fidelity Epistemic Tier ($0.27 - $0.34 / 1k):** E-RAG-Balanced uses ~8.1–8.9 LLM calls (utilizing fast Groq inference) and ~4500–5500 tokens per question. Crucially, on modern 768d dense models (E5), E-RAG's higher retrieval quality translates to fewer required probe searches and lower token counts (4,525 tokens vs 5,520 tokens on BM25), dropping the cost per 1k from $0.34 to **$0.28**.
+- **Low-Cost Tier ($0.058 - $0.062 / 1k):** Standard RAG across all retrievers executes exactly 1 LLM call (~535–566 tokens) per question. While cheap, its accuracy is strictly capped at 40.25%–45.25% EM due to lack of iterative bridge retrieval.
+- **Mid-Cost Tier ($0.17 - $0.19 / 1k):** IRCoT introduces 2.5–2.6 LLM calls and ~1500–1700 tokens per question. However, due to distractor ingestion, each additional dollar spent yields diminishing accuracy returns (+0.75 pp on BM25, +1.25 pp on BGE).
+- **High-Fidelity Epistemic Tier ($0.51 - $0.62 / 1k):** E-RAG-Balanced uses ~8.1–8.9 LLM calls (utilizing fast Groq inference) and ~4500–5500 tokens per question. Crucially, on modern 768d dense models (E5), E-RAG's higher retrieval quality translates to fewer required probe searches and lower token counts (4,525 tokens vs 5,520 tokens on BM25), dropping the cost per 1k from $0.62 to **$0.51**.
 
 ```
 Accuracy (Exact Match %)
-  50 |                                              [E-RAG + E5] (49.0%, $0.28)
+  50 |                                              [E-RAG + E5] (49.0%, $0.51)
      |
-  45 |               [Std + BGE]     [IRCoT + BGE]  [E-RAG + MiniLM] (44.8%, $0.30)
-     |               [Std + E5]      [IRCoT + E5]   [E-RAG + BM25] (44.5%, $0.34)
+  45 |               [Std + BGE]     [IRCoT + BGE]  [E-RAG + MiniLM] (44.8%, $0.55)
+     |               [Std + E5]      [IRCoT + E5]   [E-RAG + BM25] (44.5%, $0.62)
   40 | [Std + BM25]  [Std + MiniLM]  [IRCoT + BM25]
      |__________________________________________________________
-     0              0.10            0.20            0.30        0.40
+     0              0.20            0.40            0.60
                             Cost / 1k USD ($)
 ```
 
 E-RAG-Balanced defines the upper Pareto frontier: whenever answer correctness and verification guarantees are paramount, E-RAG achieves the highest EM (49.00%) and highest Selective EM (62.42%) in the benchmark.
+
+### Cache sharing: live vs cached calls
+
+All 12 Test-400 conditions share one LLM cache (namespace `test_v1`), so they are not independent measurements: Standard RAG's answers are E-RAG's hop-0 drafts replayed 400/400 on test, and most Test-400 "LLM calls" are cache replays rather than live calls. Recomputed live calls per question (mean `llm_calls − cache_hits` over `results/enriched/*_test.jsonl`; full per-cell values in `four_retriever_benchmark.csv`, column "Live Calls/Q"): E-RAG-Balanced + MiniLM 0.29 live of 8.56 total (338/400 rows fully cached); E-RAG-Cost + MiniLM 0.30 live of 3.41 (284/400 fully cached). Cost figures in this report are therefore what a run *would* cost uncached, not what was spent. The TrueAdaptive runs are unaffected: all calls live (4.91/4.91 on MiniLM Dev-100, 4.58/4.58 on BM25 Dev-100) under fresh namespaces. See `docs/audit-cache-dataset-integrity.md` (H2).
 
 ---
 
@@ -211,7 +217,7 @@ All benchmark runs are 100% deterministic, logged with exact prompt templates, r
 - **Sentence-Transformers:** `sentence-transformers 3.4.1`
 - **FAISS:** `faiss-cpu 1.10.0`
 - **BM25 Engine:** `rank-bm25 0.2.2` (BM25Plus with $k_1=1.5, b=0.75, \delta=1.0$)
-- **LLM Generator:** `meta-llama/llama-3.3-70b-versatile` via Groq Cloud API
+- **LLM Generator:** `openai/gpt-oss-20b` via Groq Cloud API
 - **NLI Verifier:** `cross-encoder/nli-deberta-v3-base` (local GPU inference, batch size 32)
 - **Primary Git Commit:** Master branch HEAD
 
@@ -228,7 +234,7 @@ All benchmark runs are 100% deterministic, logged with exact prompt templates, r
 1. **Distractor Setting Constraints:**
    Our evaluation operates on the official HotpotQA 10-paragraph distractor pool per question (2 gold paragraphs + 8 adversarial distractors). While this isolates multi-hop reasoning from open-domain index sharding artifacts, open-domain retrieval across 5.23M Wikipedia passages may exhibit different signal-to-noise ratios.
 2. **LLM Generator Dependency:**
-   All systems were benchmarked with `llama-3.3-70b-versatile`. Smaller generators (e.g. 8B parameter models) may exhibit higher sensitivity to distractor ingestion, which would further widen the gap between unverified IRCoT and verified E-RAG.
+   All systems were benchmarked with `openai/gpt-oss-20b` (a 20B-parameter model). Smaller generators (e.g. 8B parameter models) may exhibit higher sensitivity to distractor ingestion, which would further widen the gap between unverified IRCoT and verified E-RAG.
 3. **API Rate Caching:**
    Identical LLM queries are cached locally in `results/cache.sqlite` to ensure prompt-level reproducibility and mitigate rate limit throttling. While this guarantees exact determinism, real-world deployments without semantic caching would incur full round-trip network latencies.
 
