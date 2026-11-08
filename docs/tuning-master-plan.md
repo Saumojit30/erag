@@ -657,6 +657,7 @@ TrueAdaptive v1 and for steps 1–2.
 | 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
 | 6 | Paper venue | User, after results exist | Open — Springer was the forwarded prompt's suggestion, not a decision |
 | 7 | Whether the closed-book gate (v2) is ever built | Only if a later diagnosis shows retrieval is the bottleneck; the current analysis says it is not | Deferred |
+| 8 | FlashRAG + other unsupplied inspiration papers: supply them, or confirm out of scope | User | Open — related work (§6) cannot be closed without them |
 
 ## 10. Risks, known gaps, and findings log
 
