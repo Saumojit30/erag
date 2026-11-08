@@ -3,4 +3,4 @@ Cache SQLite Entries,"26,488 completions"
 Cache Key Digest,"SHA-256 over {v, ns, model, messages, temp, max_tokens, reasoning_effort, sample_idx} (v=2 since 2026-11-09, audit M3)"
 Warm Cache Latency / Hit,< 0.5 ms
 API Network Round-trip Avoided,100.0% on identical queries
-NLI Memoization Store,"results/nli_memo.pkl (12,996 pairs memoized)"
+NLI Memoization Store,"results/nli_memo.pkl (26,701 pairs memoized)"
