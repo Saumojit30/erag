@@ -68,6 +68,20 @@ def git_commit() -> str:
         return "untracked"
 
 
+def git_origin_url() -> str:
+    """Return the origin remote URL, for the MLflow repoURL tag."""
+    try:
+        res = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return res.stdout.strip()
+    except Exception:
+        return "unknown"
+
+
 def dispatch(
     system: str,
     item: Dict[str, Any],
@@ -205,6 +219,12 @@ def main():
             "retrieval_setting": cfg["retrieval"]["setting"],
             "retriever": retriever_name,
         })
+        # Audit L4: MLflow auto-detects the repo URL as the FIRST remote in
+        # .git/config, which here is the fetch-only upstream
+        # (ManojAdapakala/ERag) — every run so far recorded that URL. Set it
+        # explicitly from the origin remote (Saumojit30/erag). Verified:
+        # set_tag on this key overrides the auto-detected value.
+        mlflow.set_tag("mlflow.source.git.repoURL", git_origin_url())
 
         with open(out_path, "a", encoding="utf-8") as f:
             for item in tqdm(items, desc=f"{system}:{split}"):
