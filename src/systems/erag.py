@@ -3,7 +3,7 @@
 from typing import Any, Dict, List, Optional
 from src.epistemic.belief_graph import BeliefGraph
 from src.epistemic.claims import extract_claims
-from src.epistemic.confidence import self_consistency
+from src.epistemic.confidence import self_consistency, sequential_consistency
 from src.eval.metrics import normalize_answer
 from src.llm.client import Tracker
 from src.llm.prompts import answer_messages
@@ -27,6 +27,43 @@ def propose_queries(llm: Any, claim_text: str, tracker: Tracker, n: int = 3) -> 
         if l.strip(" -*0123456789.").strip()
     ]
     return lines[:n]
+
+
+def _run_sc(
+    llm: Any,
+    q: str,
+    pool: List[Dict[str, Any]],
+    draft: str,
+    tracker: Tracker,
+    cfg: Dict[str, Any],
+    k: int,
+) -> Dict[str, Any]:
+    """Run self-consistency in the configured mode (TrueAdaptive v1).
+
+    ``erag.sc_mode: sequential`` samples one at a time with entropy
+    stopping (cap M=3); anything else uses the fixed reference sampler.
+    Both return the same dict shape, so callers are unaffected.
+    """
+    e = cfg.get("erag", {})
+    if e.get("sc_mode", "fixed") == "sequential":
+        return sequential_consistency(
+            llm,
+            q,
+            pool,
+            draft,
+            tracker,
+            k=min(int(k), 3),
+            temperature=e.get("sc_temperature", 0.7),
+        )
+    return self_consistency(
+        llm,
+        q,
+        pool,
+        draft,
+        tracker,
+        k=int(k),
+        temperature=e.get("sc_temperature", 0.7),
+    )
 
 
 def conf_value(sc: Dict[str, Any], cfg: Dict[str, Any]) -> float:
@@ -143,15 +180,7 @@ def run_erag(
             if "no_conf" in ablate:
                 c0 = 1.0
             else:
-                sc = self_consistency(
-                    llm,
-                    q,
-                    pool,
-                    draft,
-                    tracker,
-                    k=e.get("sc_samples", 5),
-                    temperature=e.get("sc_temperature", 0.7),
-                )
+                sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
                 c0 = conf_value(sc, cfg)
 
         # Step 4, 5, 6, 7: Claim decomposition, NLI verification, belief graph update & propagation
@@ -216,15 +245,7 @@ def run_erag(
             final_conf = c0
         else:
             k_post = e.get("sc_samples_post_hop") or e.get("sc_samples", 5)
-            sc = self_consistency(
-                llm,
-                q,
-                pool,
-                draft,
-                tracker,
-                k=k_post,
-                temperature=e.get("sc_temperature", 0.7),
-            )
+            sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=k_post)
             final_conf = conf_value(sc, cfg)
         graph = build_graph(claims, pool + mem_passages, nli, final_conf, cfg, ablate)
 
