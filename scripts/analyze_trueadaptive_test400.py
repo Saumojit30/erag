@@ -1,7 +1,13 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--ta-dev PATH]
+
+--reread prints section 10, the claim-grounded re-read summary (tuning step 1):
+trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
+file and the TA test file. --ta-dev PATH points the dev analysis at a different
+file (the tuned dev A/B output). Without flags the script behaves exactly as
+before; on a v1 file (no `grounded_reread` field) section 10 reports 0 triggers.
 
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
@@ -18,6 +24,7 @@ Method notes (read before citing any number here):
   the TEST sweep is a diagnostic and must never be used to pick a threshold.
 """
 
+import argparse
 import json
 import re
 import sys
@@ -58,10 +65,52 @@ def section(title):
     print(f"\n=== {title} ===")
 
 
+def reread_section(label, rows):
+    """Section 10 (tuning step 1): what the claim-grounded re-read did.
+
+    Triggered rows carry grounded_reread=True. The original (pre-re-read)
+    draft is trace[-1]["answer"] — the loop's final draft, recorded there
+    during the hop; the post-re-read draft is the record's "draft" field.
+    Comparing their repo-EM isolates the re-read from the abstention rule,
+    which can still withhold a fixed answer (reported separately below).
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    trig = [r for r in ok if r.get("grounded_reread")]
+    section(f"10. Claim-grounded re-read ({label})")
+    if not trig:
+        print(f"no re-read rows (0/{len(ok)} triggered) — v1 file or flag off")
+        return
+    reasons = {}
+    for r in trig:
+        reasons[r.get("reread_trigger")] = reasons.get(r.get("reread_trigger"), 0) + 1
+    print(f"triggered: {len(trig)}/{len(ok)} ({len(trig) / len(ok):.1%}) by reason: {reasons}")
+    print(f"  re-read answer EM (repo exact_match on reread_answer): "
+          f"{mean(1.0 if exact_match(r.get('reread_answer', ''), r['gold']) else 0.0 for r in trig):.4f}")
+    orig_em = [1.0 if exact_match((r.get("trace") or [{}])[-1].get("answer", ""), r["gold"]) else 0.0 for r in trig]
+    final_em = [1.0 if exact_match(r.get("draft", ""), r["gold"]) else 0.0 for r in trig]
+    fixed = sum(1 for o, f in zip(orig_em, final_em) if o == 0 and f == 1)
+    broke = sum(1 for o, f in zip(orig_em, final_em) if o == 1 and f == 0)
+    print(f"  draft EM on triggered rows: original {mean(orig_em):.4f} -> after re-read {mean(final_em):.4f}; "
+          f"fixed {fixed}, broke {broke} (net {fixed - broke:+d})")
+    fixed_rows = [r for r, o, f in zip(trig, orig_em, final_em) if o == 0 and f == 1]
+    print(f"  of the {fixed} fixed rows, {sum(1 for r in fixed_rows if r['em'] == 1)} ended correct "
+          f"in the final answer (em==1); {sum(1 for r in fixed_rows if r.get('abstained'))} "
+          f"were withheld by abstention")
+    print(f"  mean calls on triggered rows: {mean(r['llm_calls'] for r in trig):.2f} "
+          f"(+1 each vs the same question without the re-read)")
+
+
 def main():
+    ap = argparse.ArgumentParser(description="TrueAdaptive error analysis")
+    ap.add_argument("--reread", action="store_true",
+                    help="print section 10, the claim-grounded re-read summary")
+    ap.add_argument("--ta-dev", default=DEV,
+                    help="dev results file (default: %(default)s)")
+    args = ap.parse_args()
+
     ta = load(REPO)
     ir = load(IRCO)
-    dev = load(DEV)
+    dev = load(args.ta_dev)
     ir_by_id = {r["id"]: r for r in ir}
     print(f"TA Test-400 N={len(ta)}  IRCoT N={len(ir)}  TA Dev-100 N={len(dev)}")
 
@@ -171,6 +220,10 @@ def main():
     for r in raw:
         if r.get("failed", False):
             print(f"  id={r['id']} error={str(r.get('error'))[:200]}")
+
+    if args.reread:
+        reread_section("TA dev", dev)
+        reread_section("TA test", ta)
 
 
 if __name__ == "__main__":

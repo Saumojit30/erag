@@ -22,7 +22,7 @@ the way", 2026-11-09).
   substring of the claim text) → no extra call; draft disagreeing → one extra
   call; re-read returning "unknown" → original draft stands; flag off →
   byte-identical behavior to v1 (no extra call, no new record fields set).
-- [ ] A.2 Extend `scripts/analyze_trueadaptive_test400.py` with a `--reread`
+- [x] A.2 Extend `scripts/analyze_trueadaptive_test400.py` with a `--reread`
   summary: trigger rate, re-read EM, rows fixed/broken by the re-read. Verify
   it reproduces the v1 dev buckets when run on the v1 dev file (no re-reads).
 
