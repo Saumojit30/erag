@@ -202,9 +202,20 @@ def main():
     eval_uninhibited = evaluate_pair(no_abs_preds, ircot_preds, golds, name_a="E-RAG Uninhibited (theta=0.00)", name_b="IRCoT")
 
     # 3. Save head-to-head metrics CSV
+    # Audit H3: Matched/Uninhibited are post-hoc re-thresholdings of the
+    # single Active run, not separate systems. The Notes column says so on
+    # every regenerated copy, so the disclosure cannot be lost by re-running
+    # this script. The valid significance claim for E-RAG vs IRCoT rests on
+    # the fresh frozen Test-400 BM25 run (TrueAdaptive v1 EM 0.4750 vs IRCoT
+    # 0.4200, McNemar p=0.0043, commit d69490f), not on these rows.
+    h2h_notes = {
+        "E-RAG Active (theta=0.40)": "Frozen system (theta_abs=0.40 as configured). Not significant (McNemar p=0.2145).",
+        "E-RAG Matched (theta=0.25)": "POST-HOC re-thresholding of the single Active run (theta_abs=0.25 selected on test predictions); NOT a separate system. Do not cite as independent significance evidence.",
+        "E-RAG Uninhibited (theta=0.00)": "POST-HOC re-thresholding of the single Active run (theta_abs=0.00 selected on test predictions); NOT a separate system. Do not cite as independent significance evidence.",
+    }
     h2h_csv_path = os.path.join(out_dir_data, "head_to_head_comparisons.csv")
     with open(h2h_csv_path, "w", encoding="utf-8") as f:
-        f.write("System Comparison,Coverage A,Coverage B,EM A,EM B,Delta EM,EM 95% CI Low,EM 95% CI High,p-value McNemar,F1 A,F1 B,Delta F1,F1 95% CI Low,F1 95% CI High,p-value Wilcoxon,F1 Wins,F1 Losses,F1 Ties,p-value Binomial\n")
+        f.write("System Comparison,Coverage A,Coverage B,EM A,EM B,Delta EM,EM 95% CI Low,EM 95% CI High,p-value McNemar,F1 A,F1 B,Delta F1,F1 95% CI Low,F1 95% CI High,p-value Wilcoxon,F1 Wins,F1 Losses,F1 Ties,p-value Binomial,Notes\n")
         for ev in [eval_active, eval_matched, eval_uninhibited]:
             f.write(
                 f"{ev['name_a']} vs {ev['name_b']},"
@@ -216,7 +227,8 @@ def main():
                 f"{ev['f1_outcomes'][ev['name_a'] + '_wins']},"
                 f"{ev['f1_outcomes'][ev['name_b'] + '_wins']},"
                 f"{ev['f1_outcomes']['ties']},"
-                f"{ev['p_f1_binom']:.6f}\n"
+                f"{ev['p_f1_binom']:.6f},"
+                f"{h2h_notes[ev['name_a']]}\n"
             )
     print(f"[+] Saved head-to-head comparisons to: {h2h_csv_path}")
 
@@ -300,6 +312,7 @@ def main():
         f.write("# Scientific Comparative Report: E-RAG vs. IRCoT Baseline\n\n")
         f.write("**Benchmark Dataset:** HotpotQA Test Manifest ($N = 400$)\n")
         f.write("**Date:** 2026-11-07\n\n")
+        f.write("> **Disclosure (audit H3, added 2026-11-09):** The Matched (theta_abs = 0.25) and Uninhibited (theta_abs = 0.00) rows below are **post-hoc re-thresholdings of the single Active run** — theta_abs was swept over these same Test-400 predictions — not separate systems, and their p-values must not be cited as independent significance evidence. The frozen Active system vs IRCoT is **not significant** (McNemar p=0.2145). The valid significance claim for E-RAG vs IRCoT now rests on the fresh frozen Test-400 BM25 run: TrueAdaptive v1 EM 0.4750 vs IRCoT 0.4200, McNemar p=0.0043 (b=38, c=16, N=400), commit d69490f.\n\n")
         f.write("---\n\n")
         f.write("## 1. Executive Summary\n\n")
         f.write("This study provides empirical, falsifiable resolution to the comparative performance of **E-RAG** (System C) versus the **IRCoT-inspired** baseline (System B).\n\n")

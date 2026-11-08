@@ -3,6 +3,8 @@
 **Benchmark Dataset:** HotpotQA Test Manifest ($N = 400$)
 **Date:** 2026-11-07
 
+> **Disclosure (audit H3, added 2026-11-09):** The Matched ($\theta_{\text{abs}} = 0.25$) and Uninhibited ($\theta_{\text{abs}} = 0.00$) rows below are **post-hoc re-thresholdings of the single Active run** — $\theta_{\text{abs}}$ was swept over these same Test-400 predictions — not separate systems, and their p-values must not be cited as independent significance evidence. The frozen Active system vs IRCoT is **not significant** (McNemar $p = 0.2145$). The valid significance claim for E-RAG vs IRCoT now rests on the fresh frozen Test-400 BM25 run: TrueAdaptive v1 EM $0.4750$ vs IRCoT $0.4200$, McNemar $p = 0.0043$ (b $= 38$, c $= 16$, N $= 400$), commit `d69490f` (`results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`, `results/ircot_test_bm25.jsonl`).
+
 ---
 
 ## 1. Executive Summary
