@@ -166,6 +166,12 @@ def run_erag(
         mem_passages, mem_events = memory.read(q, pool, nli, cfg)
 
     hop, c0, trace, seen_contra = 0, None, [], False
+    # TrueAdaptive v1: c0_source records HOW c0 was obtained, because the
+    # gated Fast Path changes its meaning (see below). "sc" = from
+    # self-consistency; "fast_path_min_eff" = SC skipped, c0 = graph min_eff;
+    # "no_conf" = ablation (c0 = 1.0).
+    c0_source = None
+    sc_skipped_fast_path = False
     initial_draft = None
     prev_claims = None
 
@@ -175,13 +181,32 @@ def run_erag(
         if hop == 0:
             initial_draft = draft
 
-        # Step 3: Self-consistency confidence estimation
+        # Step 3: Self-consistency confidence estimation.
+        # TrueAdaptive v1 gate (erag.gate_sc_behind_fast_path, active mode,
+        # hop 0 only): SC is DEFERRED until after the Fast-Path check, so a
+        # question whose claims are already supported costs draft + claims
+        # only. The provisional graph below is built with c0 = 1.0 (the
+        # same prior the no_conf ablation uses), so its min_eff reflects
+        # evidence strength alone; if SC runs, the graph is rebuilt with
+        # the real c0 and the provisional graph is never used for retrieval.
+        gate_sc = (
+            e.get("gate_sc_behind_fast_path", False)
+            and active
+            and hop == 0
+            and c0 is None
+            and "no_conf" not in ablate
+        )
+        deferred_sc = False
         if c0 is None:
             if "no_conf" in ablate:
                 c0 = 1.0
+                c0_source = "no_conf"
+            elif gate_sc:
+                deferred_sc = True
             else:
                 sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
                 c0 = conf_value(sc, cfg)
+                c0_source = "sc"
 
         # Step 4, 5, 6, 7: Claim decomposition, NLI verification, belief graph update & propagation
         if claim_strategy == "single_atomic":
@@ -197,7 +222,9 @@ def run_erag(
             claims = extract_claims(llm, q, draft, pool, tracker, max_claims=e.get("max_claims", 5))
             prev_claims = claims
 
-        graph = build_graph(claims, pool + mem_passages, nli, c0, cfg, ablate)
+        # c0 is None only when SC was deferred by the Fast-Path gate; the
+        # provisional graph then uses the 1.0 prior (see Step 3).
+        graph = build_graph(claims, pool + mem_passages, nli, c0 if c0 is not None else 1.0, cfg, ablate)
         gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
         seen_contra |= any(c.status == "contradicted" for c in graph.claims)
 
@@ -210,7 +237,30 @@ def run_erag(
 
         # Check stopping criteria: observational mode, no_adaptive ablation, or max_hops exhausted
         if not active or "no_adaptive" in ablate or hop >= e.get("max_hops", 2):
+            if deferred_sc:
+                # SC was deferred and we are stopping without a Fast-Path
+                # check (e.g. max_hops == 0): resolve c0 the same way the
+                # Fast-Path check would, so c0 is never None on return.
+                c0 = graph.min_eff()
+                c0_source = "fast_path_min_eff"
+                sc_skipped_fast_path = True
             break
+
+        # Step 8 & 9: resolve a deferred SC call, then gap selection / Fast Path.
+        if deferred_sc:
+            if not gaps and graph.min_eff() >= e.get("theta_fast", 0.8):
+                # Fast Path: SC is skipped entirely. c0 falls back to the
+                # graph's own min_eff — recorded explicitly in the result.
+                c0 = graph.min_eff()
+                c0_source = "fast_path_min_eff"
+                sc_skipped_fast_path = True
+                break
+            sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
+            c0 = conf_value(sc, cfg)
+            c0_source = "sc"
+            graph = build_graph(claims, pool + mem_passages, nli, c0, cfg, ablate)
+            gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
+            trace[-1]["graph"] = graph.to_json()
 
         # Step 8 & 9: Gap selection and No-Gap Fast Path
         if "no_conf" in ablate:
@@ -265,6 +315,11 @@ def run_erag(
         "would_abstain": bool(abstain),
         "answer_conf": float(ans.eff),
         "c0": float(c0),
+        # TrueAdaptive v1: how c0 was obtained, and whether the Fast-Path
+        # gate skipped SC. c0_source is "sc", "fast_path_min_eff"
+        # (c0 = graph min_eff, SC skipped), or "no_conf".
+        "c0_source": c0_source,
+        "sc_skipped_fast_path": bool(sc_skipped_fast_path),
         "pool_titles": [p["title"] for p in pool],
         "hops": hop,
         "trace": trace,

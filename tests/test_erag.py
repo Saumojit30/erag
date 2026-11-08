@@ -133,15 +133,21 @@ def _supported_nli():
 
 
 def _unresolved_then_supported_nli():
-    """First verify() is unresolved (forces a hop); later ones are supported."""
-    nli = MagicMock()
-    calls = {"n": 0}
+    """Unresolved while the pool has only the Paris passage (evidence
+    missing, forces a hop); supported once retrieval has added Lyon.
 
-    def _verify(*args, **kwargs):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return {"status": "unresolved", "conflict": False, "sup": [], "con": []}
-        return {"status": "supported", "conflict": False, "sup": [("Paris", 0.9)], "con": []}
+    Deliberately a function of the pool, not of call count: real NLI is
+    deterministic for a given (claim, pool), so the provisional graph and
+    a rebuilt graph on the same pool must agree — a call-count mock would
+    make the rebuilt graph flip to supported on identical evidence.
+    """
+    nli = MagicMock()
+
+    def _verify(text, passages, **kwargs):
+        titles = [p.get("title") for p in (passages or [])]
+        if "Lyon" in titles:
+            return {"status": "supported", "conflict": False, "sup": [("Paris", 0.9)], "con": []}
+        return {"status": "unresolved", "conflict": False, "sup": [], "con": []}
 
     nli.verify.side_effect = _verify
     return nli
