@@ -36,7 +36,7 @@ The scope included:
 1. **RQ4.1 (Algorithmic Fidelity):** Does our implementation of IRCoT faithfully embody the core invariant algorithm of Trivedi et al. (ACL 2023)?  
    **Answer:** **Yes.** Our implementation preserves 100% of Tier 1 algorithmic mechanics: dynamic reasoning-retrieval alternation, intermediate CoT sentences as search queries, chronological non-duplicate context accumulation, max-step and answer-prefix termination criteria, and two-stage reader QA (`ircot_qa`).
 2. **RQ4.2 (Retriever Invariance):** Does E-RAG maintain its empirical superiority over Standard RAG and IRCoT when evaluated using sparse lexical BM25 retrieval rather than dense vector retrieval?  
-   **Answer:** **Yes.** Under BM25, E-RAG-Balanced achieves **$0.4450$ EM** and **$0.5813$ Macro F1**, outperforming IRCoT + BM25 ($0.4100$ EM, $0.5552$ F1) by **$+3.50\%$ EM** and **$+2.61\%$ F1**, while achieving an extraordinary **$92.88\%$ Gold Paragraph Recall** (vs $79.50\%$) and **$86.50\%$ All-Gold Retrieval Rate** (vs $61.50\%$).
+   **Answer:** **Yes.** Under BM25, E-RAG-Balanced achieves **$0.4450$ EM** and **$0.5813$ Macro F1**, outperforming IRCoT + BM25 ($0.4100$ EM, $0.5552$ F1) by **$+3.50$ pp EM** and **$+2.61$ pp F1**, while achieving an extraordinary **$92.88\%$ Gold Paragraph Recall** (vs $79.50\%$) and **$86.50\%$ All-Gold Retrieval Rate** (vs $61.50\%$).
 3. **RQ4.3 (Sparse vs Dense Dynamics):** How does sparse lexical matching compare to dense semantic embedding for multi-hop iterative retrieval?  
    **Answer:** BM25 and MiniLM achieve nearly identical single-hop performance (Standard RAG: $0.4025$ vs $0.4050$ EM). For multi-hop systems, BM25 slightly outperforms MiniLM in all-gold retrieval ($86.50\%$ vs $82.75\%$ in E-RAG), proving that E-RAG's Expected Information Gain (EIG) query selection effectively bridges lexical term gaps across hops.
 
@@ -80,25 +80,25 @@ flowchart TD
             STD_B["Standard RAG + BM25<br/>EM: 40.25% | Recall: 74.25%"]
             IRCOT_B["IRCoT-Controlled + BM25<br/>EM: 41.00% | Recall: 79.50%"]
             ERAG_B["E-RAG-Balanced + BM25<br/>EM: 44.50% | Recall: 92.88%"]
-            STD_B -->|Iterative CoT +0.75% EM| IRCOT_B
-            IRCOT_B -->|Epistemic Graph +3.50% EM| ERAG_B
+            STD_B -->|Iterative CoT +0.75 pp EM| IRCOT_B
+            IRCOT_B -->|Epistemic Graph +3.50 pp EM| ERAG_B
         end
         subgraph Dense["Dense Semantic Retrieval (MiniLM)"]
             STD_D["Standard RAG + MiniLM<br/>EM: 40.50% | Recall: 74.38%"]
             IRCOT_D["IRCoT-Controlled + MiniLM<br/>EM: 42.50% | Recall: 78.25%"]
             ERAG_D["E-RAG-Balanced + MiniLM<br/>EM: 44.75% | Recall: 90.63%"]
-            STD_D -->|Iterative CoT +2.00% EM| IRCOT_D
-            IRCOT_D -->|Epistemic Graph +2.25% EM| ERAG_D
+            STD_D -->|Iterative CoT +2.00 pp EM| IRCOT_D
+            IRCOT_D -->|Epistemic Graph +2.25 pp EM| ERAG_D
         end
     end
 ```
 
 #### 1. E-RAG vs IRCoT Under BM25 (Faithful Baseline):
 - In the exact retrieval setting used by Trivedi et al. (BM25 lexical search), E-RAG-Balanced dramatically outperforms IRCoT:
-  - Exact Match: **$0.4450$ vs $0.4100$** (**$+3.50\%$ absolute gain**)
-  - Macro Token F1: **$0.5813$ vs $0.5552$** (**$+2.61\%$ absolute gain**)
-  - Gold Paragraph Recall: **$0.9288$ vs $0.7950$** (**$+13.38\%$ absolute gain**)
-  - All-Gold Retrieval Rate: **$0.8650$ vs $0.6150$** (**$+25.00\%$ absolute gain**)
+  - Exact Match: **$0.4450$ vs $0.4100$** (**$+3.50$ pp absolute gain**)
+  - Macro Token F1: **$0.5813$ vs $0.5552$** (**$+2.61$ pp absolute gain**)
+  - Gold Paragraph Recall: **$0.9288$ vs $0.7950$** (**$+13.38$ pp absolute gain**)
+  - All-Gold Retrieval Rate: **$0.8650$ vs $0.6150$** (**$+25.00$ pp absolute gain**)
 - This proves that IRCoT's primary failure mode—generating imprecise CoT search queries that fail to retrieve both multi-hop bridge documents—is substantially more pronounced under lexical BM25 matching, whereas E-RAG's targeted EIG queries identify the exact missing bridge entities.
 
 #### 2. Cross-Retriever Consistency:
@@ -111,7 +111,7 @@ flowchart TD
 ### F. Key Findings and Mathematical Insights
 
 1. **Lexical Retrieval Amplifies E-RAG's Advantage:**
-   When moving from dense embeddings to sparse BM25, IRCoT's Exact Match drops from $0.4250 \to 0.4100$ ($-1.50\%$), whereas E-RAG-Balanced remains stable ($0.4475 \to 0.4450$, $-0.25\%$). Because IRCoT passes free-form reasoning sentences as queries, BM25 matching is prone to term-frequency noise from filler words. In contrast, E-RAG extracts discrete atomic claims and constructs entity-focused queries, maximizing BM25 term overlap.
+   When moving from dense embeddings to sparse BM25, IRCoT's Exact Match drops from $0.4250 \to 0.4100$ ($-1.50$ pp), whereas E-RAG-Balanced remains stable ($0.4475 \to 0.4450$, $-0.25$ pp). Because IRCoT passes free-form reasoning sentences as queries, BM25 matching is prone to term-frequency noise from filler words. In contrast, E-RAG extracts discrete atomic claims and constructs entity-focused queries, maximizing BM25 term overlap.
 2. **Definitive Gold Recall Dominance:**
    Across both retrievers, E-RAG-Balanced achieves $>90\%$ gold paragraph recall ($90.63\%$ dense, $92.88\%$ sparse) and $>82\%$ all-gold retrieval ($82.75\%$ dense, $86.50\%$ sparse), compared to IRCoT's $\le 79.5\%$ recall and $\le 61.5\%$ all-gold rate.
 3. **Publication Positioning (Scientific Honesty):**

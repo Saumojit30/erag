@@ -123,7 +123,7 @@ Total                          181                    219              400
 - **Standard-Only Correct ($b$):** $23$
 - **Active-Only Correct ($c$):** $42$
 - **Both Incorrect ($d$):** $196$
-- **Net Accuracy Gain:** $(c - b) / 400 = (42 - 23) / 400 = +19 / 400 = \mathbf{+0.0475}$ ($\mathbf{+4.75\%}$).
+- **Net Accuracy Gain:** $(c - b) / 400 = (42 - 23) / 400 = +19 / 400 = \mathbf{+0.0475}$ ($\mathbf{+4.75}$ pp).
 
 ### 2. McNemar Exact Test
 - Discordant pairs: $b = 23, c = 42$ (total discordant $= 65$).
@@ -246,6 +246,6 @@ All tables and figures in `research/` have been regenerated and verified against
 **Justification:**
 1. All four primary answering systems (Closed-Book, Standard RAG, IRCoT, and Active E-RAG) have completed evaluation on all $400$ questions of Test-400 with zero malformed records and zero unhandled errors.
 2. Gate G1 (zero divergence in observational mode), Gate G2 (recovery from Phase 2 distractor collapse with recall $>90\%$), and Gate G3 (dev parameter freeze) are verified with full traceability.
-3. Active E-RAG demonstrates a verified, statistically significant Exact Match improvement over Standard RAG ($+4.75\%$, $p = 0.0248 < 0.05$), lifts gold paragraph recall to **$91.88\%$** (vs $74.38\%$), achieves an **$85.0\%$** all-gold retrieval rate, and improves selective accuracy on answered queries to **$61.56\%$**.
+3. Active E-RAG demonstrates a verified, statistically significant Exact Match improvement over Standard RAG ($+4.75$ pp, $p = 0.0248 < 0.05$), lifts gold paragraph recall to **$91.88\%$** (vs $74.38\%$), achieves an **$85.0\%$** all-gold retrieval rate, and improves selective accuracy on answered queries to **$61.56\%$**.
 4. The entire repository is clean, automated tests pass $100\%$ ($45/45$), and all raw predictions, caches, and manifests are preserved.
 

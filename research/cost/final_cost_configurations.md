@@ -20,6 +20,8 @@ flowchart TD
     end
 ```
 
+> **Note on the dollar figures above:** these are **Dev-100** costs, recomputed from `results/cost_opt/` (Reference $1.0136, Balanced $0.5755 per 1k questions). The Test-400 costs for the same configurations are $1.0079 (Reference) and $0.5542 (Balanced) per 1k (−45.0%), per `research/cost/operation_cost_test400.csv` — the two splits' figures must not be mixed.
+
 ---
 
 ## 2. Configuration Architectural Matrix
@@ -57,7 +59,7 @@ flowchart TD
 | **Mean Prompt Tokens / Question** | $8,142.0$ | **$1,732.1$** | **$4,561.4$** | **$-44.0\%$** |
 | **Mean Completion Tokens / Question**| $995.2$ | **$183.4$** | **$536.8$** | **$-46.1\%$** |
 | **Mean Total Tokens / Question** | $9,137.2$ | **$1,915.5$** | **$5,098.2$** | **$-44.2\%$** |
-| **Monetary Cost / 1,000 Questions** | \$1.0136 | **\$0.2106** | **\$0.5755** | **$-46.7\%$** (\$0.438 saved/1K Q) |
+| **Monetary Cost / 1,000 Questions** | \$1.0136 | **\$0.2106** | **\$0.5755** | **$-43.2\%$** (\$0.438 saved/1K Q) |
 
 ---
 
@@ -74,12 +76,13 @@ Accuracy (Exact Match)
   |       *
   +-------------------------------------------------------------> Computational Cost ($ / 1K Questions)
 ```
+(Costs in this diagram are Dev-100 costs; Test-400 costs are $1.0079 Reference / $0.5542 Balanced per 1k, −45.0% — see the note in §1.)
 
 ### Key Analytical Takeaways:
 1. **Configuration C (E-RAG-Balanced) strictly dominates Configuration A (Reference):**
    - It achieves a higher Exact Match ($0.5100$ vs $0.5000$) and higher Selective EM ($0.6711$ vs $0.6494$).
    - It achieves lower Brier calibration error ($0.2459$ vs $0.2497$).
-   - It slashes monetary expenditure by **$46.7\%$** (\$0.5755 vs \$1.0136 per 1,000 questions).
+   - It slashes monetary expenditure by **$43.2\%$** (\$0.5755 vs \$1.0136 per 1,000 questions).
    - This occurs because trimming self-consistency from $k=5$ to $k=3$ and gating post-hop resampling eliminates noisy borderline samples while retaining strong consensus on core entities.
 2. **Configuration B (E-RAG-Cost) defines the Lower Bound:**
    - For applications with extreme latency or budget restrictions, Configuration B reduces LLM calls by **$76.6\%$** ($3.44$ calls/Q) and cost by **$80.5\%$** (\$0.211/1K Q), approaching IRCoT's cost envelope (\$0.169/1K Q).

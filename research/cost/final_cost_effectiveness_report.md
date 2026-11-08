@@ -102,9 +102,9 @@ flowchart LR
 - **Computational Collapse:** Mean LLM calls drop from **$14.22 \to 8.56$** (**$-39.8\%$ call reduction**). Mean token consumption drops from **$9,081.6 \to 4,915.5$** (**$-45.9\%$ token reduction**). Monetary expenditure drops from **\$1.008 to \$0.554 per 1,000 queries** (**$-45.0\%$ cost savings**).
 
 #### 2. E-RAG-Balanced vs IRCoT Baseline:
-- **Accuracy Superiority:** Balanced outperforms IRCoT by **$+2.25\%$ EM** ($0.4475$ vs $0.4250$) and **$+1.28\%$ F1** ($0.5709$ vs $0.5581$).
-- **Massive Retrieval Superiority:** Balanced achieves **$90.63\%$ gold paragraph recall** vs IRCoT's $78.25\%$ (**$+12.38\%$ absolute recall advantage**).
-- **All-Gold Completeness:** In multi-hop questions requiring both supporting facts, Balanced retrieves all gold facts in **$82.75\%$** of questions vs IRCoT's $60.75\%$ (**$+22.00\%$ absolute improvement**).
+- **Accuracy Superiority:** Balanced outperforms IRCoT by **$+2.25$ pp EM** ($0.4475$ vs $0.4250$) and **$+1.28$ pp F1** ($0.5709$ vs $0.5581$).
+- **Massive Retrieval Superiority:** Balanced achieves **$90.63\%$ gold paragraph recall** vs IRCoT's $78.25\%$ (**$+12.38$ pp absolute recall advantage**).
+- **All-Gold Completeness:** In multi-hop questions requiring both supporting facts, Balanced retrieves all gold facts in **$82.75\%$** of questions vs IRCoT's $60.75\%$ (**$+22.00$ pp absolute improvement**).
 - **Cost Multiple Compression:** The cost ratio between E-RAG and IRCoT has been successfully compressed from $5.96\times$ down to **$3.28\times$** (\$0.554 vs \$0.169).
 
 ---
@@ -112,7 +112,7 @@ flowchart LR
 ### F. Key Findings and Mathematical Insights
 
 1. **Pareto Dominance Confirmed:**
-   Configuration C (E-RAG-Balanced) establishes a new Pareto-optimal frontier on Test-400. While the historical Reference baseline incurs an additional \$0.454 per 1,000 questions for a negligible $+0.50\%$ EM delta (statistically insignificant, $p=0.887$ under McNemar's test), E-RAG-Balanced delivers virtually identical epistemic performance at almost half the cost ($45.0\%$ savings).
+   Configuration C (E-RAG-Balanced) establishes a new Pareto-optimal frontier on Test-400. While the historical Reference baseline incurs an additional \$0.454 per 1,000 questions for a negligible $+0.50$ pp EM delta (statistically insignificant, $p=0.832$ under McNemar's exact test on the Test-400 paired comparison of Balanced vs Reference, discordant pairs 10 vs 12), E-RAG-Balanced delivers virtually identical epistemic performance at almost half the cost ($45.0\%$ savings).
 2. **Post-Hop Gating Efficiency:**
    On Test-400, in $41.5\%$ of multi-hop questions, retrieved follow-up evidence confirmed the draft answer without necessitating revision. Skipping unconditional post-hop resampling in these instances avoided $1,660$ redundant API calls across the test suite without a single regression in answer accuracy.
 3. **Calibrated Confidence vs Overconfidence:**
@@ -125,6 +125,7 @@ flowchart LR
 1. **Retriever Invariance:** These results were obtained using dense vector retrieval with `all-MiniLM-L6-v2`. Whether the Pareto frontier holds across BM25 lexical retrieval and alternative dense models (`bge-base-en-v1.5`, `e5-base-v2`) will be tested in Phase 5.
 2. **Corpus Scope:** The distractor setting ($10$ candidate paragraphs per question) was used. In Phase 7, cross-dataset multi-hop benchmarks (2WikiMultiHopQA, MuSiQue) will evaluate cross-domain robustness.
 3. **Local CPU Latency:** While API latency was drastically reduced, local NLI verification on CPU remains non-negligible ($1.37\text{s}$ wall latency), though pre-NLI filtering prevented it from becoming an operational bottleneck.
+4. **Shared cache — systems are not independent measurements:** All Test-400 systems ran under the single cache namespace `test_v1` and therefore share cached completions. Reported LLM-call counts include cache replays; live calls equal total calls minus cache hits (e.g. E-RAG-Balanced Test-400: 0.29 live of 8.56 mean calls/Q; E-RAG-Reference: 9.47 live of 14.22).
 
 ---
 
