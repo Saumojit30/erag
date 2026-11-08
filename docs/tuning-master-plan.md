@@ -1,0 +1,583 @@
+# ERag Adaptive — Master Plan
+
+**Scope:** the research track only — make TrueAdaptive ERag measurably better than
+IRCoT, prove it once on Test-400, then generalize to a new dataset, then write
+the paper. The production RAG track (customers, FastAPI, deployment) is a
+separate plan (`~/workspace/goals/erag-adaptive-rag-project/files/production-rag-plan.md`)
+and is not in this document. DevDoc is a separate project and is not in this
+document.
+
+**Status:** 2026-11-09. Step 1 of tuning is built and gated. Step 2 is proposed
+(OpenSpec change drafted, no code). Steps 3–5, Test-400, new dataset, and paper
+are planned here and not started. This plan is the document OpenSpec changes
+are built against: every tuning step gets its own OpenSpec change (proposal,
+design, tasks, spec) before any code, and every change must trace back to a
+section of this plan.
+
+**How to read it:** §1 is the rules — they override everything below if there
+is a conflict. §2 is where we are. §3–§6 are the four phases in order. §7 is
+the building discipline (OpenSpec). §8 is how anything gets measured. §9 lists
+the decisions still open and what decides them. §10 is the risk and findings
+log. The appendix holds the frozen baseline numbers everything is compared
+against.
+
+---
+
+## 1. Governing principles
+
+1. **Adaptive first, then architecture, then test, then new data, then paper.**
+   The order is fixed: (a) adaptive ERag, (b) finetune the ERag *architecture*
+   (never the LLM), (c) one Test-400 comparison vs IRCoT, (d) new dataset,
+   (e) paper. No phase starts before the previous one is gated, except that
+   the paper's *methods* notes may be drafted from the OpenSpec changes as
+   they land.
+2. **Tune on dev, judge on test, never select on test.** Dev-100 is for
+   tuning and for smoke-testing a change. Test-400 is the judge and is run
+   once per frozen system. No threshold, prompt, or mechanism is ever chosen
+   because it looked good on test. No re-running test to chase significance.
+3. **One retriever, one comparison.** The head-to-head is ERag-adaptive vs
+   IRCoT only, on one fixed retriever (BM25 first; MiniLM only if the BM25
+   result is inconclusive — §4.3). If both retrievers ever run, both get
+   reported; the better one is never picked post-hoc.
+4. **No BGE right now. No LLM fine-tuning. No manuscript until there are
+   results.** These are user decisions, not open questions.
+5. **Every tuning step gets an OpenSpec change before code** ("for each step
+   use openspec along the way", user 2026-11-09). No code change lands without
+   a validated change proposal the user has seen.
+6. **Show the work.** Every claim carries its receipt: commit hash, test
+   count, recomputed number, or file path. A number without a source is a
+   rumour. Irreversible steps (merges, force-pushes, history rewrites) are
+   explained before they happen, never after.
+7. **Push policy.** Only push target is `Saumojit30/erag` (origin).
+   `ManojAdapakala/ERag` (upstream) is fetch-only, push URL `no_push`. Nothing
+   from branch `trueadaptive` has ever been pushed; pushing is a user
+   decision each time. Groq keys and GitHub tokens are used transiently only
+   (env var), never saved in files, memory, or git config.
+
+---
+
+## 2. Where we are (2026-11-09)
+
+### 2.1 What exists
+
+- **TrueAdaptive v1** — built on branch `trueadaptive` (off merged `9564676`),
+  local only. Sequential self-consistency (M=1→3, ΔH<0.05), SC gated behind
+  the Fast Path, direct EIG, incremental claims, never resample, thresholds
+  unchanged (0.8/0.6/0.4), `max_claims: 5`. Frozen config
+  `configs/erag_trueadaptive.yaml`. Closed-book/entropy-gated retrieval is v2,
+  not v1.
+- **Audit remediation, all phases done** (branch `trueadaptive`, HEAD was
+  `9408542` before tuning): cache-write guard + purge of 55 empty rows,
+  row-level provenance, Phase 5 report corrections, manifest SHAs,
+  verification script `scripts/verify_results.py` (10 checks, all passing).
+- **Test-400 BM25 head-to-head, completed 2026-11-09** (commit `d69490f`):
+  TrueAdaptive v1 **EM 0.4750, F1 0.6192, 4.78 calls/Q** vs fresh IRCoT
+  **EM 0.4200, F1 0.5674, 2.55 calls/Q**. McNemar paired b=38, c=16,
+  **p=0.0043 (exact 0.0038) — significant**, the first significant
+  frozen-system E-RAG vs IRCoT Test-400 result. TrueAdaptive also beats
+  Balanced BM25 Test-400 (0.4450 at 8.95 calls) by +3.0 pts at −46.6% calls.
+- **Error analysis, done 2026-11-09** (commit `ed154d7`):
+  `scripts/analyze_trueadaptive_test400.py` +
+  `docs/trueadaptive-test400-error-analysis.md`. Error budget (400 Qs):
+  right 190, wrong 133, system-abstained 37, model-said-unknown 40.
+  Reasoning, not retrieval, is the bottleneck: 107/133 wrong had recall 1.0;
+  of those, 70 had gold in trace claims (reader/graph) and 37 never had gold
+  as a claim (claim extraction). Hops help net +28. The 77 unknowns are two
+  populations (37 abstentions vs 40 reader refusals) — do not conflate.
+  Call tail: 54 rows ≥7 calls consume 22% of calls at EM 0.333.
+- **Step 1 (reader grounding) — built, gated, archived (archive pending,
+  see §10).** OpenSpec change `tune-reader-grounding` (commit `c3c97dc`),
+  implementation `303efb5`, analysis-script extension `2b1118c`, A/B result
+  `9d1d108`. Dev-100 BM25 A/B: EM 0.56 flat, F1 0.661, coverage 0.86,
+  4.75 calls/Q; re-read triggered 16/100, fixed 2, broke 1 (net +1).
+  Gate PASS (narrowly). See §3.1 for the confound found.
+- **Step 2 (claim extraction) — proposed, not built.** OpenSpec change
+  `tune-claim-extraction` (commit `0e51368`), validated 4 passed, 0 failed.
+  See §3.2.
+
+### 2.2 Frozen baselines (the numbers everything is compared against)
+
+| System / split | Retriever | EM | F1 | Calls/Q |
+|---|---|---|---|---|
+| TrueAdaptive v1, Dev-100 | MiniLM | 0.5000 | 0.6018 | 4.91 |
+| TrueAdaptive v1, Dev-100 | BM25 | 0.5600 | 0.6495 | 4.58 |
+| TrueAdaptive v1 + step 1, Dev-100 | BM25 | 0.5600 | 0.6611 | 4.75 |
+| IRCoT, Dev-100 | BM25 | 0.4400 | — | 2.38 |
+| Balanced, Dev-100 | BM25 | 0.5100 | — | 8.92 |
+| TrueAdaptive v1, Test-400 | BM25 | 0.4750 | 0.6192 | 4.78 |
+| IRCoT fresh, Test-400 | BM25 | 0.4200 | 0.5674 | 2.55 |
+| Balanced, Test-400 | BM25 | 0.4450 | — | 8.95 |
+
+Full numbers (coverage, recall, selective EM, McNemar) are in the error
+analysis report and the appendix. The Test-400 TA file has 401 lines for 400
+questions (a resume retried 1 failed question, leaving a stale failed row) —
+always dedupe by id keeping the LAST row.
+
+### 2.3 Branch and remote state
+
+- Branch `trueadaptive`: all tuning and remediation work. Never pushed.
+- Branch `master`: 1 commit ahead of origin (`88f2512`, the `.mailmap` fix
+  for Manoj's authorship). Needs a fresh GitHub token to push.
+- `results/cache.sqlite` and `results/nli_memo.pkl` are modified by runs and
+  deliberately left uncommitted. `configs/erag_adaptive.yaml` is an old
+  untested draft, untracked.
+
+---
+
+## 3. Phase 1 — Architecture tuning (finetune ERag, not an LLM)
+
+### 3.0 How a tuning step works
+
+Every step follows the same lifecycle, no exceptions:
+
+1. **Diagnose from stored data first.** Before any design, the step's error
+   bucket is re-measured from the stored Test-400 file (read-only). The
+   diagnosis must name the mechanism (not just the symptom) and quantify the
+   sub-populations. If the diagnosis cannot name a mechanism, the step does
+   not start.
+2. **OpenSpec change.** One change per step: `proposal.md` (why, what,
+   alternatives, non-goals, impact), `design.md` (mechanisms, deferred
+   variants, guardrails), `tasks.md` (checkboxes, gate), `specs/<name>/spec.md`
+   (requirements with scenarios). Every proposal carries a **Threats to
+   validity** note: what could make the A/B lie (cache staleness, key
+   versioning, live-call noise, dev noise). `openspec validate --all` must be
+   0 failed before code.
+3. **Tests first.** Mocked-LLM tests for the new behaviour (including the
+   flag-off case: byte-identical to the previous system) before implementation.
+4. **Implementation.** Behind a config flag (default off), so the previous
+   system stays runnable and the A/B is a single-flag flip.
+5. **Dev-100 BM25 A/B.** The tuned system vs the previous tuned system, same
+   fixed retriever, same split. The dev gate is a **smoke test, not a
+   verdict** (see §8): it can only say "did not break catastrophically" and
+   "calls in budget". It cannot say "this mechanism works" — Dev-100 moves in
+   1-pt steps and live-call noise is ~±3 rows. A dev wash is not a failure
+   and not a success; it is inconclusive, and the mechanism is judged on
+   Test-400 (§4).
+6. **Gate + commit.** The step's gate (below, per step) decides whether the
+   mechanism stays in. On pass, commit code + tests + dev results. On fail,
+   record the result, do not tune thresholds to compensate, and either try
+   the recorded variant as its own change or drop the mechanism.
+7. **Archive.** `openspec archive <change>` when the step closes, then start
+   the next change. Archiving must not block the next step's proposal.
+
+**Cost budget for the phase:** the tuned system must stay ≤ 6 calls/Q on
+Dev-100 (the v1 gate). A step that adds calls must justify them with EM or
+coverage; a step that only adds calls with no EM movement is dropped at the
+Test-400 verdict, not at the dev gate.
+
+### 3.1 Step 1 — Reader grounding (DONE)
+
+- **Evidence:** 70 Test-400 rows had gold in a trace claim and still got the
+  wrong answer; the final reader never saw the graph's verified claims.
+  Plus 40 rows where the draft was literally "unknown" while the graph was
+  confident.
+- **Mechanism:** conditional claim-grounded re-read after the hop loop (draft
+  "unknown" OR draft disagrees with the answer claim), grounded on supported
+  claims, behind `erag.ground_final_read` (default false).
+- **OpenSpec change:** `tune-reader-grounding` (archived; archive command
+  pending, see §10).
+- **Dev A/B result:** EM 0.56 flat, F1 0.661, coverage 0.86, 4.75 calls/Q;
+  triggered 16/100, fixed 2, broke 1 (net +1). Gate PASS (narrowly).
+- **Confound found (recorded for all later steps):** the A/B was supposed to
+  replay v1's cached completions via namespace reuse, but audit M3 cache-key
+  versioning (v=2, landed after the v1 dev run) makes old rows unreachable —
+  the tuned run was effectively all-live (0.02 cache hits/row), and
+  gpt-oss-20b at temp 0.0 flipped 8 untouched rows. The headline EM tie
+  carries ~±3 rows of live-call noise; the within-run section-10 estimate
+  (fixed 2, broke 1) is the clean measure. **Lesson: never assume cache
+  replay — verify `cache_hits` in the output file before believing a paired
+  comparison.**
+- **Findings carried forward:** the re-read broke one correct answer on
+  formatting ("1970s and 1980s" → "1970s–1980s"); one live draft call
+  returned an empty string (pre-existing robustness gap, not caused by the
+  re-read).
+
+### 3.2 Step 2 — Claim extraction (PROPOSED, not built)
+
+- **Evidence:** 37 rows with recall 1.0 where gold was never a claim.
+  Diagnosis: all 37 wrong draft (0 unknown); sub-patterns are wrong-answer
+  claims asserting the draft, and abbreviated-name claims ("Thon Maker" for
+  gold "Thon Marial Maker"); 9 incremental-freeze, 11 at the `max_claims: 5`
+  cap, 0 fallbacks. **No trigger separates the 37** (c0 median 1.0 both
+  groups; answer claim supported in 18/37).
+- **Mechanism:** question-grounded claims in the single extraction call
+  (zero new LLM calls), each claim with a `"source"` field, cap 5 → 8 in the
+  A/B. The draft-free second pass and the freeze fix are recorded follow-ups,
+  not bundled.
+- **OpenSpec change:** `tune-claim-extraction` (commit `0e51368`).
+- **Dev gate (smoke test):** EM not below the step-1 tuned dev (0.56);
+  gold-in-claims rate among full-recall wrong dev rows improves on the 0.333
+  baseline (12/18 never claimed); calls +≤0.5/Q; answer-bearing claim
+  question-sourced in ≤10% of rows.
+- **Build order:** mocked-LLM tests → prompt + `_parse` change → fast suite
+  → Dev-100 BM25 A/B (needs a Groq key transiently) → gate → commit → archive.
+
+### 3.3 Step 3 — Model-unknown prompt experiment (PLANNED)
+
+- **Evidence:** 40 rows end with the draft literally "unknown" while the
+  graph is confident (`answer_conf` median 0.875, `c0` median 1.000). Only
+  3/40 had any hop produce a real answer; 16/40 had full recall. The reader
+  refuses from hop 0 — it is a prompt problem, not a threshold problem
+  (`theta_abs` cannot touch these rows). Even 50% recovery is ≈ +5 pts EM,
+  but the value is unmeasured until a live run.
+- **Mechanism (to be designed in its change):** a prompt experiment on the
+  reader — variants of `ANSWER_SYSTEM` / `answer_messages` that change when
+  the model says "unknown" (e.g. forcing a best-guess answer with an
+  explicit "give your best short answer from the context" instruction, or
+  separating "not in context" from "uncertain"). Must be a prompt-only
+  change; the abstention rule stays the arbiter of whether an answer is
+  withheld. Design must state the variants up front (no fishing through
+  variants on dev and picking the best — that is selection on a 100-row set;
+  at most 2–3 pre-registered variants, each a separate A/B, each reported).
+- **OpenSpec change:** `tune-unknown-prompt` (to be created when step 2 closes).
+- **Dev gate (smoke test):** EM not below the step-2 tuned dev; model-unknown
+  rows on dev fall; calls +≤0.5/Q. The real measure is Test-400 (§4).
+
+### 3.4 Step 4 — theta_abs (PLANNED, decided by the paper's goal)
+
+- **Evidence:** 37 system abstentions (`answer_conf` median 0.214, 17 with
+  correct drafts). Dev sweep (counterfactual on stored rows): t=0.00 → EM
+  0.58, t=0.10–0.30 → 0.57, t=0.40 (current) → 0.56 — a +1–2 pt gain inside
+  the ±10 pt dev noise bar. Test diagnostic (never select on it): t=0.00 →
+  0.5175. Direction agrees, magnitude is uncertain.
+- **Mechanism:** change `theta_abs` (currently 0.4) to a dev-selected value.
+  This is a one-line config change, but it is the step most at risk of
+  overfitting dev — so it is done LAST among the threshold-adjacent steps
+  and its value is justified by the paper's goal, not by chasing the dev
+  maximum.
+- **The decision that must be made first (user decision, §9):** what is the
+  paper's goal — selective answering (high precision on answered questions,
+  abstain more) or maximum EM (answer everything, abstain less)? A low
+  `theta_abs` raises EM and coverage and lowers selective EM; a high one does
+  the opposite. The dev sweep cannot make this choice; the goal does.
+- **OpenSpec change:** `tune-theta-abs` (to be created when step 3 closes).
+- **Dev gate (smoke test):** EM and selective EM move in the direction the
+  goal requires; calls unchanged (thresholds cost no calls). If the goal is
+  undecided when step 4 starts, the step is skipped and `theta_abs` stays
+  0.4 — a missing decision is not a reason to tune blind.
+
+### 3.5 Step 5 — Hop-2 SC cap (PLANNED, cost lever)
+
+- **Evidence:** 54 rows ≥7 calls consume 422 of 1,910 calls (22%) at EM
+  0.3333; 20 of them end unknown. Mean calls by hops: 0→3.02, 1→5.52,
+  2→7.95. The hop-2 rows are the most expensive and the least accurate.
+- **Mechanism (to be designed in its change):** cap the self-consistency
+  work on hop 2 (e.g. skip post-hop resampling on hop 2, or cap SC samples
+  on hop 2 at 1), so the tail costs less. This is a pure cost lever: expected
+  saving ≈ 100 calls/400 questions, measurable precisely from the output
+  file. EM effect must be measured, not assumed — if hop-2 SC is load-bearing
+  for the few rows it helps, the cap is narrowed, not forced.
+- **OpenSpec change:** `tune-hop2-sc-cap` (to be created when step 4 closes).
+- **Dev gate (smoke test):** calls/Q falls with EM not below the step-4
+  tuned dev by more than 1 pt (a cost step that costs accuracy is a trade,
+  not a win, and the trade is decided at the Test-400 verdict, not on dev).
+
+### 3.6 What is explicitly NOT in Phase 1
+
+- **Closed-book gate (v2).** Deferred. The error analysis says retrieval is
+  not the bottleneck (107/133 wrong had recall 1.0), so skipping retrieval
+  cannot fix the rows that matter. Its design is already written in the
+  `erag-trueadaptive` change (Mechanism 2, deferred) for the v2 change.
+- **Retriever changes.** BM25 stays fixed for tuning. No hybrid retriever,
+  no BGE, no E5 in this phase.
+- **New dataset, manuscript.** Phases 3 and 4, not here.
+- **Threshold fishing.** No sweeping a threshold across dev and picking the
+  max. `theta_abs` is the only threshold touched in this phase, and only in
+  step 4, by goal (§3.4).
+
+---
+
+## 4. Phase 2 — Test-400 confirmation (the verdict)
+
+This phase is **pre-registered here, before tuning ends**. Nothing in this
+section may be changed after any Test-400 result in this phase is seen. If a
+change to this section is ever needed, it is made in a dated amendment with a
+stated reason, before the run it affects.
+
+### 4.1 What runs
+
+- **Systems:** (a) tuned TrueAdaptive — all five tuning steps that passed
+  their gates, frozen config; (b) fresh IRCoT — same frozen config as the
+  v1 Test-400 run.
+- **Setting:** BM25, k=3, distractor, HotpotQA Test-400 (N=400), both systems
+  run fresh, all live calls (0 cache hits expected — new prompts and new
+  namespaces).
+- **Namespaces (fresh, never used before):** tuned `test_tuned_v1_bm25`,
+  IRCoT `test_ircot_v2_bm25`. Fresh namespaces are mandatory: reusing a
+  namespace would replay old completions under the v=2 key only if the keys
+  match, and they do not across changed prompts.
+- **Frozen config:** a new frozen config file for the tuned system
+  (`configs/erag_trueadaptive_tuned.yaml`, written at the end of Phase 1 from
+  the gated flags: `ground_final_read`, `max_claims`, prompt revisions,
+  `theta_abs`, hop-2 cap). IRCoT runs its existing frozen config. No
+  `--set` overrides at run time except the retriever, namespace, and run
+  name — the frozen files are the record.
+- **Run order:** tuned first, then IRCoT, sequential, detached, with
+  checkpoint resume (proven twice: the v1 Test-400 run and the step-1 dev
+  A/B both survived runtime restarts via the runner's skip-completed-ids
+  recovery). Output files are new; the v1 Test-400 files are never
+  overwritten.
+
+### 4.2 The verdict (pre-registered)
+
+**Primary endpoint:** exact match (EM), paired McNemar exact two-sided test
+on the 400 paired outcomes (tuned vs IRCoT), α = 0.05.
+
+- **Win:** tuned EM > IRCoT EM **and** p < 0.05.
+- **Loss:** tuned EM ≤ IRCoT EM, or p ≥ 0.05 with tuned EM ≤ IRCoT EM.
+- **Inconclusive:** tuned EM > IRCoT EM but p ≥ 0.05 (right direction, not
+  significant).
+
+**Secondary endpoints (reported, not gated):** F1, calls/Q, coverage,
+recall, selective EM, cost (Groq tokens × $0.10/$0.20 per 1M), and the same
+paired comparison of tuned vs v1 TrueAdaptive (EM 0.4750) and vs Balanced
+(0.4450). The error analysis is re-run on the tuned file
+(`scripts/analyze_trueadaptive_test400.py`, extended with the step
+sections) and the verification script (`scripts/verify_results.py`) must pass
+10/10 on the new results.
+
+**Decision table:**
+
+| Outcome | What happens |
+|---|---|
+| Win | The tuned system is the paper's system. Proceed to Phase 3 (new dataset) with it. Steps that passed their dev gates stay in. |
+| Inconclusive | Run MiniLM Test-400 (see §4.3). If MiniLM is also inconclusive, the tuning is reported as "no significant gain on Test-400" and Phase 3 still proceeds — a null result is a result, and the paper reports it honestly. No further tuning to chase significance. |
+| Loss | Stop tuning. The tuned system is not the paper's system: revert to v1 (EM 0.4750, significant vs IRCoT) for Phase 3, and report the tuning as a negative result (which steps helped on dev, which did not survive test). No re-tuning to reverse a loss. |
+
+### 4.3 Rules
+
+- One run per system. No re-runs to chase significance, no threshold or
+  prompt changes after seeing test.
+- **MiniLM rule (already agreed):** MiniLM Test-400 runs only if the BM25
+  result is inconclusive (not significant, or the dev advantage does not
+  replicate in direction). If both run, both are reported — never pick the
+  better one post-hoc.
+- Dedupe by id keeping the LAST row (the resume-retried stale row lesson).
+- The analysis uses the repo's `exact_match`, never a hand-rolled normalizer.
+- Groq key and any tokens are transient only, as always.
+
+### 4.4 Analysis and reporting
+
+- Run `scripts/analyze_trueadaptive_test400.py` on the tuned file (with the
+  `--reread` and `--claims` sections) and the fresh IRCoT file; write the
+  error analysis for the tuned system the same way as the v1 report.
+- Run `scripts/verify_results.py` (10 checks) on the new results; fix or
+  record any failure before reporting.
+- Commit the results files, the frozen tuned config, and the analysis report
+  on `trueadaptive`. The Test-400 numbers go into the appendix baselines.
+
+---
+
+## 5. Phase 3 — New dataset (generalization)
+
+**Goal:** show the tuned system generalizes beyond HotpotQA — or find out
+honestly that it does not.
+
+- **Candidates (user has not chosen):** 2WikiMultiHopQA or MuSiQue.
+  2WikiMultiHopQA is structurally closest to HotpotQA (multi-hop, distractor
+  setting, comparable size) — the safer comparability choice. MuSiQue is
+  harder and more compositional (multi-hop with disconnected reasoning) —
+  the stronger generalization claim, and the harder test. The choice is the
+  user's (§9); the deciding question is what the paper claims: "works on
+  multi-hop QA" (2Wiki) vs "works on harder multi-hop QA" (MuSiQue).
+- **Work items (each an OpenSpec change when the phase starts):**
+  1. Dataset prep: manifests (dev/test splits), overlap check against
+     HotpotQA test (zero overlap required — the audit's dataset check is the
+     template), distractor corpus construction, baseline reproduction.
+  2. Frozen baselines on the new dataset: Standard, IRCoT, and tuned
+     TrueAdaptive, same retriever discipline (BM25 first).
+  3. Head-to-head: tuned vs IRCoT on the new test split, same pre-registered
+     verdict shape as §4.2 (McNemar, α=0.05), with the dataset named up
+     front.
+  4. Error analysis on the new dataset, same script pattern.
+- **What does not happen:** no tuning on the new dataset's test split; any
+  tuning uses its dev split only, and only if the HotpotQA-tuned system
+  underperforms there for a diagnosed, mechanistic reason (a new OpenSpec
+  change, not a quiet tweak).
+- **Out of scope for this phase:** a third dataset. Two datasets are enough
+  for the paper's claim.
+
+---
+
+## 6. Phase 4 — Paper / manuscript
+
+Only after Phase 2 (and Phase 3, if it runs). No manuscript exists today and
+none is started in this plan.
+
+- **What the paper needs (all of it already produced or planned):** frozen
+  results (Test-400 + new dataset), the audit trail (OpenSpec changes as the
+  methods record — each change's proposal/design is effectively a methods
+  paragraph with its gate result), the error analysis, the cost analysis
+  (calls/Q, tokens, dollars), and the ablations (the tuning steps are natural
+  ablations: v1 → +step 1 → +step 2 → …).
+- **Venue:** undecided. The forwarded audit prompt suggested Springer; that
+  is the prompt's suggestion, not a user decision (§9).
+- **What is not in this plan:** writing the manuscript itself — that is a
+  separate piece of work once the results exist, with its own OpenSpec
+  change if the user wants the same discipline for it.
+
+---
+
+## 7. OpenSpec workflow (the building discipline)
+
+This is how §3's steps are built. It is the same workflow used for
+TrueAdaptive v1 and for steps 1–2.
+
+1. **One change per step.** A change is a directory
+   `openspec/changes/<step>/` with `proposal.md`, `design.md`, `tasks.md`,
+   and `specs/<name>/spec.md`. The proposal states why (with numbers),
+   what changes, considered alternatives, non-goals, and impact. The design
+   states the mechanisms and the deferred variants. The tasks list the
+   checkboxes including the gate. The spec states requirements with
+   scenarios in SHALL/WHEN/THEN form.
+2. **Proposal before code.** No `src/` change lands without a validated
+   change the user has seen (`openspec/project.md` convention). `openspec
+   validate --all` must be 0 failed before implementation.
+3. **Threats to validity (mandatory in every proposal).** Each proposal
+   names what could make its A/B lie: cache staleness and key versioning,
+   live-call nondeterminism, dev noise, prompt anchoring, selection effects.
+   Step 1's proposal named the namespace-reuse assumption — that is how its
+   failure was caught. A proposal without this section is incomplete.
+4. **Tests first.** Mocked-LLM tests before implementation, including the
+   flag-off case (byte-identical to the previous system).
+5. **Flags, not forks.** Every mechanism lands behind a config flag
+   (default off). The previous system stays runnable; the A/B is a flag flip.
+6. **Archive when the step closes.** `openspec archive <change>`, then the
+   next change starts. Archiving is bookkeeping and must not block the next
+   step's proposal (step 1's archive command hung — see §10 — and step 2's
+   proposal was committed anyway).
+7. **What OpenSpec does not do.** It validates document structure, not
+   science. It cannot tell you whether a design is right, whether dev can
+   measure the effect, or whether a gate is meaningful. Those are judgments,
+   recorded in the proposal, and tested by the A/B — not by the validator.
+
+## 8. Evaluation and measurement discipline
+
+- **Dev-100 is a smoke test.** It answers: did the change break anything
+  catastrophically? Are calls in budget? Does the mechanism fire at a sane
+  rate? It does not answer: does the mechanism work? (N=100, 1-pt steps,
+  ±10 pt noise, plus ~±3 rows of live-call noise.) A dev wash is
+  inconclusive, not a pass or a fail — the mechanism is judged on Test-400.
+- **Within-run measures beat paired comparisons on dev.** When a mechanism
+  logs per-row (re-read triggers, claim sources), the within-run estimate
+  (fixed vs broke on triggered rows, gold-in-claims rate) is cleaner than
+  the headline EM difference, because it is not confounded by live-call
+  noise on untouched rows. Every step's gate includes at least one
+  within-run measure.
+- **Verify `cache_hits` before believing a paired comparison.** The step-1
+  lesson: if the tuned run's mean `cache_hits` is ~0, the run was all-live
+  and the comparison carries live-call noise. Say so in the report; do not
+  present the headline as clean.
+- **Reproduce, don't re-derive.** The analysis script
+  (`scripts/analyze_trueadaptive_test400.py`) and the verification script
+  (`scripts/verify_results.py`) are the instruments. Numbers in reports come
+  from running them, not from hand computation. EM uses the repo's
+  `exact_match` — never a hand-rolled normalizer (the analysis once
+  undercounted ~3 pts that way; the committed script reproduces the report
+  numbers).
+- **Dedupe by id, keep the last row.** Resume-retried questions leave stale
+  failed rows in output files. Every analysis dedupes.
+- **Never conflate the two unknown populations.** System abstentions
+  (`abstained`, low `answer_conf`) and model refusals (draft literally
+  "unknown", high `answer_conf`) are different mechanisms with different
+  fixes. Any report that merges them is wrong.
+
+## 9. Open decisions
+
+| # | Decision | What decides it | Status |
+|---|---|---|---|
+| 1 | New dataset: 2WikiMultiHopQA or MuSiQue | The paper's claim (§5) | Open — user's call, before Phase 3 starts |
+| 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Open — user's call, before step 4 starts; if undecided, step 4 is skipped and `theta_abs` stays 0.4 |
+| 3 | Keep step-1 re-read if Test-400 shows no gain | The pre-registered verdict (§4.2) | Decided by test, not by dev |
+| 4 | When (and whether) to push `trueadaptive` to origin | User, each time | Open — nothing pushed so far |
+| 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
+| 6 | Paper venue | User, after results exist | Open — Springer was the forwarded prompt's suggestion, not a decision |
+| 7 | Whether the closed-book gate (v2) is ever built | Only if a later diagnosis shows retrieval is the bottleneck; the current analysis says it is not | Deferred |
+
+## 10. Risks, known gaps, and findings log
+
+- **Live-call nondeterminism (measured).** gpt-oss-20b at temp 0.0 flips
+  ~8 rows per 100 on untouched questions between all-live runs (step-1 A/B).
+  Consequence: dev EM differences smaller than ~3 rows are noise; Test-400
+  paired McNemar is the judge. Mitigation: within-run measures (§8),
+  pre-registration (§4).
+- **Cache-key versioning (M3).** Old cache rows never hit under a new key
+  version. Any proposal that assumes cache replay must verify `cache_hits`
+  after the run. The namespace-reuse exception in step 1's proposal was
+  wrong for exactly this reason.
+- **Runtime restarts.** The VM restarts during long runs (twice so far). The
+  runner's checkpoint resume works (skip completed ids) — proven in the v1
+  Test-400 run and the step-1 dev A/B. Long runs are launched detached and
+  resumed, not restarted from scratch.
+- **Empty draft completions.** One live draft call returned an empty string
+  (step-1 A/B, row `5a865bbf`). The Phase A guard prevents *caching* empty
+  completions, but a live empty draft still propagates as `""`. Pre-existing
+  robustness gap; a fix (retry on empty draft, or treat empty as "unknown")
+  is a candidate small change, not part of any tuning step.
+- **Re-read formatting breaks.** The step-1 re-read broke one correct answer
+  on formatting ("1970s and 1980s" → "1970s–1980s"). Exact match is brittle
+  to formatting; the re-read prompt already asks for the short-answer format,
+  and the model still varied it. Worth one line in the paper's limitations;
+  not worth a tuning step on its own.
+- **OpenSpec CLI hangs.** The `openspec archive tune-reader-grounding`
+  command has been running ~18 minutes with no output (validate standalone
+  takes ~2s). Possibly hung. It holds no run state — only the step-1 change
+  directory — so it blocks nothing, but the archive is unconfirmed. If it
+  never returns, archive by re-running it once, and if that hangs too, record
+  the change as closed in `tasks.md` and move on. Tooling friction must not
+  block the research.
+- **`--set` overwrites.** The runner's `--set` is `nargs="*"` with default
+  store action: repeated `--set` flags overwrite, only the last survives.
+  All overrides go in ONE `--set`. (Caught in step 1: the first A/B attempt
+  silently re-ran the MiniLM dev file; no files were touched.)
+- **Groq key handling.** Keys are supplied in chat, smoke-tested with 1 call,
+  used transiently via env var, never saved. Rotation is advised after use
+  (a key pasted in chat should be treated as exposed).
+
+## 11. Branches, remotes, and housekeeping
+
+- `origin` = `Saumojit30/erag` (fetch + push, only push target).
+  `upstream` = `ManojAdapakala/ERag` (fetch only, push URL `no_push`).
+- Branch `trueadaptive`: all adaptive work, tuning, remediation, results.
+  Branch `master`: merged upstream Phase 5 + `.mailmap` fix.
+- Credentials: none saved anywhere. Every push and every Groq run needs a
+  fresh transient supply from the user.
+- VM quirks (verified, do not re-learn): Groq/httpx needs BOTH `NO_PROXY`
+  and lowercase `no_proxy` set to `localhost,127.0.0.1`; retrieval tests
+  need `HF_HUB_DISABLE_XET=1` (XET endpoint returns 403; MiniLM ~90MB cached).
+- Files deliberately left uncommitted: `results/cache.sqlite`,
+  `results/nli_memo.pkl` (modified by runs). Untracked: `configs/erag_adaptive.yaml`
+  (old untested draft), `docs/`, `openspec/project.md`.
+
+---
+
+## Appendix — Key numbers (frozen)
+
+**TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**
+EM 0.4750, F1 0.6192, 4.78 calls/Q, coverage 0.8075, recall 0.8975.
+Calls {2:86, 4:59, 5:126, 6:75, 7:23, 8:18, 9:13}; hops {0:160, 1:198, 2:42}.
+
+**IRCoT fresh, Test-400 BM25:** EM 0.4200, F1 0.5674, 2.55 calls/Q,
+coverage 0.78, recall 0.7975. McNemar vs TA: b=38, c=16, p=0.0043
+(exact 0.0038).
+
+**Error budget (Test-400):** right 190, wrong 133, abstained 37,
+model-unknown 40. Full-recall wrong 107/133; gold in claims 70, never
+claimed 37. Hops: hop-0 draft EM 0.4050 → final 0.4750 (fixed 42, broke 14).
+Unknowns: abstentions `answer_conf` median 0.214 (17 correct drafts);
+reader refusals `answer_conf` median 0.875, `c0` median 1.000. Call tail:
+54 rows ≥7 calls = 422/1,910 calls (22%) at EM 0.333. Fast-path SC skips:
+86 rows, 2.00 calls, EM 0.5465.
+
+**Theta sweep (dev-selected; test diagnostic only):** dev t=0.00 → 0.58,
+t=0.10–0.30 → 0.57, t=0.40 → 0.56; test t=0.00 → 0.5175.
+
+**Costs:** Groq `openai/gpt-oss-20b`, $0.10/$0.20 per 1M tokens (input/output).
+v1 Test-400: 4.78 calls/Q. Balanced Test-400: 8.95 calls/Q at EM 0.4450.
+
+**History:** this plan supersedes the forwarded audit prompt's roadmap
+(Phase 5, four retrievers, Springer manuscript) as the *sequencing*
+document. That prompt's audit findings were used (and corrected where wrong:
+"45.4% reduction" is −39.8% calls; manifest SHA `0346c86f…`; Standard Dev-100
+EM is 0.4400, not 0.4200), but its order is not this plan's order. The user's
+order (§1) governs.
