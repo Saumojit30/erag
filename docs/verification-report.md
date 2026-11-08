@@ -1,6 +1,6 @@
 # Verification report — ERag headline results
 
-Generated: 2026-11-08 21:19 UTC by `scripts/verify_results.py` (commit `f83f5b9`).
+Generated: 2026-11-08 21:20 UTC by `scripts/verify_results.py` (commit `296088f`).
 Every figure below is recomputed from the raw results files; nothing is
 copied from a report. A FAIL means the stored record disagrees with its
 own raw data and must be fixed, not re-run.
