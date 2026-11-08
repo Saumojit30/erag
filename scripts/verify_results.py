@@ -340,6 +340,61 @@ def check_h1_text():
     return ("Phase 5 report generator name (H1)", not failures, detail)
 
 
+def check_phase5_report_matrix():
+    """Phase 5 report Heading A matrix agrees with the benchmark CSV.
+
+    The CSV is verified against the raw files by check_phase5_cells, so
+    report-vs-CSV agreement is sufficient here. Catches drift like the
+    BGE rows, whose Coverage/Selective EM/Mean Tokens (and IRCoT Mean
+    Docs/Mean Calls) once disagreed with the CSV.
+    """
+    report_path = os.path.join(
+        ROOT, "research/retrievers/four_retriever_analysis_report.md")
+    lines = open(report_path, encoding="utf-8").read().splitlines()
+    hdr_idx = next(i for i, ln in enumerate(lines)
+                   if ln.startswith("| Paradigm | Retriever"))
+    header = [c.strip() for c in lines[hdr_idx].strip("|").split("|")]
+    rows = []
+    for ln in lines[hdr_idx + 2:]:
+        if not ln.startswith("|"):
+            break
+        rows.append(dict(zip(
+            header, [c.strip().strip("*") for c in ln.strip("|").split("|")])))
+    csv_path = os.path.join(ROOT, "research/retrievers/four_retriever_benchmark.csv")
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        claimed = {(r["System"], r["Retriever"].split(" (")[0]): r
+                   for r in csv.DictReader(f)}
+    colmap = {"Exact Match (EM)": "Exact Match", "Token F1": "Token F1",
+              "Gold Para Recall": "Gold Para Recall",
+              "All-Gold Rate": "All-Gold Rate", "Mean Docs": "Mean Docs",
+              "Coverage": "Coverage", "Selective EM": "Selective EM",
+              "ECE": "ECE", "Brier Score": "Brier", "AUROC": "AUROC",
+              "Mean Calls": "Mean Calls", "Mean Tokens": "Mean Tokens",
+              "Cost / 1k ($)": "Cost / 1k USD"}
+    sysmap = {"Standard RAG": "Standard RAG",
+              "IRCoT-Controlled": "IRCoT", "E-RAG-Balanced": "E-RAG-Balanced"}
+    failures = []
+    if len(rows) != 12:
+        failures.append(f"report matrix has {len(rows)} rows, want 12")
+    for r in rows:
+        key = (sysmap[r["Paradigm"]],
+               r["Retriever Architecture"].split(" (")[0])
+        want = claimed.get(key)
+        if want is None:
+            failures.append(f"{key}: no row in benchmark CSV")
+            continue
+        for rcol, ccol in colmap.items():
+            tol = 0.15 if rcol == "Mean Tokens" else 0.0015
+            if not close(float(r[rcol]), float(want[ccol]), tol):
+                failures.append(
+                    f"{key[0]}/{key[1]} {rcol}: report {r[rcol]} "
+                    f"!= CSV {want[ccol]}")
+    detail = "report Heading A matrix matches four_retriever_benchmark.csv (12 rows)"
+    if failures:
+        detail += "; MISMATCHES: " + "; ".join(failures)
+    return ("Phase 5 report matrix vs benchmark CSV", not failures, detail)
+
+
 def check_h3_labels():
     """Head-to-head CSV labels re-thresholdings as post-hoc (audit H3)."""
     path = os.path.join(
@@ -361,6 +416,7 @@ def check_h3_labels():
 
 CHECKS = [
     check_phase5_cells,
+    check_phase5_report_matrix,
     check_trueadaptive_dev,
     check_test400_head_to_head,
     check_call_reduction,

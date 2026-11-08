@@ -1,6 +1,6 @@
 # Verification report — ERag headline results
 
-Generated: 2026-11-08 21:16 UTC by `scripts/verify_results.py` (commit `394cc88`).
+Generated: 2026-11-08 21:18 UTC by `scripts/verify_results.py` (commit `9da25fe`).
 Every figure below is recomputed from the raw results files; nothing is
 copied from a report. A FAIL means the stored record disagrees with its
 own raw data and must be fixed, not re-run.
@@ -8,6 +8,7 @@ own raw data and must be fixed, not re-run.
 | Check | Result | Detail |
 |---|---|---|
 | Phase 5 benchmark cells (12) | PASS | 12 cells recomputed from results/enriched/*_test.jsonl |
+| Phase 5 report matrix vs benchmark CSV | PASS | report Heading A matrix matches four_retriever_benchmark.csv (12 rows) |
 | TrueAdaptive Dev-100 (MiniLM + BM25) | PASS | Dev-100 MiniLM EM 0.50/F1 0.6018/4.91 calls; BM25 EM 0.56/F1 0.6495/4.58 calls |
 | TrueAdaptive Test-400 BM25 vs IRCoT (McNemar) | PASS | TA EM 0.4750 vs IR EM 0.4200 (4.78 vs 2.54 calls/Q); McNemar b=38 c=16 p=0.0043 (exact 0.0038) |
 | Call reduction Reference->Balanced (-39.8%) | PASS | Reference 14.22 -> Balanced 8.56 calls/Q = -39.8% (Test-400 MiniLM) |
