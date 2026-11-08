@@ -9,14 +9,14 @@ the way", 2026-11-09).
 
 - [x] 0.1 Create `openspec/changes/tune-reader-grounding/` with `proposal.md`,
   `design.md`, `tasks.md` (this file), `specs/reader-grounding/spec.md`.
-- [ ] 0.2 Validate with the local CLI:
+- [x] 0.2 Validate with the local CLI:
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
   and `.../openspec validate tune-reader-grounding` — must be 0 failed before
   any code change.
 
 ## A. Tests first (mocked LLM, no production change yet)
 
-- [ ] A.1 In `tests/test_erag.py`, add mocked-LLM tests for the re-read:
+- [x] A.1 In `tests/test_erag.py`, add mocked-LLM tests for the re-read:
   draft "unknown" + supported answer-bearing claim → one extra call, draft
   replaced by the re-read answer; draft agreeing with the claim (draft is a
   substring of the claim text) → no extra call; draft disagreeing → one extra
@@ -28,16 +28,16 @@ the way", 2026-11-09).
 
 ## B. Implementation
 
-- [ ] B.1 Add `grounded_answer_messages(question, claims, paras)` to
+- [x] B.1 Add `grounded_answer_messages(question, claims, paras)` to
   `src/llm/prompts.py` (verified-claims block first, then the context block;
   system prompt per `design.md`).
-- [ ] B.2 In `run_erag` (`src/systems/erag.py`), after the hop loop and before
+- [x] B.2 In `run_erag` (`src/systems/erag.py`), after the hop loop and before
   Step 12, add the conditional re-read behind `erag.ground_final_read`
   (default false): trigger on draft "unknown" or draft-not-in-answer-claim;
   replace the draft only on a non-"unknown" re-read; log `grounded_reread`,
   `reread_trigger`, `reread_answer` per record. Keep the original draft in
   the trace's last hop entry.
-- [ ] B.3 Run the fast test suite (cache, config, metrics, erag, retrieval)
+- [x] B.3 Run the fast test suite (cache, config, metrics, erag, retrieval)
   and the new A.1 tests. All green before any live run.
 
 ## C. Dev-100 BM25 A/B (live — needs a Groq key, transiently, none saved)
