@@ -178,6 +178,16 @@ def main():
     os.makedirs(cfg["run"]["out_dir"], exist_ok=True)
     out_path = os.path.join(cfg["run"]["out_dir"], f"{cfg['run']['name']}.jsonl")
 
+    # Row-level provenance (audit L5): the retriever identity, resolved once
+    # here so every output row and the MLflow run carry it. BM25 runs record
+    # "bm25"; dense runs record the embedder model name (e.g. MiniLM).
+    _retriever_type = cfg["retrieval"].get("retriever_type", "dense")
+    retriever_name = (
+        "bm25"
+        if _retriever_type == "bm25"
+        else cfg["retrieval"].get("embedder", _retriever_type)
+    )
+
     # Crash recovery: skip questions already successfully completed in output file
     done_ids = set()
     if os.path.exists(out_path):
@@ -193,6 +203,7 @@ def main():
             "system": system,
             "split": split,
             "retrieval_setting": cfg["retrieval"]["setting"],
+            "retriever": retriever_name,
         })
 
         with open(out_path, "a", encoding="utf-8") as f:
@@ -226,6 +237,7 @@ def main():
                     "id": item["_id"],
                     "system": system,
                     "setting": cfg["retrieval"]["setting"],
+                    "retriever": retriever_name,
                     "split": split,
                     "type": item.get("type"),
                     "question": item["question"],
