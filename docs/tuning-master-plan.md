@@ -8,8 +8,10 @@ and is not in this document. DevDoc is a separate project and is not in this
 document.
 
 **Status:** 2026-11-09. Step 1 of tuning is built and gated. Step 2 is proposed
-(OpenSpec change drafted, no code). Steps 3–5, Test-400, new dataset, and paper
-are planned here and not started. This plan is the document OpenSpec changes
+(OpenSpec change drafted, no code). Steps 3–5 are planned here and not started.
+Step 6 (memory effectiveness) was added 2026-11-09 after the user pointed out
+the plan omitted it. Test-400, new dataset, and paper are planned here and not
+started. This plan is the document OpenSpec changes
 are built against: every tuning step gets its own OpenSpec change (proposal,
 design, tasks, spec) before any code, and every change must trace back to a
 section of this plan.
@@ -94,6 +96,29 @@ against.
 - **Step 2 (claim extraction) — proposed, not built.** OpenSpec change
   `tune-claim-extraction` (commit `0e51368`), validated 4 passed, 0 failed.
   See §3.2.
+- **Memory module — implemented, disabled, effectiveness unproven.** The
+  Titan-inspired Verified-Belief Episodic Memory (`src/systems/memory.py`:
+  surprise-gated writes, NLI verification gating, contradiction override
+  deletion, decay 0.98, capacity 200) is wired into `run_erag` and the
+  runner but **disabled by default** (`memory.enabled: false`), so every
+  result in §2.2 is memory-off. Its validation (Experiment E5,
+  `research/openspec_memory.md`) ran once, on the Reference system, 30
+  questions in 5 entity-sharing clusters: memory-off EM 0.4000 / F1 0.4828 /
+  14.3 calls vs memory-on EM 0.4000 / F1 0.4828 / 14.3 calls — **identical**;
+  memory fired on only 2/30 questions. The planted wrong-belief test DID
+  work (the false "Wolfgang Becker is a French director" belief was
+  overridden/deleted on contradiction), so the deletion mechanism is
+  verified but the effectiveness is a null result on N=30. The plan omitted
+  this test until 2026-11-09; it is now Phase 1 Step 6 (§3.6).
+- **No manuscript exists.** There is no `paper/` directory and no README in
+  the repo. The "E-RAG Implementation Guide: End to End" (55-page PDF, cited
+  as the primary specification in `research/method.md` and `research/audit.md`)
+  lived on the original author's Windows machine and is not in the repo.
+  The paper's hypothesis as *stated by its authors* has therefore not been
+  read here; §1 and the hypothesis below are inferred from the code and the
+  repo docs (see the note at the end of §3.6 and §9). If the manuscript or
+  the Guide PDF is supplied, it becomes the source of truth and this plan is
+  corrected against it.
 
 ### 2.2 Frozen baselines (the numbers everything is compared against)
 
@@ -272,7 +297,69 @@ Test-400 verdict, not at the dev gate.
   tuned dev by more than 1 pt (a cost step that costs accuracy is a trade,
   not a win, and the trade is decided at the Test-400 verdict, not on dev).
 
-### 3.6 What is explicitly NOT in Phase 1
+### 3.6 Step 6 — Memory module effectiveness (component test; ADDED 2026-11-09)
+
+This step was missing from the plan until the user pointed it out. It is a
+component test, not a tuning step: the memory module is a distinct part of
+the architecture with its own hypothesis, and it must be gated **before**
+the Test-400 freeze (§4.1), because enabling it would change the frozen
+system.
+
+- **The hypothesis (as implemented — see the note below).** E-RAG's overall
+  hypothesis is that explicit epistemic state (belief graphs over claims,
+  NLI verification, self-consistency confidence, gap-driven adaptive
+  retrieval) lets a RAG system answer multi-hop questions more accurately
+  with fewer LLM calls than fixed pipelines (Standard, IRCoT). The memory
+  module's specific hypothesis (from `research/openspec_memory.md` and
+  `research/decisions.md` D-009) is: in sequential question streams where
+  later questions reuse facts established in earlier ones, a verified-belief
+  episodic memory improves accuracy and reduces retrieval — *without*
+  preserving hallucinations, because writes are surprise-gated (only when
+  initial confidence was low or a contradiction was resolved, the Titans
+  idea of memorizing at test time when surprised), reads are NLI-verified
+  against fresh evidence, contradicted beliefs are deleted (override), and
+  unused beliefs decay.
+- **Prior evidence (E5, the only run).** Stream A/B, Reference system, 30
+  questions, 5 entity-sharing clusters: memory-off vs memory-on identical
+  (EM 0.4000, F1 0.4828, 14.3 calls/Q); memory fired on 2/30 questions.
+  Planted wrong-belief test: the false belief was overridden on contradiction
+  (mechanism verified, effectiveness not demonstrated). Files:
+  `results/stream_mem.jsonl`, `results/stream_nomem.jsonl`,
+  `results/stream_planted.jsonl`; manifests `data/manifests/stream.jsonl`
+  (30 Qs), `data/manifests/planted.json`.
+- **Why Dev-100 cannot test memory.** Dev questions are independent and
+  shuffled; later questions do not reuse earlier questions' facts, so memory
+  would almost never fire (`mem_used` ≈ 0) and the A/B would be vacuous.
+  The correct instrument is the E5 stream design (entity-sharing clusters),
+  not Dev-100.
+- **Mechanism (to be designed in its change):** run the *tuned* system
+  (TrueAdaptive + all gated tuning steps) on the stream manifest with memory
+  off vs on; measure EM, calls/Q, and `mem_used`/`mem_events` per question,
+  split by position in cluster (early vs later questions — the benefit, if
+  any, concentrates in later questions). Re-run the planted override test on
+  the tuned system. If the stream is too small to resolve anything (N=30,
+  ~±18 pts), extend the manifest with more entity-sharing clusters *before*
+  running (a data-prep change, decided in the step's proposal, not after
+  seeing results).
+- **OpenSpec change:** `tune-memory-effectiveness` (to be created when step
+  5 closes). The change also records whether the memory module stays in the
+  paper's claims at all.
+- **Gate:** memory goes into the frozen Test-400 system ONLY if the stream
+  A/B shows an EM gain or a call reduction with EM not falling, and the
+  override test passes on the tuned system. Otherwise memory stays OFF for
+  Test-400 and the paper reports it as a null: the override mechanism is
+  verified, the effectiveness is not demonstrated on the available stream.
+  A null here does not block Phase 2; it scopes the paper's claims.
+- **Note on the hypothesis (honest limitation).** There is no manuscript in
+  the repo, and the Implementation Guide PDF is not in the repo either — so
+  the hypothesis above is inferred from the code (`src/systems/memory.py`,
+  `src/systems/erag.py`), the E5 spec, and decisions D-009. It is the best
+  available statement, not the authors' own words. If the manuscript or the
+  Guide is supplied, the hypothesis statement in this plan is corrected
+  against it before Phase 4, and any tuning step whose rationale depends on
+  the hypothesis is re-checked.
+
+### 3.7 What is explicitly NOT in Phase 1
 
 - **Closed-book gate (v2).** Deferred. The error analysis says retrieval is
   not the bottleneck (107/133 wrong had recall 1.0), so skipping retrieval
@@ -296,9 +383,9 @@ stated reason, before the run it affects.
 
 ### 4.1 What runs
 
-- **Systems:** (a) tuned TrueAdaptive — all five tuning steps that passed
-  their gates, frozen config; (b) fresh IRCoT — same frozen config as the
-  v1 Test-400 run.
+- **Systems:** (a) tuned TrueAdaptive — all gated tuning steps (1–5) plus
+  the memory decision from step 6 (§3.6), frozen config; (b) fresh IRCoT —
+  same frozen config as the v1 Test-400 run.
 - **Setting:** BM25, k=3, distractor, HotpotQA Test-400 (N=400), both systems
   run fresh, all live calls (0 cache hits expected — new prompts and new
   namespaces).
@@ -309,9 +396,10 @@ stated reason, before the run it affects.
 - **Frozen config:** a new frozen config file for the tuned system
   (`configs/erag_trueadaptive_tuned.yaml`, written at the end of Phase 1 from
   the gated flags: `ground_final_read`, `max_claims`, prompt revisions,
-  `theta_abs`, hop-2 cap). IRCoT runs its existing frozen config. No
-  `--set` overrides at run time except the retriever, namespace, and run
-  name — the frozen files are the record.
+  `theta_abs`, hop-2 cap, and the memory on/off decision from step 6).
+  IRCoT runs its existing frozen config. No `--set` overrides at run time
+  except the retriever, namespace, and run name — the frozen files are the
+  record.
 - **Run order:** tuned first, then IRCoT, sequential, detached, with
   checkpoint resume (proven twice: the v1 Test-400 run and the step-1 dev
   A/B both survived runtime restarts via the runner's skip-completed-ids
@@ -489,6 +577,7 @@ TrueAdaptive v1 and for steps 1–2.
 | 1 | New dataset: 2WikiMultiHopQA or MuSiQue | The paper's claim (§5) | Open — user's call, before Phase 3 starts |
 | 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Open — user's call, before step 4 starts; if undecided, step 4 is skipped and `theta_abs` stays 0.4 |
 | 3 | Keep step-1 re-read if Test-400 shows no gain | The pre-registered verdict (§4.2) | Decided by test, not by dev |
+| 3b | Memory in the frozen Test-400 system (on or off) | Step 6 gate (§3.6): stream A/B gain or call reduction, override test passes | Open — decided by step 6, before the §4.1 freeze |
 | 4 | When (and whether) to push `trueadaptive` to origin | User, each time | Open — nothing pushed so far |
 | 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
 | 6 | Paper venue | User, after results exist | Open — Springer was the forwarded prompt's suggestion, not a decision |
@@ -530,6 +619,16 @@ TrueAdaptive v1 and for steps 1–2.
   store action: repeated `--set` flags overwrite, only the last survives.
   All overrides go in ONE `--set`. (Caught in step 1: the first A/B attempt
   silently re-ran the MiniLM dev file; no files were touched.)
+- **Memory effectiveness is unproven (E5 null).** The only memory A/B
+  (N=30 stream, Reference system) was identical with memory on vs off
+  (EM 0.4000, 14.3 calls/Q; fired on 2/30). Only the override mechanism is
+  verified. Until step 6 runs on the tuned system, the paper cannot claim
+  memory helps — and the plan now says so (§3.6).
+- **No manuscript in the repo.** The paper's hypothesis as stated by its
+  authors has not been read here (no `paper/`, no README, the Implementation
+  Guide PDF is not in the repo). The hypothesis in §3.6 is inferred from
+  code and repo docs. If the manuscript or Guide is supplied, the plan's
+  hypothesis statement is corrected against it before Phase 4.
 - **Groq key handling.** Keys are supplied in chat, smoke-tested with 1 call,
   used transiently via env var, never saved. Rotation is advised after use
   (a key pasted in chat should be treated as exposed).
