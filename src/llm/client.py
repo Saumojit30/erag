@@ -103,16 +103,20 @@ class LLM:
         actual_max_tokens = max_tokens or self.m.get("max_tokens", 1024)
         key = self._key(messages, temperature, actual_max_tokens, sample_idx)
 
-        # 1. Check persistent SQLite cache
+        # 1. Check persistent SQLite cache. Never serve a cached empty
+        # completion (audit M1): an empty Groq response cached once would be
+        # served forever as a valid answer, zeroing every system that shares
+        # the cache. Fall through to a live call instead.
         if self.use_cache and self.db is not None:
             row = self.db.execute("SELECT v FROM c WHERE k=?", (key,)).fetchone()
             if row:
                 out = json.loads(row[0])
-                tracker.cache_hits += 1
-                tracker.llm_calls += 1
-                tracker.in_tokens += out.get("in", 0)
-                tracker.out_tokens += out.get("out", 0)
-                return out["text"]
+                if out.get("text"):
+                    tracker.cache_hits += 1
+                    tracker.llm_calls += 1
+                    tracker.in_tokens += out.get("in", 0)
+                    tracker.out_tokens += out.get("out", 0)
+                    return out["text"]
 
         # 2. Call Groq API with exponential backoff (1 try + 5 retries = 6 attempts)
         out = None
@@ -161,8 +165,11 @@ class LLM:
         tracker.in_tokens += out["in"]
         tracker.out_tokens += out["out"]
 
-        # 4. Save to persistent cache
-        if self.use_cache and self.db is not None:
+        # 4. Save to persistent cache — never cache empty completions (audit
+        # M1). out["text"] is already stripped, so "" means Groq returned
+        # nothing usable; caching it would poison every future caller of this
+        # prompt, including other systems sharing the cache.
+        if self.use_cache and self.db is not None and out["text"]:
             self.db.execute(
                 "INSERT OR REPLACE INTO c (k, v) VALUES (?, ?)",
                 (key, json.dumps(out)),
