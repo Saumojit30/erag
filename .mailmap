@@ -1,0 +1,5 @@
+# Map the generic identity used in the upstream ERag commits to the
+# author's real name and email, so git log / shortlog display him
+# correctly. This does not rewrite any commit or change any hash;
+# GitHub's web UI ignores .mailmap, so it only affects local display.
+Manoj Adapakala <manoj.adapakala7@gmail.com> E-RAG Engineer <erag@research.local>
