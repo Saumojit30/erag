@@ -149,7 +149,12 @@ def main():
             pooled = items
 
     emb = Embedder(cfg["retrieval"]["embedder"])
-    factory = RetrieverFactory(cfg["retrieval"]["setting"], emb, pooled)
+    factory = RetrieverFactory(
+        cfg["retrieval"]["setting"],
+        emb,
+        pooled,
+        retriever_type=cfg["retrieval"].get("retriever_type", "dense"),
+    )
     llm = LLM(
         cfg,
         use_cache=cfg["run"]["cache"],
