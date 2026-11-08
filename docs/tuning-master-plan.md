@@ -531,6 +531,41 @@ honestly that it does not.
 Only after Phase 2 (and Phase 3, if it runs). No manuscript exists today and
 none is started in this plan.
 
+- **Related-work positioning (from the supplied papers, verified 2026-11-09
+  against the papers' text).** Five papers supplied
+  (`~/workspace/user/files/`); FlashRAG and others NOT supplied — the
+  related-work section cannot be closed until they arrive or the user
+  confirms them out of scope (§9).
+  - **IRCoT (Trivedi et al., ACL 2023):** structural template and baseline.
+    ERag's hop loop *is* an interleaved retrieve–reason loop; ERag replaces
+    free-text CoT with a belief graph over NLI-verified claims, and the fixed
+    step cap with confidence/gap/EIG-driven stopping plus abstention.
+  - **Adaptive-RAG (Jeong et al., NAACL 2024):** the thesis (allocate effort
+    per question) is ERag's core principle; the mechanism is NOT implemented
+    (no trained complexity classifier, no up-front routing — decisions are
+    made during reasoning from epistemic state). Warning that transfers:
+    adaptivity lives or dies by signal quality (Adaptive-RAG's oracle
+    classifier would jump HotpotQA F1 53.82 → 64.00).
+  - **CRAG (Yan et al., arXiv:2401.15884):** verification-gating is central
+    to ERag, but CRAG's corrective loop is NOT implemented — no discard of
+    bad retrieval, no web fallback, no strip refinement; ERag verifies claims
+    but never corrects retrieval, only retrieves more. No Ambiguous-style
+    soft fallback for uncertain NLI verdicts either.
+  - **DRAGIN (Su et al., ACL 2024):** retrieve on information need, at
+    claim/hop level (gaps, EIG, saturation precheck). The RIND/QFS mechanism
+    is NOT implemented and cannot be: it needs token probabilities and
+    attention weights, which the Groq API does not expose.
+  - **Titans (Behrouz et al., NeurIPS 2025):** the WEAKEST borrowing — the
+    paper must not overclaim it. Titans' core is a neural memory updated by
+    gradient descent at test time, surprise defined as the gradient norm.
+    ERag's BeliefMemory is a symbolic store of verified belief strings — no
+    gradients, no test-time training. Genuinely borrowed: the design pattern
+    (surprise-gated writes, decay, bounded capacity), where ERag's "surprise"
+    is a decision-level proxy (low self-consistency confidence), not a
+    gradient. Say "surprise-gated write idea only" (the Nov 4 report already
+    does) and never imply test-time training. Titans' caveat transfers: the
+    memory's constants (decay 0.98, capacity 200, thetas) are heuristic with
+    no theory behind them — and empirically the module barely fires (E5: 2/30).
 - **What the paper needs (all of it already produced or planned):** frozen
   results (Test-400 + new dataset), the audit trail (OpenSpec changes as the
   methods record — each change's proposal/design is effectively a methods
