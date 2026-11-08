@@ -46,6 +46,11 @@ the way", 2026-11-09).
   `dev_trueadaptive_v1_bm25` deliberately (see proposal.md, Impact — the A/B
   isolates the re-read; all other calls replay v1's cached completions).
   Output to a new file (do not overwrite the v1 dev file).
+  Prepared command (verified 2026-11-09 against `run_experiment.py`:
+  out_path is `{out_dir}/{run.name}.jsonl`, `--set` takes dotted keys;
+  needs a Groq key transiently, none saved):
+  `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 GROQ_API_KEY=<transient> .venv/bin/python scripts/run_experiment.py --config configs/base.yaml configs/erag_trueadaptive.yaml --set retrieval.retriever_type=bm25 --set run.cache_namespace=dev_trueadaptive_v1_bm25 --set run.name=erag_trueadaptive_bm25_dev_reread --set erag.ground_final_read=true`
+  Then analyze with: `.venv/bin/python scripts/analyze_trueadaptive_test400.py --reread --ta-dev results/trueadaptive/erag_trueadaptive_bm25_dev_reread.jsonl`
 - [ ] C.2 Analyze with the script from A.2: EM, F1, mean calls, trigger rate,
   re-read EM, rows fixed/broken, and the 70-row / 40-row buckets recomputed on
   the dev file. Compare against v1 dev (EM 0.56, 4.58 calls/Q).
