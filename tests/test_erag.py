@@ -316,3 +316,97 @@ def test_call_count_v1_one_hop():
     assert out["hops"] == 1
     assert out["answer"] == "Paris"
 
+
+# ---------------------------------------------------------------------------
+# Tune-reader-grounding (step 1) — conditional claim-grounded re-read
+# (tasks.md A.1). Tests first: mocked LLM on the v1 fast-path base (2 calls:
+# 1 draft + 1 claims, SC skipped). The re-read is the 3rd call when it fires.
+# ---------------------------------------------------------------------------
+
+def _v1_gated_cfg(**erag_overrides):
+    return _cfg(
+        sc_samples=3,
+        sc_mode="sequential",
+        gate_sc_behind_fast_path=True,
+        claim_strategy="incremental",
+        post_hop_resample="never",
+        eig_strategy="direct",
+        saturation_precheck=True,
+        **erag_overrides,
+    )
+
+
+def test_reread_triggered_on_unknown_draft():
+    """Draft 'unknown' + supported answer claim -> 1 re-read, draft replaced."""
+    llm = _CountingLLM(["unknown", _CLAIMS_JSON, "Paris"])
+    retriever = MagicMock()
+    retriever.search.return_value = list(_POOL)
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _supported_nli(), _v1_gated_cfg(ground_final_read=True), tr)
+    assert tr.llm_calls == 3
+    assert out["answer"] == "Paris"
+    assert out["draft"] == "Paris"
+    assert out["grounded_reread"] is True
+    assert out["reread_trigger"] == "unknown"
+    assert out["reread_answer"] == "Paris"
+    # Original draft stays inspectable in the trace's last hop entry.
+    assert out["trace"][-1]["answer"] == "unknown"
+
+
+def test_reread_triggered_on_disagreement():
+    """Draft 'Lyon' is not in claim 'Paris is the capital.' -> re-read, replaced."""
+    llm = _CountingLLM(["Lyon", _CLAIMS_JSON, "Paris"])
+    retriever = MagicMock()
+    retriever.search.return_value = list(_POOL)
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _supported_nli(), _v1_gated_cfg(ground_final_read=True), tr)
+    assert tr.llm_calls == 3
+    assert out["answer"] == "Paris"
+    assert out["draft"] == "Paris"
+    assert out["grounded_reread"] is True
+    assert out["reread_trigger"] == "disagree"
+    assert out["trace"][-1]["answer"] == "Lyon"
+
+
+def test_no_reread_when_draft_agrees():
+    """Draft 'Paris' is a substring of the claim text -> no re-read, 2 calls."""
+    llm = _CountingLLM(["Paris", _CLAIMS_JSON])
+    retriever = MagicMock()
+    retriever.search.return_value = list(_POOL)
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _supported_nli(), _v1_gated_cfg(ground_final_read=True), tr)
+    assert tr.llm_calls == 2
+    assert out["answer"] == "Paris"
+    assert out["grounded_reread"] is False
+    assert out["reread_trigger"] is None
+    assert out["reread_answer"] is None
+
+
+def test_reread_returning_unknown_keeps_draft():
+    """Re-read returns 'unknown' -> original draft stands, no further re-read."""
+    llm = _CountingLLM(["Lyon", _CLAIMS_JSON, "unknown"])
+    retriever = MagicMock()
+    retriever.search.return_value = list(_POOL)
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _supported_nli(), _v1_gated_cfg(ground_final_read=True), tr)
+    assert tr.llm_calls == 3
+    assert out["answer"] == "Lyon"
+    assert out["draft"] == "Lyon"
+    assert out["grounded_reread"] is True
+    assert out["reread_trigger"] == "disagree"
+    assert out["reread_answer"] == "unknown"
+
+
+def test_no_reread_when_flag_off():
+    """Flag off: no re-read, no new record fields, v1 behavior exactly."""
+    llm = _CountingLLM(["unknown", _CLAIMS_JSON])
+    retriever = MagicMock()
+    retriever.search.return_value = list(_POOL)
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _supported_nli(), _v1_gated_cfg(), tr)
+    assert tr.llm_calls == 2
+    assert out["answer"] == "unknown"
+    assert "grounded_reread" not in out
+    assert "reread_trigger" not in out
+    assert "reread_answer" not in out
+

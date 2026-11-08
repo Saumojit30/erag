@@ -6,7 +6,7 @@ from src.epistemic.claims import extract_claims
 from src.epistemic.confidence import self_consistency, sequential_consistency
 from src.eval.metrics import normalize_answer
 from src.llm.client import Tracker
-from src.llm.prompts import answer_messages
+from src.llm.prompts import answer_messages, grounded_answer_messages
 
 QUERY_SYSTEM = (
     "Write {n} short, different search queries that would find evidence confirming or "
@@ -286,11 +286,51 @@ def run_erag(
         pool = (pool + new)[: e.get("pool_cap", 12)]
         hop += 1
 
+    # Tune-reader-grounding (step 1): conditional claim-grounded re-read.
+    # The final reader never sees the graph's verified claims; when the draft
+    # is "unknown" or disagrees with the answer claim, one extra reader call
+    # grounded on supported claims can recover the answer. Behind
+    # erag.ground_final_read (default false). The original draft stays in
+    # trace[-1]["answer"] when replaced (it was recorded there during the hop).
+    # No re-read when there is no answer claim or no supported claim to
+    # ground on. An empty draft counts as "unknown".
+    # `loop_draft` is the draft the loop produced: the post-hop resample
+    # decision below must compare against it, not a re-read replacement.
+    loop_draft = draft
+    grounded_reread = False
+    reread_trigger = None
+    reread_answer = None
+    if e.get("ground_final_read", False):
+        answer_claim = graph.answer_claim() if graph.claims else None
+        supported = [c for c in graph.claims if c.status == "supported"]
+        if answer_claim is not None and supported:
+            draft_norm = normalize_answer(draft)
+            claim_norm = normalize_answer(answer_claim.text)
+            if draft_norm in ("unknown", ""):
+                reread_trigger = "unknown"
+            elif draft_norm not in claim_norm:
+                reread_trigger = "disagree"
+            if reread_trigger is not None:
+                grounded = sorted(
+                    supported, key=lambda c: (not c.answer_bearing, -c.eff)
+                )
+                reread = llm.chat(
+                    grounded_answer_messages(
+                        q, grounded[: e.get("max_claims", 5)], pool
+                    ),
+                    tracker,
+                    temperature=0.0,
+                )
+                grounded_reread = True
+                reread_answer = reread
+                if normalize_answer(reread) not in ("unknown", ""):
+                    draft = reread
+
     final_conf = c0
     if hop > 0:
         if "no_conf" in ablate or post_hop_resample == "never":
             final_conf = 1.0 if "no_conf" in ablate else c0
-        elif post_hop_resample == "conditional" and normalize_answer(draft) == normalize_answer(initial_draft):
+        elif post_hop_resample == "conditional" and normalize_answer(loop_draft) == normalize_answer(initial_draft):
             # Answer unchanged despite new evidence: retain prior consensus c0
             final_conf = c0
         else:
@@ -308,7 +348,7 @@ def run_erag(
     if memory is not None and active:
         memory.write(graph, c0, seen_contra, cfg)
 
-    return {
+    out = {
         "answer": answer,
         "draft": draft,
         "abstained": bool(active and abstain),
@@ -327,4 +367,11 @@ def run_erag(
         "mem_events": mem_events,
         "claim_fallbacks": sum(1 for c in claims if c.get("fallback", False)),
     }
+    # Tune-reader-grounding (step 1): record the re-read only when the flag
+    # is on, so flag-off runs produce byte-identical records to v1.
+    if e.get("ground_final_read", False):
+        out["grounded_reread"] = grounded_reread
+        out["reread_trigger"] = reread_trigger
+        out["reread_answer"] = reread_answer
+    return out
 
