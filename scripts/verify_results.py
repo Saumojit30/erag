@@ -395,6 +395,33 @@ def check_phase5_report_matrix():
     return ("Phase 5 report matrix vs benchmark CSV", not failures, detail)
 
 
+def check_standard_dev_baseline():
+    """Standard Dev-100 baseline EM is 0.44 (audit App. A lists 0.4200).
+
+    Verified twice from results/standard_dev.jsonl: stored `em` field mean
+    and EM recomputed from answers with src.eval.metrics.exact_match both
+    give 0.44. The audit's Appendix A row (0.4200) is wrong; the repo's
+    own records (results/README.md) use 0.44.
+    """
+    rows = load_jsonl(os.path.join(ROOT, "results/standard_dev.jsonl"))
+    sys.path.insert(0, ROOT)
+    from src.eval.metrics import exact_match
+    stored = mean_or_nan([r["em"] for r in rows])
+    recomputed = mean_or_nan(
+        [exact_match(r["answer"], r["gold"]) for r in rows])
+    failures = []
+    if len(rows) != 100:
+        failures.append(f"n={len(rows)}, want 100")
+    if not close(stored, 0.44, 0.001):
+        failures.append(f"stored em mean {stored:.4f} != 0.44")
+    if not close(recomputed, 0.44, 0.001):
+        failures.append(f"recomputed EM {recomputed:.4f} != 0.44")
+    detail = (f"Standard Dev-100 EM {stored:.4f} (stored) / "
+              f"{recomputed:.4f} (recomputed from answers); "
+              f"audit App. A lists 0.4200, which is incorrect")
+    return ("Standard Dev-100 baseline EM 0.44", not failures, detail)
+
+
 def check_h3_labels():
     """Head-to-head CSV labels re-thresholdings as post-hoc (audit H3)."""
     path = os.path.join(
@@ -418,6 +445,7 @@ CHECKS = [
     check_phase5_cells,
     check_phase5_report_matrix,
     check_trueadaptive_dev,
+    check_standard_dev_baseline,
     check_test400_head_to_head,
     check_call_reduction,
     check_manifest,
