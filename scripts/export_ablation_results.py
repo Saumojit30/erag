@@ -31,7 +31,11 @@ def main():
         ("w/o Adaptive Retrieval (no_adaptive)", "erag_ablate_no_adaptive_dev.jsonl", "Stops retrieval after initial hop (single-hop epistemic)"),
         ("w/o Fast Path (no_fast)", "erag_ablate_no_fast_dev.jsonl", "Forces retrieval to always execute maximum hops (no early exit)"),
         ("w/o EIG Query Selection (no_eig)", "erag_ablate_no_eig_dev.jsonl", "Uses raw claim string as search query instead of EIG proposal"),
-        ("Pooled Setting (1,000 paras)", "erag_active_dev_pooled.jsonl", "Retrieval over full 1,000-paragraph corpus across all 100 dev questions"),
+        # Audit M4: the pooled run (erag_active_dev_pooled.jsonl) is NOT
+        # listed here. It retrieves from a pooled dev+test index, so test
+        # gold paragraphs were retrievable during a dev run; it must never
+        # enter headline or ablation tables. (It remains a sensitivity
+        # entry F4_setting_pooled in scripts/compute_all_sensitivities.py.)
     ]
 
     rows = []
