@@ -12,9 +12,10 @@ answered — they are answered (see proposal.md "Decisions — resolved").
   `design.md`, `tasks.md` (this file) — drafted 2026-11-08, untracked
 - [x] 0.2 Split v1/v2: Gap A (entropy-gated retrieval) moved to v2/deferred
   in proposal/design/spec; v1 is sequential SC + gated SC only.
-- [ ] 0.3 Validate with the local CLI:
+- [x] 0.3 Validate with the local CLI:
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
-  and `.../openspec validate erag-trueadaptive`
+  and `.../openspec validate erag-trueadaptive` — 2 passed, 0 failed,
+  change valid, no warnings (2026-11-08, branch `trueadaptive`).
 
 ## A. Branch
 
@@ -23,12 +24,12 @@ answered — they are answered (see proposal.md "Decisions — resolved").
 
 ## B. Call-count tests first (no production change yet)
 
-- [ ] B.1 In `tests/test_erag.py`, add mocked-LLM tests asserting exact
+- [x] B.1 In `tests/test_erag.py`, add mocked-LLM tests asserting exact
   `tracker.llm_calls` and call order for: fast-path Reference (7),
   fast-path Balanced (5), 1-hop Balanced (7), sequential SC stops at 2 on
   agreement, SC skipped on fast path (2 calls), v1 1-hop (5 calls).
-  Old-path tests must pass against current code; new-path tests must fail
-  until the code lands.
+  Old-path tests passed on current code; new-path tests failed until the
+  code landed (5 failed before Step C, 2 before Step E, 0 after).
 - [x] B.2 Re-run `tests/test_retrieval.py` (8 tests) — **done 2026-11-08:
   8/8 passed** (MiniLM downloaded with `HF_HUB_DISABLE_XET=1`; XET
   endpoint returns 403 in this VM). Record the result; do not claim it
@@ -36,11 +37,11 @@ answered — they are answered (see proposal.md "Decisions — resolved").
 
 ## C. Sequential SC (Gaps B + C) — v1
 
-- [ ] C.1 Add `sequential_consistency()` to `src/epistemic/confidence.py`
+- [x] C.1 Add `sequential_consistency()` to `src/epistemic/confidence.py`
   (same return shape as `self_consistency`; entropy + ΔH < 0.05 stopping,
   M cap 3). Wire behind `erag.sc_mode` (default `fixed`).
-- [ ] C.2 Unit-test with mocked LLM: unanimous → stops at 2; split → goes
-  to 3.
+- [x] C.2 Unit-test with mocked LLM: unanimous → stops at 2; split → goes
+  to 3. Done, commit `738dd1e`.
 
 ## D. Entropy-gated retrieval (Gap A) — v2, NOT v1
 
@@ -50,18 +51,21 @@ answered — they are answered (see proposal.md "Decisions — resolved").
 
 ## E. Gate SC behind the Fast Path — v1
 
-- [ ] E.1 Restructure hop-0 order (draft → claims → graph → Fast-Path
+- [x] E.1 Restructure hop-0 order (draft → claims → graph → Fast-Path
   check → SC only if needed), with `c0 = min_eff` when SC is skipped,
   behind `erag.gate_sc_behind_fast_path` (default false). Separate commit
-  from Step C so its EM effect can be A/B'd alone.
+  from Step C so its EM effect can be A/B'd alone. Done, commit `7d5cba4`.
 - [ ] E.2 A/B on Dev-100 against Step C alone, so the EM effect is isolated.
+  (Live run — needs a Groq key; not run in the v1 build.)
 
 ## F. Config + Dev-100 validation
 
-- [ ] F.1 Freeze `configs/erag_trueadaptive.yaml` (sequential SC, M cap 3,
+- [x] F.1 Freeze `configs/erag_trueadaptive.yaml` (sequential SC, M cap 3,
   gated SC on, parametric gate NOT set, direct EIG, incremental claims,
   never resample, saturation precheck, thresholds unchanged, **new
-  `cache_namespace` dev_trueadaptive_v1**).
+  `cache_namespace` dev_trueadaptive_v1**). Verified: loads via
+  `load_cfg`, every key read by the code, yaml-driven mocked fast path
+  costs 2 calls.
 - [ ] F.2 Run Dev-100 with `scripts/run_experiment.py` (system erag, split
   dev). Report: mean calls, EM, F1, stopping-point distribution, plus
   IRCoT/MiniLM on Dev-100 as comparator. **Needs a Groq key supplied

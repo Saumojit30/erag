@@ -1,0 +1,62 @@
+# E-RAG-TrueAdaptive v1 (frozen for Dev-100 validation)
+# Target: mean calls/Q <= 6 on Dev-100, EM >= 0.50
+#   (Balanced: Dev-100 EM 0.5100 at 8.92 calls/Q; Test-400 EM 0.4475 at 8.56)
+#
+# v1 mechanisms (see openspec/changes/erag-trueadaptive/):
+# - Sequential self-consistency (sc_mode: sequential, cap M=3, dH < 0.05
+#   stopping) instead of fixed-M sampling.
+# - SC gated behind the Fast Path (gate_sc_behind_fast_path: true):
+#   hop 0 is draft -> claims -> graph -> Fast-Path check, SC only if
+#   gaps exist or min_eff < theta_fast; c0 falls back to min_eff when
+#   SC is skipped. Fast-path floor drops from 5 (Balanced) to 2 calls.
+# - Entropy-gated retrieval (Gap A) is v2, NOT v1: no parametric_gate
+#   flag is set here, and no closed-book probe runs in v1.
+#
+# Already-implemented knobs, used not rebuilt:
+# - eig_strategy direct (no LLM query-generation call per hop)
+# - claim_strategy incremental (claims reused when the draft is unchanged)
+# - post_hop_resample never (no post-hop SC)
+# - saturation_precheck true
+# Thresholds unchanged. max_claims stays 5: the old draft's 3 is
+# ungrounded (audit §10); revert to 5 before touching thresholds if
+# EM drops. w_c is 1.0 (final.yaml), not base.yaml's 2.0.
+#
+# Cache: NEW namespace dev_trueadaptive_v1. Cache hits still count as
+# llm_calls, so reusing dev_v1 / dev_cost_opt_v1 would silently reuse
+# cached Reference/Balanced completions and invalidate the comparison.
+# For the later Test-400 run, use test_trueadaptive_v1.
+#
+# Usage (needs a Groq key supplied transiently at run time; none saved):
+#   load_cfg("configs/base.yaml", "configs/erag_trueadaptive.yaml")
+#   python scripts/run_experiment.py --config configs/base.yaml \
+#       configs/erag_trueadaptive.yaml   # Dev-100, MiniLM, k=3
+
+erag:
+  mode: active
+  max_hops: 2
+  sc_samples: 3
+  sc_mode: sequential
+  sc_temperature: 0.7
+  gate_sc_behind_fast_path: true
+  post_hop_resample: never
+  claim_strategy: incremental
+  eig_strategy: direct
+  saturation_precheck: true
+  w_s: 1.0
+  w_c: 1.0
+  theta_fast: 0.8
+  theta_gap: 0.6
+  theta_abs: 0.4
+  max_claims: 5
+  pool_cap: 12
+  confidence_def: majority
+
+nli:
+  pre_filter: true
+
+run:
+  name: erag_trueadaptive_dev
+  system: erag
+  cache: true
+  cache_namespace: dev_trueadaptive_v1
+  out_dir: results/trueadaptive
