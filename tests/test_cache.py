@@ -108,6 +108,21 @@ def test_key_changes_with_every_setting():
     assert base != l._key(msgs, 0.0, 10, 0)
 
 
+def test_key_changes_with_version():
+    """Audit M3: bumping the cache-key version must invalidate old keys."""
+    import src.llm.client as client_mod
+
+    l, msgs = make(), [{"role": "user", "content": "hi"}]
+    base = l._key(msgs, 0.0, 10, 0)
+    old = client_mod.CACHE_KEY_VERSION
+    try:
+        client_mod.CACHE_KEY_VERSION = old + 1
+        assert base != l._key(msgs, 0.0, 10, 0)
+    finally:
+        client_mod.CACHE_KEY_VERSION = old
+    assert base == l._key(msgs, 0.0, 10, 0)
+
+
 def test_empty_completion_is_not_cached():
     """Audit M1: an empty Groq response must never be written to the cache."""
     l, path = _llm_with_db("")

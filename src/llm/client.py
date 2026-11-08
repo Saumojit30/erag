@@ -11,6 +11,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Audit M3: cache-key version. The key payload covers generation parameters
+# but not code/config versions, so a code change that alters how identical
+# completions are used downstream (e.g. a different w_c) was invisible to
+# the cache. Bump this whenever the meaning of a cached completion changes;
+# old rows never hit under a new version, so the next run in an old
+# namespace re-fetches live. That is the intended safety behavior.
+CACHE_KEY_VERSION = 2
+
 
 @dataclass
 class Tracker:
@@ -81,6 +89,7 @@ class LLM:
     ) -> str:
         """Compute deterministic SHA-256 cache key covering all generation parameters."""
         payload = {
+            "v": CACHE_KEY_VERSION,
             "ns": self.namespace,
             "model": self.m["name"],
             "messages": messages,
