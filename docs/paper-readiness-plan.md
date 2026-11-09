@@ -65,8 +65,11 @@ What is NOT ready — the gaps, in order of blocking power:
 ## 2. Audit findings — where the plan documents are wrong
 
 Each finding names the file, the stale/wrong text, and the correction.
-Fixes for F1–F4 are made in the same commit as this file; F5–F8 are
-recorded here and fixed with the work items they belong to.
+Fixes for F1–F4 were made in the same commit as this file; F5–F8
+were fixed in a follow-up commit the same day (status doc §2/§3
+rewritten to current reality; master plan §2.1 H5 cache-confounding
+note, §10 hypothesis pointer, §2.3/§11 branch state and untracked
+list refreshed). All eight findings are now closed.
 
 - **F1 — master plan §2.1, step 2: "proposed, not built".** Wrong. Step 2
   was built, A/B'd, gated 3/4, kept by user decision, and archived

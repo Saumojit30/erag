@@ -172,11 +172,14 @@ against.
   complete — corrects the earlier "leans against" reading, which used
   final recall instead of hop-0 recall); H5 NOT SUPPORTED on retrieval
   reduction (E5 identical EM, 0 calls saved; override 1/1 retrieved,
-  1/5 planted); H4 NOT TESTED on Test-400 (dev interim inconclusive;
-  3× latency bound unmeetable as stated and cache-confounded — needs a
-  dated clarification); H2 NOT SUPPORTED, narrow miss (macro-F1 0.6825
-  < 0.70, contradicted recall 0.75 ≥ 0.70; supported recall 0.60 is the
-  weakness).
+  1/5 planted) — BUT the E5 test is now known to be cache-confounded
+  (mem arm served cache_hits == llm_calls on 30/30 rows), so the
+  verdict rests on an uninformative test, not a real null; H5 is
+  revisited with a dated note after step 6 (§3.6); H4 NOT TESTED on
+  Test-400 (dev interim inconclusive; 3× latency bound unmeetable as
+  stated and cache-confounded — needs a dated clarification); H2 NOT
+  SUPPORTED, narrow miss (macro-F1 0.6825 < 0.70, contradicted recall
+  0.75 ≥ 0.70; supported recall 0.60 is the weakness).
 - **Status doc 2026-11-09:** `docs/hypotheses-current-status.md` — the six
   hypotheses with evidence and verdicts, where TrueAdaptive is now, the
   ordered next steps, and the rules for how hypotheses may change later
@@ -211,7 +214,8 @@ always dedupe by id keeping the LAST row.
 
 ### 2.3 Branch and remote state
 
-- Branch `trueadaptive`: all tuning and remediation work. Never pushed.
+- Branch `trueadaptive`: all tuning and remediation work. HEAD `b885297`,
+  19 commits ahead of origin, unpushed (needs a fresh GitHub token).
 - Branch `master`: 1 commit ahead of origin (`88f2512`, the `.mailmap` fix
   for Manoj's authorship). Needs a fresh GitHub token to push.
 - `results/cache.sqlite` and `results/nli_memo.pkl` are modified by runs and
@@ -969,11 +973,13 @@ TrueAdaptive v1 and for steps 1–2.
   (EM 0.4000, 14.3 calls/Q; fired on 2/30). Only the override mechanism is
   verified. Until step 6 runs on the tuned system, the paper cannot claim
   memory helps — and the plan now says so (§3.6).
-- **No manuscript in the repo.** The paper's hypothesis as stated by its
-  authors has not been read here (no `paper/`, no README, the Implementation
-  Guide PDF is not in the repo). The hypothesis in §3.6 is inferred from
-  code and repo docs. If the manuscript or Guide is supplied, the plan's
-  hypothesis statement is corrected against it before Phase 4.
+- **No manuscript in the repo.** There is no `paper/` directory and no
+  manuscript text; the Implementation Guide PDF is not in the repo. The
+  hypotheses H1–H6 as stated now come from the Nov 4 report (§2.1,
+  verified from the extracted text) — the earlier "inferred from code
+  and repo docs" wording is superseded. If the manuscript or Guide is
+  supplied, the hypothesis statement is corrected against it before
+  Phase 4.
 - **Groq key handling.** Keys are supplied in chat, smoke-tested with 1 call,
   used transiently via env var, never saved. Rotation is advised after use
   (a key pasted in chat should be treated as exposed).
@@ -990,8 +996,12 @@ TrueAdaptive v1 and for steps 1–2.
   and lowercase `no_proxy` set to `localhost,127.0.0.1`; retrieval tests
   need `HF_HUB_DISABLE_XET=1` (XET endpoint returns 403; MiniLM ~90MB cached).
 - Files deliberately left uncommitted: `results/cache.sqlite`,
-  `results/nli_memo.pkl` (modified by runs). Untracked: `configs/erag_adaptive.yaml`
-  (old untested draft), `docs/`, `openspec/project.md`.
+  `results/nli_memo.pkl` (modified by runs). Untracked:
+  `configs/erag_adaptive.yaml` (old untested draft),
+  `docs/audit-cache-dataset-integrity.md`, `docs/openspec-setup.md`,
+  `openspec/changes/archive/2026-11-09-tune-hop2-sc-cap/`,
+  `openspec/specs/hop2-sc-cap/` (step-5 archive files, staged
+  differently across commits — see `git status` before any commit).
 
 ---
 

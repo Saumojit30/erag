@@ -284,30 +284,65 @@ touch these). Call tail: 54 rows ≥7 calls consume 22% of calls at EM
   nondeterminism flipped 8 untouched rows, so the EM tie carries ~±3
   rows of noise. Lesson: never assume cache replay — verify
   `cache_hits` before believing a paired comparison.
-- **Step 2 — claim extraction — OpenSpec change drafted, NOT BUILT.**
-  Diagnosis: all 37 never-claimed rows have a wrong draft; no trigger
-  separates them (c0 median 1.000 both groups). Mechanism (Variant A):
-  question-grounded claims in the single extraction call (zero new LLM
-  calls), each claim with a `"source"` field ("draft"/"question"),
-  `max_claims` 5→8 in the A/B. Gate: EM not below 0.56; gold-in-claims
-  rate improves on 0.333; calls +≤0.5/Q; answer-bearing
-  question-sourced ≤10%. Measured on top of the step-1 tuned system.
-- **Steps 3–5 — planned, not designed.** Step 3 `tune-unknown-prompt`
-  (40 reader-refusal rows; prompt-only, 2–3 pre-registered variants
-  max); Step 4 `tune-theta-abs` (decided by the paper's goal — selective
-  answering vs max EM — **user decision still open**; if undecided,
-  skip, `theta_abs` stays 0.4); Step 5 `tune-hop2-sc-cap` (cost lever,
-  ~100 calls/400 saved; gate: EM not below tuned dev by >1 pt).
-- **Step 6 — memory effectiveness — planned.** Component test on the
-  tuned system using the E5 stream instrument (Dev-100 cannot test
-  memory — independent questions), gated before the Test-400 freeze.
-  Memory enters the frozen system ONLY if the stream A/B shows an EM
-  gain or a call reduction with EM not falling, and the override test
-  passes; otherwise memory stays OFF and the paper reports the null.
+- **Step 2 — claim extraction — DONE, gate 3/4, kept by user decision,
+  archived.** Question-grounded claims in the single extraction call
+  (zero new LLM calls), each claim with a `"source"` field
+  ("draft"/"question"), `max_claims` 5→8. Dev A/B on the step-1 tuned
+  system: EM 0.5400 vs 0.5600 (−2 rows, inside ±3-row noise),
+  gold-in-claims among full-recall wrong rows 0.524 vs 0.333 baseline,
+  answer-bearing question-sourced 6/100 (gate ≤10% PASS). Gate failed
+  on EM only; the user chose to proceed. Tuned value: `max_claims: 8`.
+- **Step 3 — unknown prompt — DONE, gate FAILED, mechanism DROPPED.**
+  Two pre-registered variants (best_guess, cite_first) behind
+  `erag.unknown_prompt`: both failed the pre-registered gate on
+  unknown reduction (best_guess 6/100 unknowns, needed ≤4; cite_first
+  5/100). `unknown_prompt` stays `"base"`. The 40 Test-400
+  model-unknown rows remain unrecovered.
+- **Step 4 — theta_abs — DONE, theta_abs = 0.50.** The user decided
+  the goal is selective answering (reduce hallucination first). The
+  pre-registered counterfactual was accepted as the evidence (the live
+  runs were ~99% cache replays and were discarded per the tripwire,
+  then accepted with a dated amendment — the tripwire premise is false
+  for threshold-only steps): t=0.50 → selective EM 0.6456, wrong rate
+  0.3544, coverage 0.790, EM 0.5100. Honest finding: the confidence
+  signal does not separate right from wrong at the margin (newly
+  abstained 6 rows, 3 correct / 3 wrong — a coin flip).
+- **Step 5 — hop-2 SC cap — DONE, SUPERSEDED by step 7 (not passed,
+  not failed).** The mechanism is `erag.max_hops=1`, config-only. Live
+  A/B: EM 0.5100 unchanged, calls/Q 4.49 vs 4.65, hop-2 rows 10→0;
+  the gate as written failed on live calls only (replay noise). The
+  user chose the learned continuation policy instead of deciding the
+  gate; `max_hops` stays 2 as a ceiling; the static cap is NOT adopted.
+- **Step 6 — memory effectiveness — measurement built, A/B pending.**
+  Component test on the tuned system using the E5 stream instrument
+  (Dev-100 cannot test memory — independent questions), gated before
+  the Test-400 freeze. The `--position` analyzer section and the
+  `mem_store_size`/`mem_texts` row fields are built and verified
+  (`e5da900`); the stream A/B (3 arms, fresh namespaces, N=30
+  fallback) awaits the step-7 outcome + a Groq key. Memory enters the
+  frozen system ONLY if the stream A/B shows an EM gain or a call
+  reduction with EM not falling, and the override test passes;
+  otherwise memory stays OFF and the paper reports the null. Note:
+  the E5 null itself is now known to be cache-confounded (mem arm
+  served cache_hits == llm_calls on 30/30 rows) — uninformative, not
+  a real null; H5 is revisited with a dated note after step 6.
+- **Step 7 — learned continuation policy — Phase A + retrain + B.1
+  DONE; live A/B pending.** A logistic regression on hop-0 features
+  predicting P(hop-0 draft correct); CONTINUE iff P < τ. The original
+  Gate A pass (τ = 0.30, sim EM 0.5000, exactly at the floor) rested
+  on a definitionally wrong feature — `draft_unknown` was trained on
+  the row draft (final draft), not the hop-0 draft (16/100 rows
+  diverge). The user chose the retrain: Gate A re-check PASS with
+  margin (τ = 0.05, sim EM 0.5152, F1 0.6238, calls/Q 3.92, coverage
+  0.869, OOF AUROC 0.6775; `7872b24`). The τ = 0.30 artifact is
+  superseded. B.1 wiring DONE and verified (`a0eb216`): the policy is
+  live in `run_erag` behind `erag.continuation_policy`; 12 new mocked
+  tests; feature agreement 1e-9 on all 100 dev rows; suite 139 passed.
+  C.1 live Dev-100 A/B awaits a Groq key, then Gate B.
 
-**State of the repo.** Branch `trueadaptive`, HEAD `348735c`, local
-only. Master is 1 commit ahead of origin (`88f2512`, the `.mailmap`
-fix) and unpushed. Nothing has ever been pushed to
+**State of the repo.** Branch `trueadaptive`, HEAD `b885297`, local
+only, 19 commits ahead of origin, unpushed. Master is 1 commit ahead
+of origin (`88f2512`, the `.mailmap` fix) and unpushed. Nothing has ever been pushed to
 ManojAdapakala/ERag (fetch-only, push URL `no_push`). No Groq key or
 GitHub token is saved anywhere — every future push or live run needs
 one supplied transiently. One known pre-existing test failure
@@ -316,21 +351,20 @@ attempts", code says 6; fails on base too, left untouched).
 
 ## 3. Next steps, in order
 
-1. **Build step 2 (claim extraction).** Tests first (mocked LLM, new
-   `tests/test_claims.py`), then implementation, then the Dev-100 BM25
-   A/B on top of the step-1 tuned system. Needs a Groq key, supplied
-   transiently. This is the highest-value tuning step: the error
-   analysis says 37 of the 133 wrong Test-400 answers never had gold
-   in the claims, and H2's failure analysis says the verifier cannot
-   confirm multi-hop claims — so step 2's claims should be written so
-   a single-window verifier *can* confirm them (one fact per claim,
-   no cross-paragraph synthesis in a single claim).
-2. **Steps 3–5, in order.** Step 3 (unknown prompt) next; step 4 only
-   after the user decides the theta_abs goal (selective answering vs
-   max EM) — if undecided, skip it; step 5 (hop-2 SC cap) is a pure
-   cost lever and goes last among the three.
-3. **Step 6 (memory).** Stream A/B on the tuned system; memory enters
-   the frozen system only if it passes its gate.
+1. **Step 7 C.1 — live Dev-100 A/B + Gate B.** Needs a Groq key,
+   supplied transiently. Prepared command in the step-7 change
+   (tasks.md C.1): tuned system + policy, Dev-100 BM25, reused dev
+   namespace. Gate B: live EM ≥ 0.5000, live calls/Q < 4.65, live
+   numbers within ±0.02 EM / ±0.2 calls/Q of the simulation.
+2. **Step 6 — stream A/B.** Three arms, fresh namespaces, N=30
+   fallback; runs on the post-step-7 tuned system if the policy
+   passes Gate B, else post-step-4. Needs a Groq key. Then the gate,
+   commit, archive, and the H5 revisit with a dated note.
+3. **Hypothesis hygiene before Phase 2.** Dated confirmation of the
+   H2 0.70 threshold; dated clarification of the H4 3× latency bound
+   (unmeetable as written); decision 3c — whether the confirmatory
+   H1/H4 analyses join Phase 2 (H4 needs its own Test-400 ablation
+   run).
 4. **Freeze the tuned config** (`configs/erag_trueadaptive_tuned.yaml`,
    including the memory on/off decision from step 6). Nothing changes
    after this point without a dated amendment.
@@ -357,12 +391,14 @@ attempts", code says 6; fails on base too, left untouched).
    not what was hoped: H2 and H5 reported as not supported, H4's
    latency bound as clarified, H6 as the mechanism.
 
-**Blockers / open decisions (master plan §9):** Groq key for steps
-2–6 and Phase 2 (transient, on request); the theta_abs goal decision
-(step 4); the new-dataset choice (Phase 3); when/whether to push
-`trueadaptive` to origin and master `88f2512` (needs a fresh GitHub
-token); FlashRAG + the unsupplied papers (supply or confirm out of
-scope); whether a multi-retriever plan version exists in another file
+**Blockers / open decisions (master plan §9; see also
+`docs/paper-readiness-plan.md` §4):** Groq key for the step-7 live
+A/B, the step-6 stream A/B, and Phase 2 (transient, on request); the
+hypothesis-hygiene items (H2 threshold, H4 bound, decision 3c); the
+new-dataset choice (Phase 3); when/whether to push `trueadaptive`
+to origin and master `88f2512` (needs a fresh GitHub token);
+FlashRAG + the unsupplied papers (supply or confirm out of scope);
+whether a multi-retriever plan version exists in another file
 (the user's recollection vs the report's text — unresolved).
 
 ## 4. How the hypotheses change later — and how they don't
