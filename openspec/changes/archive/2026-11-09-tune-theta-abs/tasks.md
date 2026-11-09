@@ -121,17 +121,20 @@ this step; their A/B baselines are this step's, whatever they are.
 
 ## E. Commit + archive
 
-- [ ] E.1 Commit the build (analyzer `--theta` section), both A/B
+- [x] E.1 Commit the build (analyzer `--theta` section), both A/B
   result files, and the gate verdict — separate from the archive commit.
   Do NOT commit `results/cache.sqlite` or `results/nli_memo.pkl`
-  (run artifacts, deliberately uncommitted).
-- [ ] E.2 Archive with `-y` (the no-TTY lesson — without it the command
+  (run artifacts, deliberately uncommitted). (Build committed 5738181;
+  gate verdict + both A/B files committed 4701ac3, 2026-11-09.)
+- [x] E.2 Archive with `-y` (the no-TTY lesson — without it the command
   blocks forever on its confirmation prompt):
   `openspec archive tune-theta-abs -y`; then commit the archive.
   Validate `--all` after archiving (0 failed). Update the master plan
-  (§3.4 outcome) and MEMORY.md in the same commit round.
-- [ ] E.3 Report the verdict to the user: per-candidate gate table,
+  (§3.4 outcome) and MEMORY.md in the same commit round. (Plan updated
+  in 4701ac3; archiving now.)
+- [x] E.3 Report the verdict to the user: per-candidate gate table,
   the chosen value (or "stays 0.4"), and the next step (step 5's A/B
   baseline is this step's post-step-4 tuned dev file). Do NOT push
   without the user saying so; pushing needs a fresh GitHub token,
-  transiently.
+  transiently. (Reported in the main chat 2026-11-09; step-5 baseline
+  EM 0.5100, 4.65 calls/Q.)
