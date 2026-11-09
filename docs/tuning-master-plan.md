@@ -755,6 +755,10 @@ fresh namespaces, config overrides only, no code:
   verdict is unchanged: it is judged on the tuned-vs-IRCoT BM25
   comparison; the ablations are separately-judged component evidence
   under H7.
+- **MiniLM namespaces (added 2026-11-10, with the MiniLM decision
+  above):** tuned `test_tuned_v1_minilm`, IRCoT `test_ircot_v2_minilm`
+  — fresh, never used before, same frozen configs and `--set` values
+  as the BM25 runs except `retrieval.retriever_type=minilm`.
 
 ### 4.2 The verdict (pre-registered)
 
