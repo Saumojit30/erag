@@ -163,8 +163,9 @@ against.
   reduction (E5 identical EM, 0 calls saved; override 1/1 retrieved,
   1/5 planted); H4 NOT TESTED on Test-400 (dev interim inconclusive;
   3× latency bound unmeetable as stated and cache-confounded — needs a
-  dated clarification); H2 PENDING (60-pair labelled set being built and
-  run separately).
+  dated clarification); H2 NOT SUPPORTED, narrow miss (macro-F1 0.6825
+  < 0.70, contradicted recall 0.75 ≥ 0.70; supported recall 0.60 is the
+  weakness).
 - **No manuscript text exists.** The report is a plan + status report with a
   paper blueprint (two working titles, claim-to-evidence map), not a paper
   draft: no abstract/introduction/conclusion text. The Implementation Guide
