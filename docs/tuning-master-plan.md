@@ -9,9 +9,9 @@ document.
 
 **Status:** 2026-11-09. Steps 1–2 of tuning are built and gated (step 2 kept
 by user decision after a 3/4 gate pass; EM 0.54 vs 0.56 inside noise).
-Step 3 is being drafted as its own OpenSpec change. Steps 4–5 are planned
-here and not started. Step 6 (memory effectiveness) was added 2026-11-09
-after the user pointed out
+Step 3's OpenSpec change is drafted and validated, awaiting user approval
+to build. Steps 4–5 are planned here and not started. Step 6 (memory
+effectiveness) was added 2026-11-09 after the user pointed out
 the plan omitted it. Test-400, new dataset, and paper are planned here and not
 started. This plan is the document OpenSpec changes
 are built against: every tuning step gets its own OpenSpec change (proposal,
@@ -332,7 +332,17 @@ Test-400 verdict, not at the dev gate.
   withheld. Design must state the variants up front (no fishing through
   variants on dev and picking the best — that is selection on a 100-row set;
   at most 2–3 pre-registered variants, each a separate A/B, each reported).
-- **OpenSpec change:** `tune-unknown-prompt` (to be created when step 2 closes).
+- **OpenSpec change:** `tune-unknown-prompt` (drafted 2026-11-09, validated
+  5 passed 0 failed; proposal first, code second — build starts on user
+  approval). Two pre-registered variants (`best_guess`, `cite_first`),
+  each its own Dev-100 BM25 A/B, behind `erag.unknown_prompt` (default
+  `"base"`). Gate per variant: unknowns fall by ≥3 rows (7 → ≤4);
+  recovered-row EM ≥ 0.5; EM not below step-2 tuned dev (0.54); calls
+  +≤0.5/Q. Selection between passing variants by pre-registered rule
+  (larger unknown reduction; tie → `best_guess`). Key risk recorded:
+  recovered guesses will likely be high-confidence, so `theta_abs` will
+  not withhold bad ones — the recovered-row accuracy gate is the
+  protection.
 - **Dev gate (smoke test):** EM not below the step-2 tuned dev; model-unknown
   rows on dev fall; calls +≤0.5/Q. The real measure is Test-400 (§4).
 
