@@ -1,7 +1,7 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta] [--hopcap [--hopcap-baseline PATH]]
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta] [--hopcap [--hopcap-baseline PATH]] [--policy [--policy-baseline PATH] [--policy-simulation PATH]]
 
 --reread prints section 10, the claim-grounded re-read summary (tuning step 1):
 trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
@@ -36,6 +36,16 @@ exact_match on trace[i].answer) against final EM. With
 and the deltas (calls/Q, live calls/Q, EM). Section number note: this is
 section 14, not 13 — step 4's --theta section already took 13 (tasks.md
 A.2 said 13 when drafted; corrected here).
+
+--policy prints section 15, the learned-continuation-policy summary
+(tuning step 7): EM, F1, mean llm_calls/cache_hits/live calls per
+question, the hops distribution, the policy decision counts (STOP vs
+CONTINUE from the per-row policy_decision field; rows without the field
+are unknown, never assumed), STOP-rows' EM vs CONTINUE-rows' EM, and —
+with --policy-simulation PATH — the agreement check vs the Phase A
+simulation JSON (Delta EM, Delta calls/Q; the Gate B +/-0.02 / +/-0.2
+check). With --policy-baseline PATH it prints the baseline measures and
+the deltas.
 
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
@@ -385,6 +395,108 @@ def hopcap_section(label, rows, baseline_rows=None):
           f"delta hop-2 calls: {d['hop2_calls']:+d}")
 
 
+def policy_metrics(rows):
+    """Learned-continuation-policy measures (tuning step 7, section 15).
+
+    Same headline measures as hopcap_metrics, plus the policy decision
+    counts from the per-row `policy_decision` field the runner writes in
+    B.1. Rows without the field (every file predating the policy) are
+    reported as unknown, never assumed. STOP-rows' EM vs CONTINUE-rows'
+    EM is the live check that the policy stopped on the right questions.
+    Failed rows are excluded from every measure except the failed count.
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    n = len(ok)
+    em = mean(r["em"] for r in ok) if ok else 0.0
+    f1 = mean(r["f1"] for r in ok) if ok else 0.0
+    calls = mean(r["llm_calls"] for r in ok) if ok else 0.0
+    hits = mean(r.get("cache_hits", 0) for r in ok) if ok else 0.0
+    hops_dist = {}
+    for h in sorted(set(r.get("hops", 0) for r in ok)):
+        hrs = [r for r in ok if r.get("hops", 0) == h]
+        hops_dist[h] = {
+            "n": len(hrs),
+            "calls": mean(r["llm_calls"] for r in hrs),
+            "em": mean(r["em"] for r in hrs),
+        }
+    decisions = {"STOP": 0, "CONTINUE": 0, "unknown": 0}
+    for r in ok:
+        d = r.get("policy_decision")
+        if d == "STOP":
+            decisions["STOP"] += 1
+        elif d == "CONTINUE":
+            decisions["CONTINUE"] += 1
+        else:
+            decisions["unknown"] += 1
+    stop_rows = [r for r in ok if r.get("policy_decision") == "STOP"]
+    cont_rows = [r for r in ok if r.get("policy_decision") == "CONTINUE"]
+    return {
+        "n": n,
+        "failed": sum(1 for r in rows if r.get("failed", False)),
+        "em": em,
+        "f1": f1,
+        "calls": calls,
+        "cache_hits": hits,
+        "live_calls": calls - hits,
+        "hops_dist": hops_dist,
+        "decisions": decisions,
+        "stop_em": mean(r["em"] for r in stop_rows) if stop_rows else None,
+        "continue_em": mean(r["em"] for r in cont_rows) if cont_rows else None,
+    }
+
+
+def policy_section(label, rows, baseline_rows=None, simulation=None):
+    """Section 15 (tuning step 7): learned-continuation-policy summary.
+
+    Verified against the stored post-step-4 tuned dev file before any
+    live run (tasks.md A.5): EM 0.5100, 4.65 calls/Q, all 100 rows
+    unknown (no policy_decision field predates the policy). With a
+    baseline file, prints the same measures for it and the deltas. With
+    a Phase A simulation JSON (data/continuation_simulation_dev.json),
+    prints the agreement check vs the simulation (Gate B: +/-0.02 EM /
+    +/-0.2 calls/Q — a larger gap means the wiring is wrong, not the
+    policy).
+    """
+    section(f"15. Learned continuation policy ({label})")
+    m = policy_metrics(rows)
+    print(f"N={m['n']} deduped, failed={m['failed']}; EM={m['em']:.4f} "
+          f"F1={m['f1']:.4f}")
+    print(f"mean llm_calls/Q={m['calls']:.2f} "
+          f"mean cache_hits/Q={m['cache_hits']:.2f} "
+          f"mean live calls/Q={m['live_calls']:.2f}")
+    dist = "; ".join(
+        f"hops {h}: n={d['n']}, mean calls={d['calls']:.2f}, EM={d['em']:.4f}"
+        for h, d in sorted(m["hops_dist"].items()))
+    print(f"hops distribution: {dist}")
+    d = m["decisions"]
+    print(f"policy decisions — STOP: {d['STOP']}, CONTINUE: {d['CONTINUE']}, "
+          f"unknown: {d['unknown']} (rows without a policy_decision field "
+          f"are unknown, never assumed)")
+    if m["stop_em"] is None:
+        print("STOP-rows EM: n/a (no STOP rows)")
+    else:
+        print(f"STOP-rows EM: {m['stop_em']:.4f} (n={d['STOP']})")
+    if m["continue_em"] is None:
+        print("CONTINUE-rows EM: n/a (no CONTINUE rows)")
+    else:
+        print(f"CONTINUE-rows EM: {m['continue_em']:.4f} (n={d['CONTINUE']})")
+    if baseline_rows is not None:
+        b = policy_metrics(baseline_rows)
+        print(f"baseline: N={b['n']} EM={b['em']:.4f} "
+              f"mean llm_calls/Q={b['calls']:.2f} "
+              f"mean live calls/Q={b['live_calls']:.2f}")
+        print(f"delta calls/Q: {m['calls'] - b['calls']:+.2f}; "
+              f"delta live calls/Q: {m['live_calls'] - b['live_calls']:+.2f}; "
+              f"delta EM: {m['em'] - b['em']:+.4f}")
+    if simulation is not None:
+        d_em = m["em"] - simulation["em"]
+        d_calls = m["calls"] - simulation["calls"]
+        print(f"agreement vs simulation (sim EM={simulation['em']:.4f}, "
+              f"calls/Q={simulation['calls']:.2f}): dEM: {d_em:+.4f}; "
+              f"dCalls/Q: {d_calls:+.2f} — Gate B allows +/-0.02 EM / "
+              f"+/-0.2 calls/Q")
+
+
 def reread_section(label, rows):
     """Section 10 (tuning step 1): what the claim-grounded re-read did.
 
@@ -434,6 +546,17 @@ def main():
     ap.add_argument("--hopcap", action="store_true",
                     help="print section 14, the hop-2 call-tail summary "
                          "(tuning step 5)")
+    ap.add_argument("--policy", action="store_true",
+                    help="print section 15, the learned-continuation-policy "
+                         "summary (tuning step 7)")
+    ap.add_argument("--policy-baseline", default=None,
+                    help="baseline dev file for the policy comparison "
+                         "(default: none; post-step-4 tuned dev file for the "
+                         "step-7 A/B)")
+    ap.add_argument("--policy-simulation", default=None,
+                    help="Phase A simulation summary JSON for the agreement "
+                         "check (default: none; "
+                         "data/continuation_simulation_dev.json)")
     ap.add_argument("--hopcap-baseline", default=None,
                     help="baseline dev file for the hop-2 comparison "
                          "(default: none; post-step-4 tuned dev file for the "
@@ -577,6 +700,14 @@ def main():
     if args.hopcap:
         baseline = load(args.hopcap_baseline) if args.hopcap_baseline else None
         hopcap_section("TA dev", dev, baseline)
+
+    if args.policy:
+        baseline = load(args.policy_baseline) if args.policy_baseline else None
+        sim = None
+        if args.policy_simulation:
+            with open(args.policy_simulation) as f:
+                sim = json.load(f)
+        policy_section("TA dev", dev, baseline, sim)
 
 
 if __name__ == "__main__":

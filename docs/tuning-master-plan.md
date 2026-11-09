@@ -565,7 +565,29 @@ hop-1+ continuation stays static.
   AND live calls/Q strictly below 4.65 AND live numbers within
   ±0.02 EM / ±0.2 calls/Q of the simulation. Live calls/Q is NOT
   gated (the step-5 lesson: two 99%-replay runs can't discriminate
-  on live calls). Phase A is in flight; its gate decides wiring.
+  on live calls).
+- **Phase A DONE 2026-11-09, verified by the parent by independent
+  re-run (scripts + training set + simulation + analyzer §15).**
+  Extraction reproduces every verification number exactly
+  (accounting violations 0 — the invariant is exact, no
+  approximation needed). Oracle ceiling: included 83, excluded 17,
+  EM 0.6506, calls/Q 4.61 — saves only 0.04/Q, because 28 of the 48
+  correct drafts already stop at hop 0 under the static fast path.
+  LR (τ = 0.30, 5-fold CV, OOF): simulated EM 0.5000, F1 0.5837,
+  calls/Q 3.98 (saved +0.67), coverage 0.766, STOP 70 / CONTINUE
+  24, excluded 6/100 (6.0%). **Gate A: PASS, exactly at the floor**
+  (0.5000 = 47/94; one fewer correct row fails it). Honest reading:
+  the saving is bought by stopping on wrong drafts — the policy
+  STOPs on 4 of the 6 fix-rows (loses 4 fixes) and saves 1 of 3
+  breaks; F1 and coverage dip below baseline. OOF AUROC 0.6546 vs
+  c0 alone 0.484. No Test-400 data anywhere in training/features/τ
+  (only a path constant in tests, used to assert refusal). Fast
+  suite 126 passed, 1 failed (known retry mismatch). **Final-model
+  training + artifact NOT done** — the user decides whether to
+  proceed to B-phase (wiring) or stop here, before any `src/`
+  change. If the user proceeds: B.1 wire behind
+  `erag.continuation_policy`, C.1 live Dev-100 A/B (needs a Groq
+  key), D.1 Gate B, E.1 archive.
 - **Interaction:** step 5 is SUPERSEDED by this step (see §3.5) —
   the hop-depth decision is the policy's job now. Step 6's stream
   A/B still awaits a Groq key and runs on the post-step-7 tuned
@@ -1109,8 +1131,38 @@ here only if a stored file or a commit backs it.
   (proposal/design/tasks/spec; validate 9 passed, 0 failed) — a
   learned draft-correctness model (logistic regression on hop-0
   features, dev only) replacing the fixed hop-0 continuation
-  decision. Phase A (offline counterfactual, no LLM calls) is in
-  flight; its gate decides whether the policy gets wired in.
+  decision.
+
+### 2026-11-09 — Step 7 Phase A + Gate A verdict PASS (marginal)
+
+- Phase A built by subagent, verified by the parent by independent
+  re-run (extraction + training scripts re-executed, composition
+  recomputed from the stored traces, fast suite run, `--policy`
+  section run on the baseline). Extraction reproduces every
+  verification number exactly (hop-0 EM 0.4800, final 0.5100, fixed
+  6, broke 3, hops {0:45, 1:45, 2:10}, abstained 15, draft-unknown
+  6, 4.65 calls/Q; accounting violations 0 — invariant exact).
+  Oracle ceiling: included 83, excluded 17, EM 0.6506, calls/Q
+  4.61 (saves only 0.04/Q — the static fast path already stops on
+  28 of the 48 correct drafts). LR, τ = 0.30, 5-fold CV, OOF only:
+  simulated EM 0.5000, F1 0.5837, calls/Q 3.98 (saved +0.67),
+  coverage 0.766, STOP 70 / CONTINUE 24, excluded 6/100 (6.0%).
+  OOF AUROC 0.6546 (c0 alone 0.484). **Gate A: PASS, exactly at
+  the floor** (0.5000 = 47/94; one fewer correct row fails it).
+  Composition (parent): the policy STOPs on 4 of the 6 fix-rows
+  (loses 4 fixes) and saves 1 of 3 breaks; F1 and coverage dip
+  below baseline. No Test-400 data in training/features/τ. Fast
+  suite 126 passed, 1 failed (known retry mismatch). `--policy`
+  analyzer §15 reproduces the theta_a baseline exactly (EM 0.5100,
+  4.65 calls/Q, all 100 rows unknown). Files: scripts
+  `extract_continuation_training.py`, `train_continuation_policy.py`,
+  `data/continuation_training_dev.jsonl`,
+  `data/continuation_simulation_dev.json`, tests
+  `test_continuation_policy.py` (8), `test_analyzer_policy.py`
+  (7), analyzer §15. **Final-model training + artifact NOT done —
+  the user decides whether to proceed to B-phase (wiring) or stop
+  here.** If proceeding: B.1 wiring, C.1 live Dev-100 A/B (needs a
+  Groq key), D.1 Gate B, E.1 archive.
 
 ## Appendix — Key numbers (frozen)
 

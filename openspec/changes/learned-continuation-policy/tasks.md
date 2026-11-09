@@ -22,7 +22,7 @@ offer); the build then follows this file.
 
 ## A. Offline measurement first (no LLM calls, no `src/` change)
 
-- [ ] A.1 Extraction: new script
+- [x] A.1 Extraction: new script
   `scripts/extract_continuation_training.py` (or an analyzer
   section — implementer's choice, but a standalone script is
   preferred: the training set is an artifact, not a report). It
@@ -45,8 +45,12 @@ offer); the build then follows this file.
   (perfect draft-correctness model: STOP on correct drafts,
   CONTINUE on wrong ones — EM and calls/Q under the call-accounting
   rule below). If the extraction does not reproduce these numbers,
-  it is wrong — fix it before any training.
-- [ ] A.2 Call accounting: the extraction (or a paired function)
+  it is wrong — fix it before any training. DONE 2026-11-09,
+  verified by the parent by independent re-run: all verification
+  numbers reproduced exactly; oracle ceiling included 83, excluded
+  17, EM 0.6506, calls/Q 4.61 (saves only 0.04/Q — 28 of the 48
+  correct drafts already stop at hop 0 under the static fast path).
+- [x] A.2 Call accounting: the extraction (or a paired function)
   reconstructs hop-0 calls per row from the code and the stored
   rows, and verifies the invariant for EVERY row: reconstructed
   hop-0 calls + stored later-hop calls == stored `llm_calls`.
@@ -56,8 +60,14 @@ offer); the build then follows this file.
   if any). If an exact reconstruction is impossible, use a
   documented conservative approximation (overestimate stopped
   rows' calls, never underestimate) and record it in the design.md
-  Threats section — do not silently approximate.
-- [ ] A.3 Training + counterfactual simulation: new script
+  Threats section — do not silently approximate. DONE 2026-11-09:
+  EXACT, no approximation needed — invariant holds for all 100
+  rows (accounting violations 0, verified by parent re-run). Rule
+  recorded in design.md Threats: hop-0 = 1 draft + 1 extraction +
+  SC samples (0 if Fast Path skipped, 2 if c0 == 1.0, else 3);
+  later hops = 1 draft + 1 extraction iff the draft changed vs
+  hop 0, +1 for a triggered re-read; EIG probes 0, resample 0.
+- [x] A.3 Training + counterfactual simulation: new script
   `scripts/train_continuation_policy.py`. It loads the A.1 training
   set, fits a logistic regression (features standardized, single
   model), chooses τ by 5-fold cross-validation to maximize saved
@@ -76,6 +86,15 @@ offer); the build then follows this file.
   extraction, the accounting invariant, and the simulation (a
   hand-built 4-row trace set with known STOP/CONTINUE outcomes);
   the tests must fail before the implementation and pass after.
+  DONE 2026-11-09, verified by the parent by independent re-run:
+  LR, τ = 0.30, simulated EM 0.5000, F1 0.5837, calls/Q 3.98
+  (saved +0.67), coverage 0.766, STOP 70 / CONTINUE 24, excluded
+  6/100 (6.0%, under the 10% ceiling). No tree tried — LR passed,
+  so the fallback was not triggered. OOF AUROC 0.6546 (c0 alone
+  0.484 on dev). Parent's composition check: policy STOPs on 4 of
+  the 6 fix-rows (loses 4 fixes) and saves 1 of 3 breaks; STOP rows
+  40 correct at hop-0, CONTINUE rows 7 correct at final = 47/94;
+  3 of the 6 excluded rows had correct hop-0 drafts.
 - [ ] A.4 Gate A (pre-registered, design.md): cross-validated
   (out-of-fold only) simulated EM ≥ 0.5000 AND simulated calls/Q
   strictly below 4.65. If it fails, stop — no wiring, no live run,
@@ -84,9 +103,17 @@ offer); the build then follows this file.
   100 dev rows and write the policy artifact
   `configs/continuation_policy_dev.json` (model type, feature list
   in order, coefficients, intercept, τ, training provenance: file,
-  N, date, cross-validated scores).
+  N, date, cross-validated scores). VERDICT 2026-11-09 (parent):
+  **PASS, exactly at the floor** — simulated EM 0.5000 ≥ 0.5000,
+  calls/Q 3.98 < 4.65, OOF only, exclusion 6.0%. BUT the pass is
+  zero-margin (one fewer correct row fails it), F1 (0.5837 vs
+  0.5969) and coverage (0.766 vs 0.790) dip below baseline, and the
+  saving is bought by stopping on wrong drafts (the oracle ceiling
+  saves only 0.04 calls/Q). Final-model training + artifact are
+  NOT done yet — the user decides whether to proceed to B-phase or
+  stop here, before any `src/` change.
 
-- [ ] A.5 Analyzer section: add a `--policy` section to
+- [x] A.5 Analyzer section: add a `--policy` section to
   `scripts/analyze_trueadaptive_test400.py` (new section number
   after 14; flags `--policy` + `--policy-baseline <file>` +
   `--policy-simulation <json>`). It reports, for the policy run
@@ -101,6 +128,12 @@ offer); the build then follows this file.
   `tests/test_analyzer_policy.py`; verification: on the theta_a
   baseline file it reproduces EM 0.5100, 4.65 calls/Q (no policy
   field → all rows unknown). Do NOT break the existing sections.
+  DONE 2026-11-09, verified by the parent: section 15, 7 tests
+  (failed before, pass after); on theta_a reproduces EM 0.5100,
+  F1 0.5969, 4.65 calls/Q, 0.04 live, all 100 rows unknown;
+  agreement vs simulation dEM +0.0100, dCalls/Q +0.67. Sections
+  13/14 re-verified intact. Fast suite 126 passed, 1 failed (only
+  the known pre-existing retry mismatch).
 
 ## B. Implementation (only if Gate A passes)
 

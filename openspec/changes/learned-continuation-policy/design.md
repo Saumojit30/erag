@@ -96,6 +96,11 @@ On the theta_a dev file (N=100 deduped, 0 failed): hop-0 draft EM
 training. The oracle ceiling (perfect draft-correctness model) is
 computed in A.1 and recorded — it bounds what any policy can win
 here, so a policy near the oracle is suspicious, not impressive.
+(Computed 2026-11-09: included 83, excluded 17, EM 0.6506, calls/Q
+4.61 — the ceiling saves only 0.04 calls/Q, because 28 of the 48
+correct drafts already stop at hop 0 under the static fast path; the
+oracle's EM is on the 83 included rows only, so it is not directly
+comparable to the baseline EM 0.5100 on 100 rows.)
 
 ## Gate A (offline, pre-registered)
 
@@ -144,3 +149,26 @@ re-tune). N=100 deduped, 0 failed.
   live-calls comparison (6 vs 4 live calls). This change does not
   gate on live calls/Q for exactly that reason; the design records
   the reasoning here so the omission is a decision, not an oversight.
+- **Simulation STOP branch ignores the end-of-run steps.** STOP is
+  simulated as hop-0 draft + hop-0 calls, but a live stopped row
+  still runs the grounded re-read (+1 call, may change the answer —
+  23/100 dev rows triggered it in the stored run) and abstention (9
+  rows have hop-0 answer-claim eff < 0.5 and would be withheld live).
+  The simulation therefore slightly misstates both the EM and the
+  calls of stopped rows; Gate B's agreement check exists to catch a
+  wiring-level mismatch, but this modeling gap is a reason the live
+  numbers may sit slightly off the simulation even with correct
+  wiring.
+- **Simulated live calls/Q is an upper bound, not a measurement.**
+  Hop-level cache hits are not stored, so the simulation reports the
+  stored live calls/Q over included rows; STOP can only remove calls,
+  so the true simulated live calls/Q is at or below the reported
+  number.
+- **A.2 reconstruction was exact — no approximation was needed.**
+  The invariant (reconstructed hop-0 calls + stored later-hop calls
+  == stored llm_calls) holds for all 100 dev rows with the rule:
+  hop-0 = 1 draft + 1 extraction + SC samples (0 if Fast Path
+  skipped, 2 if c0 == 1.0, else 3); later hops = 1 draft +
+  1 extraction iff the draft changed vs hop 0, +1 for a triggered
+  re-read. EIG probes cost 0 (direct) and post-hop resample costs 0
+  (never).
