@@ -406,7 +406,7 @@ Test-400 verdict, not at the dev gate.
   undecided when step 4 starts, the step is skipped and `theta_abs` stays
   0.4 — a missing decision is not a reason to tune blind.
 
-### 3.5 Step 5 — Hop-2 SC cap (PLANNED, cost lever)
+### 3.5 Step 5 — Hop-2 SC cap (A-BUILD DONE 2026-11-09; live A/B awaits a Groq key)
 
 - **Evidence:** 54 rows ≥7 calls consume 422 of 1,910 calls (22%) at EM
   0.3333; 20 of them end unknown. Mean calls by hops: 0→3.02, 1→5.52,
@@ -429,6 +429,16 @@ Test-400 verdict, not at the dev gate.
   `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`): EM
   0.5100, 4.65 calls/Q — so step 5's gate is EM ≥ 0.5000 with calls/Q
   and live calls/Q below 4.65.
+- **A-build (DONE 2026-11-09, commit 5c01ede):** mocked-LLM cap test
+  (`tests/test_erag.py`, cap binds at 5 calls, control reaches hop 2
+  at 6) + `--hopcap` analyzer section 14
+  (`scripts/analyze_trueadaptive_test400.py`, 9 tests in
+  `tests/test_analyzer_hopcap.py`). Verified by the parent: reproduces
+  the pre-registered numbers exactly on all three stored files (step-2
+  dev 10 hop-2 rows / 78 calls; Test-400 42 / 334, tail 54 / 422;
+  theta_a baseline EM 0.5100, 4.65 calls/Q). `max_hops` read only at
+  `src/systems/erag.py:240`. Live A/B (C.1) needs a Groq key,
+  transient only.
 
 ### 3.6 Step 6 — Memory module effectiveness (component test; ADDED 2026-11-09)
 
@@ -474,9 +484,20 @@ system.
   ~±18 pts), extend the manifest with more entity-sharing clusters *before*
   running (a data-prep change, decided in the step's proposal, not after
   seeing results).
-- **OpenSpec change:** `tune-memory-effectiveness` (DRAFTED 2026-11-09,
-  design-only, uncommitted, validate 7 passed 0 failed). Decision: extend
-  stream 30→60 Qs (5→10 clusters × 6), first 30 rows byte-identical.
+- **OpenSpec change:** `tune-memory-effectiveness` (DRAFTED 2026-11-09;
+  A/B measurement build DONE 2026-11-09, commit e5da900; validate 8
+  passed 0 failed). Decision was to extend stream 30→60 Qs (5→10
+  clusters × 6), first 30 rows byte-identical — **NOT done: the raw
+  HotpotQA file fetch failed a third time (2026-11-09, both CMU mirror
+  variants return curl (52) Empty reply), so the pre-registered N=30
+  fallback stands**; the 30-row sidecar
+  `data/manifests/stream_clusters.json` is committed. A/B measurement:
+  `--position` section in `scripts/eval_memory.py` (11 tests,
+  reproduces all E5 numbers exactly) + `mem_store_size`/`mem_texts`
+  row fields in `run_erag` (2 mocked tests, proven genuine by
+  stashing). Full suite 111 passed, 1 failed (known retry-test
+  mismatch). The stream A/B (C.1) awaits the step-5 verdict and a
+  Groq key.
   **E5 cache finding (2026-11-09, verified from stored rows):** the E5
   effectiveness null is cache-confounded — the mem arm served
   `cache_hits == llm_calls` on 30/30 rows (shared default namespace),
@@ -989,10 +1010,11 @@ here only if a stored file or a commit backs it.
 ### Housekeeping (same period)
 
 - `.mailmap` fix for Manoj Adapakala's authorship (88f2512, master, 1
-  commit ahead of origin, unpushed). Branch `trueadaptive` 4 commits
-  ahead of origin (db7b598, 5738181, 4701ac3, 78df3cd), unpushed — both
-  need a fresh GitHub token, transient only. Nothing pushed to
-  ManojAdapakala/ERag, ever (push URL `no_push`).
+  commit ahead of origin, unpushed). Branch `trueadaptive` 8 commits
+  ahead of origin (db7b598, 5738181, 4701ac3, 78df3cd, 0ac6d99,
+  3da932b, 5c01ede, e5da900), unpushed — both need a fresh GitHub
+  token, transient only. Nothing pushed to ManojAdapakala/ERag, ever
+  (push URL `no_push`).
 
 ### 2026-11-09 — E-RAG Retrospective Changelog created
 
@@ -1015,6 +1037,16 @@ here only if a stored file or a commit backs it.
   made during verification: IRCoT Test-400 exact mean is 1018/400 =
   2.545 calls/Q; the plan's 2.55 (half-up) and Python's 2.54 were both
   roundings of the same value — both documents now state 2.545.
+
+### 2026-11-09 — Steps 5 and 6 measurement builds (5c01ede, e5da900)
+
+- Step 5 A-build (commit 5c01ede): mocked cap test + `--hopcap`
+  section 14; verified numbers in §3.5. Step 6 A/B build (commit
+  e5da900): `--position` section + mem row fields + 30-row sidecar;
+  verified numbers in §3.6. Raw-file fetch failed a third time — the
+  N=30 fallback stands, no Parquet reconstruction, no invented
+  questions. Both live A/Bs await Groq keys; step 6's also awaits the
+  step-5 verdict.
 
 ## Appendix — Key numbers (frozen)
 
