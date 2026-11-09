@@ -267,6 +267,61 @@ at a reasonable computational cost?"
   `sc_mode=fixed` alone would run fixed SC with 3 samples, not the
   5-sample reference.
 
+### H8 — TrueAdaptive beats the other adaptive baseline (Adaptive-RAG)
+
+- **Claim:** the frozen tuned TrueAdaptive beats Adaptive-RAG (the
+  other-adaptive control: a trained router picking no-retrieval /
+  single-step / multi-step up front, from the question text alone) on
+  HotpotQA Test-400 BM25 EM at equal-or-fewer calls/Q.
+  **Criterion:** EM higher AND calls/Q no higher; paired McNemar
+  α=0.05. Secondaries: F1, calls/Q, coverage, route distribution,
+  per-route EM. H8 is exploratory (it compares two adaptive systems,
+  like the ERag-vs-IRCoT comparison); the confirmatory claims remain
+  H1 and H4.
+- **Evidence:** none yet — the Adaptive-RAG Test-400 run in Phase 2
+  is the evidence (OpenSpec change `adaptive-rag-baseline`, Gate
+  AR-2). The change's proposal/design/spec pre-register H8 in full.
+- **Verdict: NOT TESTED.**
+
+### H9 — The tuned system generalizes to new multi-hop datasets
+
+- **Claim:** the frozen tuned system beats IRCoT on each new dataset's
+  test split (2WikiMultiHopQA first, then MuSiQue), not just on
+  HotpotQA. **Criterion:** per dataset, EM higher AND paired McNemar
+  α=0.05; each dataset is judged on its own (a Win on one does not
+  predict the other). H9 is exploratory per dataset; it is the
+  Phase 3 claim.
+- **Evidence:** none yet — Phase 3 is the evidence (master plan §5).
+  No tuning on the new test splits; no re-running Phase 2 to chase a
+  Phase 3 number.
+- **Verdict: NOT TESTED.**
+
+### H10 — The tuned system is cheaper per correct answer
+
+- **Claim:** the tuned system costs less per correct answer than the
+  non-adaptive Balanced system and than IRCoT. **Criterion:** LLM
+  calls per correct answer (total `llm_calls` / number correct,
+  from the stored rows by the repo's exact match) lower than both
+  comparators on Test-400 BM25. The dollar conversion (Groq
+  per-token pricing, verified at manuscript time) is a reporting
+  step, not a second bound. H10 is exploratory.
+- **Evidence:** none yet — a recomputation from the stored Phase 2
+  rows (publication plan D6), no new runs.
+- **Verdict: NOT TESTED.**
+
+### H11 — The tuned system hallucinates less than IRCoT
+
+- **Claim:** the tuned system has a lower wrong-answer rate than
+  IRCoT at equal-or-better coverage on Test-400 BM25 — it abstains
+  rather than guessing, which is the paper's stated main objective
+  (reduce hallucination first, reduced LLM cost second).
+  **Criterion:** wrong-answer rate (wrong / answered) lower than
+  IRCoT's, with coverage (answered / total) no lower than IRCoT's.
+  H11 is exploratory.
+- **Evidence:** none yet — the Phase 2 selective-answering numbers
+  (tuned vs fresh IRCoT, same run as the §4.2 verdict), no new runs.
+- **Verdict: NOT TESTED.**
+
 ### Scoreboard
 
 | ID | Verdict | Headline number |
@@ -278,8 +333,12 @@ at a reasonable computational cost?"
 | H5 | NOT SUPPORTED (retrieval half) | E5: identical EM, 0 calls saved; override 1/1 retrieved |
 | H6 | SUPPORTED, strongly | All gain in hop-0-incomplete subset: ΔEM +0.1146, CI excludes 0 |
 | H7 | NOT TESTED | D2 ablations in Phase 2 are the evidence |
+| H8 | NOT TESTED | Adaptive-RAG Test-400 run in Phase 2 (Gate AR-2) |
+| H9 | NOT TESTED | Phase 3 (2Wiki, then MuSiQue) |
+| H10 | NOT TESTED | D6 cost recomputation from Phase 2 rows |
+| H11 | NOT TESTED | Phase 2 selective-answering numbers |
 
-Three supported, two not supported, two untested. That is a normal,
+Three supported, two not supported, five untested. That is a normal,
 honest scoreboard for a research system: the core adaptivity claim
 (H6) and the head-to-head claim (H1) hold, the verifier (H2) and the
 memory (H5) do not do what the report claimed, and the cost claim

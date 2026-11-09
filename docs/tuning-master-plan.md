@@ -841,7 +841,10 @@ and no Phase 3 result feeds back into tuning the HotpotQA system.
   the Phase 3 hypotheses (same H1–H6 shape, adapted: the primary claim
   is that the tuned system beats IRCoT on the new test split; H6's
   hop-0-incomplete prediction carries over). No new data is opened
-  before the hypotheses exist.
+  before the hypotheses exist. (H9, the cross-dataset generalization
+  hypothesis, is already written in `docs/hypotheses-current-status.md`
+  on 2026-11-10; the per-dataset adaptation happens before each
+  dataset is touched.)
 
 - **Datasets (user chose BOTH, 2026-11-09):** 2WikiMultiHopQA AND MuSiQue,
   in that order — 2Wiki first (structurally closest to HotpotQA: multi-hop,
