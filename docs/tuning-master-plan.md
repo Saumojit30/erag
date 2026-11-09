@@ -636,12 +636,33 @@ hop-1+ continuation stays static.
   mismatch). Parent-added hardening: load_policy requires the
   artifact's feature list to be exactly the 12 MODEL_FEATURES in
   order. Frozen v1 config untouched; no Test-400 access; no live
-  runs. C.1 live A/B awaits a Groq key.
+  runs.
+- **C.1 live A/B DONE 2026-11-09, committed `4c9576f`, Gate B PASS.**
+  Detached run (~35 s, mostly cache replays), 100/100, 0 failed, 0
+  API failures; output
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_policy.jsonl`
+  (100 lines, 100 unique ids). Live: EM 0.5000, F1 0.6114, calls/Q
+  4.07 (live 0.11, recorded not gated), coverage 0.83, selective EM
+  0.6024, recall 0.765, retrievals 1.32/Q. Baseline theta_a: EM
+  0.5100, 4.65 calls/Q (ΔEM −0.0100, Δcalls/Q −0.58). Agreement vs
+  the retrained simulation (EM 0.5152, 3.92/Q): dEM −0.0152, dCalls/Q
+  +0.15 — within the pre-registered ±0.02 / ±0.2. STOP 81 (EM
+  0.5679) / CONTINUE 19 (EM 0.2105); hops {0:82, 1:15, 2:3}. **Gate
+  B: PASS** — live EM 0.5000 ≥ 0.5000 (exactly at the floor), calls/Q
+  4.07 < 4.65, agreement within bounds, N=100 deduped, 0 failed.
+  The policy ENTERS the frozen Test-400 system. Honest reading:
+  live EM is 1 row below baseline; Test-400 is the real judge.
+  **Analyzer bug found during C.1 and fixed the same day:**
+  `policy_metrics` (§15) compared `policy_decision` against
+  uppercase STOP/CONTINUE while the runner writes lowercase per the
+  design contract — the first analysis reported 0/0/100 unknown.
+  Fixed by case-normalizing the field; tests switched to the
+  lowercase contract + a case-insensitivity regression test; full
+  suite 140 passed, 1 failed (known retry mismatch).
 - **Interaction:** step 5 is SUPERSEDED by this step (see §3.5) —
   the hop-depth decision is the policy's job now. Step 6's stream
-  A/B still awaits a Groq key and runs on the post-step-7 tuned
-  system if the policy passes its gates, else on the post-step-4
-  system.
+  A/B runs on the post-step-7 tuned system (the policy passed Gate
+  B) and awaits a Groq key.
 
 ### 3.8 What is explicitly NOT in Phase 1
 
@@ -1281,6 +1302,37 @@ here only if a stored file or a commit backs it.
   1.1e-16 on all 100 dev rows; decisions STOP 81 / CONTINUE 19).
   12 new mocked tests; suite 139 passed, 1 failed (known retry
   mismatch). C.1 live A/B awaits a Groq key.
+
+### 2026-11-09 — Step 7 C.1 live A/B + Gate B PASS; change closed (4c9576f)
+
+- Live Dev-100 A/B (detached, ~35 s, mostly cache replays; 100/100,
+  0 failed; output
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_policy.jsonl`):
+  EM 0.5000, F1 0.6114, calls/Q 4.07 (live 0.11, recorded not
+  gated), coverage 0.83, selective EM 0.6024, recall 0.765,
+  retrievals 1.32/Q. Baseline theta_a: EM 0.5100, 4.65 calls/Q.
+  Agreement vs retrained simulation (EM 0.5152, 3.92/Q): dEM
+  −0.0152, dCalls/Q +0.15. STOP 81 (EM 0.5679) / CONTINUE 19 (EM
+  0.2105); hops {0:82, 1:15, 2:3}. **Gate B: PASS** — live EM
+  exactly at the floor, calls/Q below 4.65, agreement within the
+  pre-registered ±0.02 / ±0.2, N=100 deduped, 0 failed. The policy
+  ENTERS the frozen Test-400 system. Honest reading: live EM is 1
+  row below baseline; Test-400 is the real judge.
+- **Analyzer casing bug found during C.1 and fixed the same day:**
+  §15 compared `policy_decision` against uppercase STOP/CONTINUE
+  while the runner writes lowercase per the design contract — the
+  first analysis reported 0/0/100 unknown on a file whose rows all
+  carry the field. Fixed by case-normalizing; tests switched to the
+  lowercase contract + a case-insensitivity regression test; full
+  suite 140 passed, 1 failed (known retry mismatch). The fixed §15
+  reproduces every C.1 number exactly (independent recompute
+  agrees).
+- Change archived (`openspec archive learned-continuation-policy
+  -y` → `openspec/changes/archive/2026-11-09-learned-continuation-policy/`,
+  spec → `openspec/specs/learned-continuation/spec.md`); validate
+  --all 9 passed, 0 failed. Step 7 CLOSED. Remaining Phase 1 work:
+  step 6 stream A/B (runs on the post-step-7 tuned system, needs a
+  Groq key), hypothesis hygiene, freeze, push.
 
 ### 2026-11-09 — Paper-readiness audit (docs/paper-readiness-plan.md)
 

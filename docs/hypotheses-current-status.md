@@ -114,6 +114,17 @@ at a reasonable computational cost?"
   carry forward: if a later tuning step coarsens the confidence signal
   further (e.g. more aggressive Fast-Path gating), H3 should be
   re-checked on the tuned system alongside H1.
+- **Step-7 note (2026-11-09, Gate B PASS):** the learned continuation
+  policy is a direct test of whether the confidence signal, combined
+  with the other hop-0 features, can drive effort better than fixed
+  thresholds — and on Dev-100 it can, modestly: live EM 0.5000 at
+  4.07 calls/Q vs the static tuned baseline 0.5100 at 4.65, with
+  STOP-rows EM 0.5679 vs CONTINUE-rows 0.2105 (the policy stops on
+  the better questions). But the signal's limits show in the
+  composition: the saving is bought partly by stopping on wrong
+  drafts, and the live EM sits exactly at the gate floor. H3's
+  verdict does not change (it is about c0 alone); the policy result
+  belongs in the paper's adaptivity discussion, not as H3 evidence.
 
 ### H4 — Adaptive retrieval beats the no-adaptive ablation at acceptable cost (confirmatory)
 
