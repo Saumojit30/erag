@@ -106,3 +106,6 @@ $RECYCLE.BIN/
 # 11. Scratch Workspaces & Agent Artifacts
 scratch/
 .gemini/
+
+# Adaptive-RAG raw downloads (regenerable, ~370MB; do not commit)
+data/raw_downloads/
