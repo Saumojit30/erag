@@ -35,6 +35,7 @@ cache hits are not stored and STOP can only remove calls.
 """
 
 import argparse
+import datetime
 import importlib.util
 import json
 import sys
@@ -172,10 +173,68 @@ def evaluate_model(name, make_model, X, y, rows):
     }
 
 
+def write_artifact(path, make_model, X, y, rows, winner):
+    """Fit the final model on ALL dev rows and write the policy artifact.
+
+    Only called when Gate A passed (enforced by the caller). The artifact
+    is dependency-free at inference time: scaler means/scales +
+    coefficients + intercept, so the runner computes P(draft correct)
+    with plain arithmetic — no sklearn import in src/. Feature order is
+    MODEL_FEATURES; the decision rule is CONTINUE iff P < tau, else STOP.
+    Refuses non-logistic winners: the artifact format is linear-only,
+    and a tree winner would need a different format (out of scope —
+    Gate A passed with the logistic regression).
+    """
+    from sklearn.metrics import roc_auc_score
+
+    if winner["model"] != "logistic_regression":
+        raise ValueError(f"artifact format is linear-only; winner is "
+                         f"{winner['model']} — refusing to write")
+
+    pipe = Pipeline([("scaler", StandardScaler()), ("model", make_model())])
+    pipe.fit(X, y)
+    scaler = pipe.named_steps["scaler"]
+    model = pipe.named_steps["model"]
+    proba = oof_proba(make_model, X, y)
+    sim = winner["sim"]
+    artifact = {
+        "model": winner["model"],
+        "features": list(MODEL_FEATURES),
+        "coefficients": [float(c) for c in model.coef_[0]],
+        "intercept": float(model.intercept_[0]),
+        "scaler_mean": [float(v) for v in scaler.mean_],
+        "scaler_scale": [float(v) for v in scaler.scale_],
+        "tau": winner["tau"],
+        "decision": "CONTINUE iff P(draft correct) < tau, else STOP",
+        "provenance": {
+            "training_file": TRAINING_FILE,
+            "n_train": len(rows),
+            "labels": {"correct": int(y.sum()), "wrong": len(y) - int(y.sum())},
+            "date": datetime.date.today().isoformat(),
+            "cv": {
+                "method": "5-fold StratifiedKFold, shuffle, random_state=42",
+                "oof_auroc": float(roc_auc_score(y, proba)),
+                "simulated_em": sim["em"],
+                "simulated_calls_per_q": sim["calls"],
+                "tau": winner["tau"],
+            },
+            "gate_a": "PASS (simulated EM >= 0.5000, calls/Q < 4.65, OOF only)",
+        },
+    }
+    with open(path, "w") as f:
+        json.dump(artifact, f, indent=2)
+    print(f"wrote final-model artifact: {path} "
+          f"(tau={winner['tau']}, OOF AUROC={artifact['provenance']['cv']['oof_auroc']:.4f})")
+    return artifact
+
+
 def main():
     ap = argparse.ArgumentParser(description="Train + simulate the continuation policy (dev only)")
     ap.add_argument("--training", default=TRAINING_FILE)
     ap.add_argument("--sim-out", default=SIM_OUT)
+    ap.add_argument("--write-artifact", default=None,
+                    help="Path to write the final-model artifact. Only "
+                         "written when Gate A passes; refused otherwise.")
     args = ap.parse_args()
 
     rows = load_training(args.training)
@@ -235,14 +294,23 @@ def main():
     if winner["gate_a_pass"]:
         print(f"GATE A PASSES on cross-validated numbers ({winner['model']}, "
               f"tau={winner['tau']}): simulated EM={sim['em']:.4f} "
-              f"(>= 0.5000), calls/Q={sim['calls']:.2f} (< 4.65). "
-              "Final-model training and the artifact are NOT done here — "
-              "that is the parent's decision.")
+              f"(>= 0.5000), calls/Q={sim['calls']:.2f} (< 4.65).")
+        if args.write_artifact:
+            factory = (lambda: LogisticRegression(max_iter=1000, random_state=CV_SEED)
+                       if winner["model"] == "logistic_regression"
+                       else lambda: DecisionTreeClassifier(max_depth=2, random_state=CV_SEED))
+            write_artifact(args.write_artifact, factory, X, y, rows, winner)
+        else:
+            print("Final-model training and the artifact are NOT done here — "
+                  "pass --write-artifact to write them.")
     else:
         print(f"GATE A FAILS on cross-validated numbers ({winner['model']}, "
               f"tau={winner['tau']}): simulated EM={sim['em']:.4f}, "
               f"calls/Q={sim['calls']:.2f}. No wiring, no live run, no "
               "threshold re-picking.")
+        if args.write_artifact:
+            print("REFUSED: --write-artifact given but Gate A did not pass — "
+                  "no artifact written.")
 
 
 def _report(result):

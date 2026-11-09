@@ -54,6 +54,28 @@ alternative — a depth-2 decision tree (interpretable, paper-friendly)
 — and take the better cross-validated result; no third model, no
 feature search after seeing results.
 
+### Final-model artifact (written 2026-11-09, after Gate A passed)
+
+`configs/continuation_policy_dev.json`, written by
+`scripts/train_continuation_policy.py --write-artifact` (which
+refuses to write unless Gate A passes, and refuses non-logistic
+winners — the format is linear-only). Contents: `model`
+(logistic_regression), `features` (the 12 MODEL_FEATURES in order —
+`sc_skipped` excluded, perfectly collinear with `fast_path`),
+`coefficients` (12, in feature order), `intercept`,
+`scaler_mean` / `scaler_scale` (12 each, from the final fit on all
+100 rows), `tau` (0.30), `decision` (CONTINUE iff P < τ), and
+`provenance` (training file, N=100, labels 48 correct / 52 wrong,
+date, CV method, OOF AUROC 0.6546, simulated EM 0.5000, simulated
+calls/Q 3.98, Gate A PASS). Inference is dependency-free: z =
+intercept + Σ coefᵢ·(xᵢ − meanᵢ)/scaleᵢ, P = sigmoid(z) — no
+sklearn import in `src/`. Verified by the parent: pure-arithmetic
+recomputation from the artifact matches the fitted pipeline's
+predict_proba to 2.2e-16. Final in-sample model at τ=0.30 would
+STOP 74 / CONTINUE 26 (vs OOF 70/24) — the live Dev-100 run is
+in-sample for the final model by construction, so Gate B's
+agreement check, not the raw live numbers, is the wiring test.
+
 ## Counterfactual simulation (Phase A, no LLM calls)
 
 For each dev row, the policy's action is determined by hop-0

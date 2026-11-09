@@ -1,0 +1,79 @@
+{
+  "model": "logistic_regression",
+  "features": [
+    "c0",
+    "fast_path",
+    "n_supported",
+    "n_unresolved",
+    "n_contradicted",
+    "n_conflict",
+    "ab_supported",
+    "ab_contradicted",
+    "mean_claim_conf",
+    "hop0_recall",
+    "type_comparison",
+    "draft_unknown"
+  ],
+  "coefficients": [
+    0.08311798014773403,
+    0.1460285909944688,
+    -0.06217656132834059,
+    0.07663602630814739,
+    0.4572976620341654,
+    0.07598461534771296,
+    0.5313320670372205,
+    -0.11908977669623286,
+    0.45822741572840736,
+    0.3118744705327774,
+    -0.3551554056125022,
+    -0.7670499290209113
+  ],
+  "intercept": -0.2338817423316397,
+  "scaler_mean": [
+    0.9206629990107165,
+    0.31,
+    3.32,
+    0.65,
+    0.54,
+    1.38,
+    0.49,
+    0.24,
+    0.8944002214385027,
+    0.725,
+    0.2,
+    0.06
+  ],
+  "scaler_scale": [
+    0.16272759566926778,
+    0.46249324319388696,
+    2.043917806566594,
+    0.8986100377805715,
+    0.8534635317340754,
+    1.4406942770761604,
+    0.49989998999799934,
+    0.42708313008125287,
+    0.1606160289874407,
+    0.30310889132455343,
+    0.39999999999999986,
+    0.23748684174075815
+  ],
+  "tau": 0.3,
+  "decision": "CONTINUE iff P(draft correct) < tau, else STOP",
+  "provenance": {
+    "training_file": "data/continuation_training_dev.jsonl",
+    "n_train": 100,
+    "labels": {
+      "correct": 48,
+      "wrong": 52
+    },
+    "date": "2026-11-09",
+    "cv": {
+      "method": "5-fold StratifiedKFold, shuffle, random_state=42",
+      "oof_auroc": 0.6546474358974359,
+      "simulated_em": 0.5,
+      "simulated_calls_per_q": 3.978723404255319,
+      "tau": 0.3
+    },
+    "gate_a": "PASS (simulated EM >= 0.5000, calls/Q < 4.65, OOF only)"
+  }
+}

@@ -95,7 +95,7 @@ offer); the build then follows this file.
   the 6 fix-rows (loses 4 fixes) and saves 1 of 3 breaks; STOP rows
   40 correct at hop-0, CONTINUE rows 7 correct at final = 47/94;
   3 of the 6 excluded rows had correct hop-0 drafts.
-- [ ] A.4 Gate A (pre-registered, design.md): cross-validated
+- [x] A.4 Gate A (pre-registered, design.md): cross-validated
   (out-of-fold only) simulated EM ≥ 0.5000 AND simulated calls/Q
   strictly below 4.65. If it fails, stop — no wiring, no live run,
   no threshold re-picking; record the result and close the change
@@ -109,9 +109,14 @@ offer); the build then follows this file.
   zero-margin (one fewer correct row fails it), F1 (0.5837 vs
   0.5969) and coverage (0.766 vs 0.790) dip below baseline, and the
   saving is bought by stopping on wrong drafts (the oracle ceiling
-  saves only 0.04 calls/Q). Final-model training + artifact are
-  NOT done yet — the user decides whether to proceed to B-phase or
-  stop here, before any `src/` change.
+  saves only 0.04 calls/Q). The user chose to proceed to B-phase
+  (options-widget tap 2026-11-09). Final model trained 2026-11-09
+  by the parent (`scripts/train_continuation_policy.py
+  --write-artifact`, new flag, refuses to write unless Gate A
+  passes): artifact `configs/continuation_policy_dev.json`, τ =
+  0.30, OOF AUROC 0.6546, coefficients verified against the fitted
+  pipeline to 2.2e-16 by pure-arithmetic recomputation; format
+  recorded in design.md (linear-only, dependency-free inference).
 
 - [x] A.5 Analyzer section: add a `--policy` section to
   `scripts/analyze_trueadaptive_test400.py` (new section number

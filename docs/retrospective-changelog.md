@@ -14,6 +14,7 @@ Reconstruct the project's technical history and current state from repository ev
 - Do not claim accuracy, cost, robustness, or generalization improvements unless a completed, saved experiment demonstrates them.
 - Separate implementation evidence from benchmark evidence.
 - Do not modify historical result files, caches, tags, or benchmark artifacts while creating this document.
+- **Keep this changelog current:** every experiment that completes gets a §2 entry the same day it is verified, with the same evidence standard (commit hash, files changed, numbers from stored artifacts, verdict). In-flight work is not entered until it is verified and committed. §4 (current state), §5 (evidence map), and §7 (evidence boundary) are updated in the same commit as the new §2 entry, so the document never again falls behind the work it records.
 
 **Verification method used for this draft.** Commit existence was checked with `git log --oneline <hash>` (all branches). File existence was checked on disk. Headline result numbers were recomputed from the stored JSONL rows (deduplicated by question id, keeping the last row; EM taken from the runner's stored `em` field, which is the repository's `exact_match`). The full offline test suite and `scripts/verify_results.py` were re-run for this draft; their measured outputs are recorded in §4.5. Numbers taken from the project record without re-running are labelled as such. Where this draft corrects the supplied template, the correction is stated and the check that supports it is named.
 
@@ -78,7 +79,7 @@ The four-entry repair sequence supplied with the template for this section (Batc
 
 ## 2. Change entries
 
-Entries are chronological. "Evidence" records only what was verified for this draft: commit existence via `git log`, file existence on disk, and — where stated — re-runs performed for this draft. Historical test counts claimed in earlier records are not repeated here unless re-verified; they are marked `not recoverable from repository` where the check cannot be performed. The full offline suite measured for this draft (HEAD `0ac6d99`, command `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`, exit code 1, 87 passed, 1 failed, 0 xfailed in 24.33s) applies to the current tree, not to individual historical commits.
+Entries are chronological. "Evidence" records only what was verified for this draft: commit existence via `git log`, file existence on disk, and — where stated — re-runs performed for this draft. Historical test counts claimed in earlier records are not repeated here unless re-verified; they are marked `not recoverable from repository` where the check cannot be performed. The full offline suite measured for the latest update (HEAD `fc1a428` plus the uncommitted `--write-artifact` flag, command `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`, exit code 1, 126 passed, 1 failed, 0 xfailed in 26.44s) applies to the current tree, not to individual historical commits. (Original draft measurement: HEAD `0ac6d99`, 87 passed, 1 failed in 24.33s.)
 
 ### 2026-11-05 — Stage 1: project foundation
 
@@ -1103,6 +1104,107 @@ Entries are chronological. "Evidence" records only what was verified for this dr
 #### Evidence status
 - Implemented (as a record)
 
+### 2026-11-09 — Tuning step 5: hop-2 SC cap (measurement build + A/B; verdict SUPERSEDED)
+
+**Commit(s):** `5c01ede` (A-build: mocked cap test + `--hopcap` analyzer section), `7a3598c` (close-out + step-7 change draft), archived as `2026-11-09-tune-hop2-sc-cap`
+**Scope:** Tuning — hop-depth / call tail
+**Type:** configuration (no `src/` change)
+**Prediction-changing:** would have been (fewer hops), not adopted
+
+#### What changed
+- Key correction, found during design: the plan's SC-cap sketch does not match the code — SC runs at most once per question, at hop 0; the only hop-loop calls are draft (1/hop) + extraction (1/hop). The mechanism is therefore `erag.max_hops=1`, config-only, zero code (`max_hops` is read only at the loop stop, `src/systems/erag.py:240`, verified by grep). A-build: A.1 mocked-LLM tests in `tests/test_erag.py` proving the cap binds (max_hops=1 → hops==1, exactly 5 calls, no hop-2 draft; control max_hops=2 → hops==2, 6 calls) and A.2 `--hopcap` analyzer section 14 (`scripts/analyze_trueadaptive_test400.py`) + 9 tests in `tests/test_analyzer_hopcap.py` (failed before, pass after). The section reproduces the pre-registered numbers exactly: step-2 dev EM 0.5400, 4.65 calls/Q, 10 hop-2 rows, 78 hop-2 calls; Test-400 42 hop-2 rows, 334 calls, tail 54/422; theta_a baseline EM 0.5100, 4.65 calls/Q.
+
+#### Why it changed
+- The call tail is the cost lever: 54 Test-400 rows at ≥7 calls consume 422 of 1,910 calls (22%), and 38 of them are hop-2 rows. Hop 2 fixed 4 drafts and broke 2 on test (net +2), so capping it was a candidate saving with a small expected accuracy cost.
+
+#### Files changed
+- `tests/test_erag.py`, `scripts/analyze_trueadaptive_test400.py` (§14), `tests/test_analyzer_hopcap.py`, `results/trueadaptive/erag_trueadaptive_bm25_dev_hopcap.jsonl`, `openspec/changes/tune-hop2-sc-cap/*` (archived), `openspec/specs/hop2-sc-cap/spec.md`, `docs/tuning-master-plan.md`
+
+#### Tests added or updated
+- `tests/test_analyzer_hopcap.py` (9 tests) + mocked cap tests in `tests/test_erag.py`. Step-5 test files: 29/29 pass (parent run). Fast suite at the time: 111 passed, 1 failed (the known retry mismatch; see §4.5).
+
+#### Evidence
+- Commits verified via `git log`. Live A/B ran 2026-11-09 (detached, ~24s, mostly cache replays; 100/100, 0 failed; output `results/trueadaptive/erag_trueadaptive_bm25_dev_hopcap.jsonl`): EM 0.5100 (unchanged), F1 0.5969, calls/Q 4.49 vs baseline 4.65 (−0.16, the expected ~0.15 saving), live calls/Q 0.06 vs baseline 0.04 (+0.02), hop-2 rows 10→0, hop-2 calls 78→0, tail rows 18→12. Numbers verified by the parent two ways (analyzer + independent recompute, exact agreement). Baseline is the post-step-4 tuned dev file (theta_a): EM 0.5100, 4.65 calls/Q, live 0.04. **Gate as written FAILS on the live-calls measure only** (needs calls/Q AND live calls/Q strictly below baseline AND EM ≥ 0.5000): calls/Q pass, EM pass, live calls 0.06 > 0.04 fail. The live-call difference is replay noise: the baseline's 4 live calls were concentrated on 2 rows (including row `5a865bbf`, the known empty-draft row, 3 live calls — empty completions are never cached per the audit-remediation guard); the hopcap run's 6 live calls are 6 different rows × 1. The user did not pick either gate-reading option offered; they asked the adaptivity question instead and chose the learned continuation policy (step 7). **Step 5 therefore closes SUPERSEDED — not passed, not failed; the gate is not re-judged.** `max_hops` stays 2 as a ceiling; the static cap is NOT adopted and is NOT recorded in the frozen-config note.
+
+#### Prediction impact
+- None (not adopted). Had it been adopted, hop-2 rows would have stopped at hop 1 at a draft-level cost of −2 rows on test.
+
+#### Limitations
+- The A/B is a dev smoke test (N=100); the live-calls measure cannot discriminate between two ~99%-replay runs (the step-5 lesson, already recorded in the plan).
+
+#### Evidence status
+- Implemented (measurement + live A/B), tested, evaluated on Dev-100; verdict SUPERSEDED by user choice, not by gate
+
+### 2026-11-09 — Tuning step 6: memory effectiveness (measurement build; E5 cache finding; A/B pending)
+
+**Commit:** `e5da900`
+**Scope:** Tuning — memory module effectiveness
+**Type:** measurement only (no behavior change; no live run yet)
+**Prediction-changing:** no (not yet run)
+
+#### What changed
+- A/B measurement build: A.2 `--position` section in `scripts/eval_memory.py` (+366 lines; functions `band_of`, `dedupe_rows`, `load_clusters`, `arm_metrics`, `paired_delta`, `fired_row_paired`, `planted_stats`, `position_section`; flags `--position --nomem --mem --planted --clusters --plant-defs`; bare run unchanged) + 11 tests in `tests/test_eval_memory_position.py` (failed before, pass after; two build bugs fixed — the false-claim check excluded target-entity answers, and the `__main__` guard was moved to end of file). B.1: `mem_store_size` / `mem_texts` row fields added to `run_erag`'s output dict (`src/systems/erag.py:372–373`; verified: `memory.write` runs before the dict is built, `mem_passages` in scope; 0 / [] when memory off) + 2 mocked tests in `tests/test_erag.py` (proven genuine: both fail with KeyError when B.1 is stashed, pass when restored). The 30-row sidecar (5 clusters × 6, positions 0–5 each ×5) was committed as `data/manifests/stream_clusters.json`.
+- Gate (pre-registered, in the change): memory enters the frozen Test-400 system ONLY if ALL hold (N=60 deduped, 0 failed/arm): (1) fire-rate floor — mem arm fires on ≥5/60 questions, else "instrument too weak" (memory stays OFF, paper reports under-powered, not a null); (2) effectiveness — ΔEM > 0, OR Δcalls/Q < 0 with ΔEM ≥ −0.02, fired-row paired difference not contradicting the full-stream direction; (3) override test passes — every retrieved planted belief overridden, no planted-arm final answer equals a planted false claim. Clean null → memory stays OFF, H5 stays NOT SUPPORTED. No re-run, no second stream, no gate revision inside this change.
+- **Stream extension 30 → 60 questions NOT done.** `data/raw/hotpot_dev_distractor_v1.json` is absent from this VM (verified; `data/raw/` does not exist). The fetch failed a third time (official CMU mirror, both http and https variants, curl (52) Empty reply; no copy exists anywhere under /home/hatch). No Parquet reconstruction was attempted (needs user approval), no questions invented. **The pre-registered fallback is in effect: run N=30 as-is; fire-rate floor becomes ≥5/30.**
+
+#### Why it changed
+- `BeliefMemory` (`src/systems/memory.py`: surprise-gated writes, NLI verification gating, contradiction override, decay 0.98, capacity 200) is implemented and wired but disabled by default (`memory.enabled: false`), so all results so far are memory-off. Step 6 is the component test that decides whether memory enters the tuned system. It runs on the post-step-7 tuned system if the policy passes its gates, else on the post-step-4 system.
+
+#### Files changed
+- `scripts/eval_memory.py`, `tests/test_eval_memory_position.py`, `src/systems/erag.py` (row fields only), `tests/test_erag.py` (2 mocked tests), `data/manifests/stream_clusters.json`, `openspec/changes/tune-memory-effectiveness/*` (active, not archived), `docs/tuning-master-plan.md`
+
+#### Tests added or updated
+- `tests/test_eval_memory_position.py` (11 tests) + 2 mocked tests in `tests/test_erag.py`. Full suite after the build: 111 passed, 1 failed (only the known retry mismatch), parent run.
+
+#### Evidence
+- Commits verified via `git log`; files exist on disk. The parent re-ran the `--position` section on the stored E5 files and reproduced every number exactly: nomem EM 0.4000, F1 0.4828, 14.30 calls/Q, 2.50 retrievals/Q, 0.27 cache_hits/Q; fired rows idx 20 (cluster 3, pos 2) and 29 (cluster 4, pos 5); position splits early EM 0.5000 / 14.20 calls, mid 0.4000 / 13.70, late 0.3000 / 15.00 (all ΔEM 0.0000 within bands); planted override 1 unique belief (Becker) / 5 planted, 1/1 retrieved, 0 false-claim violations; `mem_store_size` reports "not recorded" on E5 files, never zero. The tripwire fires correctly on both replayed arms.
+- **E5 cache finding (verified by the parent from stored rows — the sharpest finding of this step):** the original E5 suite ran all three arms with no `run.cache_namespace` override (shared default namespace `test_v1`); the mem arm served `cache_hits == llm_calls` on **30/30 rows** (mean 14.30/14.30), and its answers/EM/F1/call counts are identical to the nomem arm (only `mem_used`, `cache_hits`, and latency fields differ). Memory changed no LLM prompt in E5 — **the H5 effectiveness null is a null of a replay, i.e. uninformative, not a real null.** The override mechanism is NOT cache-confounded (local-NLI `mem_events`; the Becker row-20 override stands). Step 6 uses one fresh namespace per arm with a tripwire in tasks.md C.2. The H5 verdict is to be revisited after step 6 with a dated note, not a rewrite. E5 stored files: `results/stream_mem.jsonl`, `results/stream_nomem.jsonl`, `results/stream_planted.jsonl`; manifests `data/manifests/stream.jsonl` (30 Qs), `data/manifests/planted.json` (JSON array, 5 planted beliefs).
+
+#### Prediction impact
+- None yet (measurement only; the live A/B has not run).
+
+#### Limitations
+- No live evidence yet: the stream A/B awaits the step-7 outcome + a Groq key. The N=30 fallback (vs the designed N=60) halves the instrument's power; the fire-rate floor is ≥5/30.
+
+#### Evidence status
+- Implemented (measurement), tested; live A/B pending
+
+### 2026-11-09 — Tuning step 7: learned continuation policy (change drafted; Phase A; Gate A PASS marginal; final model trained)
+
+**Commit(s):** `7a3598c` (change drafted + step-5 close-out), `fc1a428` (Phase A build + Gate A verdict)
+**Scope:** Tuning — learned adaptivity (the hop-0 continuation decision)
+**Type:** mechanism (offline measurement + trained artifact; wiring in progress, not yet live)
+**Prediction-changing:** not yet (policy not wired in at the time of writing)
+
+#### What changed
+- Origin: the user asked whether the system is "properly adaptive or just so called using static values" (2026-11-09). The honest answer given: the structure is adaptive (per-question effort 2–9 calls; H6 shows work lands where retrieval was incomplete), but the decision boundaries are hand-set constants and steps 1–6 only calibrated them; the confidence signal is weak (H3 AUROC 0.5915; step-4 coin flip). The user said "make it adaptive" and picked the learned continuation policy over a pre-hoc complexity router (question text only) and calibrated confidence only. OpenSpec change `learned-continuation-policy` drafted (proposal/design/tasks/spec; validate 9 passed, 0 failed).
+- Design (v1 scope, tight): at the hop-0 boundary in `run_erag` (after hop-0 draft, claim extraction, NLI verification — where the theta_fast fast-path check and first gap/EIG continuation check currently decide), a learned model replaces the fixed rules when `erag.continuation_policy` names an artifact file (absent = today's static behavior exactly). The model is a logistic regression on hop-0 features predicting P(hop-0 draft is correct); **CONTINUE iff P < τ**, τ chosen by 5-fold cross-validation on dev. It subsumes the theta_fast fast-path rule at hop 0. Unchanged: EIG gap selection, SC procedure, abstention (theta_abs=0.5), max_hops=2 ceiling, hop-1+ continuation (static rules). Every policy-active row must carry a `policy_decision` field ("stop"/"continue"). One fallback model only: a depth-2 decision tree if LR's cross-validated simulation doesn't beat the static baseline; no third model, no feature search after seeing results. Training data is dev only (N=100; label 48/100 drafts correct); Test-400 is never used for training, feature selection, τ choice, or model selection — any Test-400 touch before the Phase 2 freeze invalidates the verdict.
+- Phase A (offline measurement, no LLM calls, no `src/` change): A.1 extraction script `scripts/extract_continuation_training.py` → `data/continuation_training_dev.jsonl`; A.2 call accounting; A.3 training script `scripts/train_continuation_policy.py` + counterfactual simulation → `data/continuation_simulation_dev.json`; A.5 `--policy` analyzer section 15 in `scripts/analyze_trueadaptive_test400.py` (+ `--policy-baseline`, `--policy-simulation` flags). Tests-first: 8 tests in `tests/test_continuation_policy.py`, 7 in `tests/test_analyzer_policy.py` (failed before, pass after).
+- **Final model trained 2026-11-09** (after the user chose to proceed): `scripts/train_continuation_policy.py --write-artifact` (new flag, refuses to write unless Gate A passes, refuses non-logistic winners — the format is linear-only) wrote `configs/continuation_policy_dev.json` (model type, 12 features in order, coefficients, intercept, scaler means/scales, τ = 0.30, provenance: training file, N=100, labels 48/52, date, OOF AUROC 0.6546, simulated EM 0.5000, simulated calls/Q 3.98, Gate A PASS). Inference is dependency-free: z = intercept + Σ coefᵢ·(xᵢ − meanᵢ)/scaleᵢ, P = sigmoid(z) — no sklearn import in `src/`. Verified by the parent: pure-arithmetic recomputation from the artifact matches the fitted pipeline's predict_proba to 2.2e-16. Final in-sample model at τ=0.30 would STOP 74 / CONTINUE 26 (vs OOF 70/24).
+
+#### Why it changed
+- Steps 1–6 calibrated static constants; none made the system more adaptive. The learned policy is the first mechanism that replaces a fixed decision boundary with a data-driven one, and it is the direct test of whether the combined hop-0 confidence signal can drive effort better than fixed thresholds (H3 note).
+
+#### Files changed
+- `scripts/extract_continuation_training.py`, `scripts/train_continuation_policy.py`, `data/continuation_training_dev.jsonl`, `data/continuation_simulation_dev.json`, `tests/test_continuation_policy.py`, `tests/test_analyzer_policy.py`, `scripts/analyze_trueadaptive_test400.py` (§15), `configs/continuation_policy_dev.json`, `openspec/changes/learned-continuation-policy/*` (active, not archived), `docs/tuning-master-plan.md` (§3.7, §12)
+
+#### Tests added or updated
+- `tests/test_continuation_policy.py` (8 tests), `tests/test_analyzer_policy.py` (7 tests). Fast suite: 126 passed, 1 failed (only the known retry mismatch), re-run by the parent for this update (26.44s).
+
+#### Evidence
+- Commits verified via `git log`; files exist on disk. Phase A was built by a subagent and verified by the parent by independent re-run (extraction + training scripts re-executed, composition recomputed from the stored traces, fast suite run, `--policy` section run on the baseline). Extraction reproduces every verification number exactly (hop-0 draft EM 0.4800, final EM 0.5100, fixed 6, broke 3, hops {0:45, 1:45, 2:10}, abstained 15, draft-unknown 6, 4.65 calls/Q). Call-accounting invariant is EXACT (0 violations, all 100 rows; rule recorded in design.md Threats: hop-0 = 1 draft + 1 extraction + SC samples (0 if Fast Path skipped, 2 if c0 == 1.0, else 3); later hops = 1 draft + 1 extraction iff the draft changed vs hop 0, +1 for a triggered re-read; EIG probes 0, resample 0). Oracle ceiling: included 83, excluded 17, EM 0.6506, calls/Q 4.61 — saves only 0.04/Q, because 28 of the 48 correct drafts already stop at hop 0 under the static fast path; the oracle's EM is on the 83 included rows only, not comparable to baseline 0.5100 on 100. LR, τ = 0.30, 5-fold CV, OOF only: simulated EM 0.5000, F1 0.5837, calls/Q 3.98 (saved +0.67), coverage 0.766, STOP 70 / CONTINUE 24, excluded 6/100 (6.0%, under the 10% ceiling). OOF AUROC 0.6546 (c0 alone 0.484 on dev). No decision tree was tried — LR passed, so the fallback was not triggered. `--policy` section 15 reproduces the theta_a baseline exactly (EM 0.5100, F1 0.5969, 4.65 calls/Q, 0.04 live, all 100 rows unknown); agreement vs simulation dEM +0.0100, dCalls/Q +0.67. No Test-400 data in training, feature selection, τ choice, or model selection (one `TEST_FILE` path constant in `tests/test_continuation_policy.py`, used only as a string passed to `assert_dev_input` to prove it refuses test paths — the file is never opened).
+- **Gate A: PASS, exactly at the floor** (simulated EM 0.5000 ≥ 0.5000, simulated calls/Q 3.98 < 4.65, OOF only). The pass is zero-margin: 0.5000 = 47/94 included rows; one fewer correct row fails it. The parent's composition check: the policy STOPs on 4 of the 6 fix-rows (loses 4 fixes) and saves 1 of 3 breaks; STOP rows 40 correct at hop-0, CONTINUE rows 7 correct at final; 3 of the 6 excluded rows had correct hop-0 drafts. F1 (0.5837 vs 0.5969) and coverage (0.766 vs 0.790) dip below baseline. The saving is bought by stopping on wrong drafts, not by smarter stopping — the oracle ceiling (0.04 calls/Q saved) shows the static fast path already captures the easy stops. Two further limitations are recorded in design.md Threats: the simulation's STOP branch ignores the end-of-run re-read/abstention that would apply live (23/100 dev rows triggered re-read in the stored run; 9 rows have hop-0 answer-claim eff < 0.5), and simulated live calls/Q is a stored upper bound, not a measurement.
+- B.1 wiring (policy into `run_erag` behind `erag.continuation_policy`, mocked tests) is IN PROGRESS at the time of writing (subagent build, parent to verify). It is not entered here as a completed change; it gets its own entry when verified and committed. The live Dev-100 A/B (C.1) and Gate B are pending the wiring + a Groq key.
+
+#### Prediction impact
+- None yet (offline simulation only; the policy is not wired in). If the live Gate B passes, the tuned system's hop-0 continuation becomes model-driven instead of threshold-driven.
+
+#### Limitations
+- Dev-only, N=100, zero-margin gate, in-sample optimism on the live run (the final model trains on all 100 dev rows it is then evaluated on — Gate B's agreement check, not the raw live numbers, is the wiring test; Test-400 is the real judge). The simulation assumes the stored hop-1 outcome is the outcome under CONTINUE.
+
+#### Evidence status
+- Implemented (offline measurement + trained artifact), tested; wiring in progress; live evaluation pending
+
 ### Template entries not found in this repository (recorded, not reproduced as fact)
 
 The following four entries were supplied with the template for §3. Each was checked against this repository and **none of it is present**. They are recorded here so that the absence is explicit rather than silently omitted.
@@ -1197,6 +1299,9 @@ What does exist instead (the actual repair in this repository): row-level retrie
 - Question-grounded claim extraction with per-claim `source` field (step 2; `max_claims: 8` recorded for the tuned config)
 - Unknown-prompt variants `best_guess` / `cite_first` (step 3; code present, mechanism dropped by gate, default `base`)
 - Abstention threshold `theta_abs = 0.50` selected (step 4; recorded for the frozen tuned config)
+- Hop-2 SC cap (step 5): measured, verdict SUPERSEDED — the static cap is NOT adopted; `max_hops` stays 2 as a ceiling
+- Memory measurement: `--position` section in `scripts/eval_memory.py`, `mem_store_size` / `mem_texts` row fields in `run_erag` (step 6; live A/B pending)
+- Learned continuation policy (step 7): offline measurement + final-model artifact `configs/continuation_policy_dev.json` (τ = 0.30); wiring into `run_erag` in progress, not yet live
 - Memory module — `src/systems/memory.py` (surprise-gated writes, NLI verification gating, contradiction override, decay 0.98, capacity 200); `memory.enabled: false` by default
 - Retrievers: MiniLM-L6-v2 + FAISS, BM25/BM25Plus, E5, BGE (`src/retrieval/index.py`)
 - Audit remediation: empty-completion cache guard, cache key `v: 2` with namespace rotation, row-level retriever provenance, results provenance record (`results/README.md`), verification script (`scripts/verify_results.py`)
@@ -1204,9 +1309,9 @@ What does exist instead (the actual repair in this repository): row-level retrie
 
 ### 4.2 Tested offline
 
-- Test files on disk: `tests/test_analyzer_theta.py`, `tests/test_cache.py`, `tests/test_claims.py`, `tests/test_config.py`, `tests/test_erag.py`, `tests/test_graph.py`, `tests/test_ircot.py`, `tests/test_memory.py`, `tests/test_metrics.py`, `tests/test_nli.py`, `tests/test_prompts.py`, `tests/test_retrieval.py`, `tests/test_retry_and_tracker.py`, `tests/test_standard.py`
-- Full suite measured for this draft (HEAD `0ac6d99`): 87 passed, 1 failed, 0 xfailed — see §4.5. The 1 failure is the known pre-existing retry-test mismatch (see §4.5).
-- Mocked-LLM call-count tests for TrueAdaptive v1 (`tests/test_erag.py`, added in `d5c820f`): fast path 2 calls, 1-hop 5 calls.
+- Test files on disk: `tests/test_analyzer_hopcap.py`, `tests/test_analyzer_policy.py`, `tests/test_analyzer_theta.py`, `tests/test_cache.py`, `tests/test_claims.py`, `tests/test_config.py`, `tests/test_continuation_policy.py`, `tests/test_erag.py`, `tests/test_eval_memory_position.py`, `tests/test_graph.py`, `tests/test_ircot.py`, `tests/test_memory.py`, `tests/test_metrics.py`, `tests/test_nli.py`, `tests/test_prompts.py`, `tests/test_retrieval.py`, `tests/test_retry_and_tracker.py`, `tests/test_standard.py`
+- Full suite measured for this update (HEAD `fc1a428` + the uncommitted `--write-artifact` flag on the training script, exercised separately): 126 passed, 1 failed, 0 xfailed — see §4.5. The 1 failure is the known pre-existing retry-test mismatch (see §4.5).
+- Mocked-LLM call-count tests for TrueAdaptive v1 (`tests/test_erag.py`, added in `d5c820f`): fast path 2 calls, 1-hop 5 calls. Mocked cap tests for step 5 (`tests/test_erag.py`, added in `5c01ede`): max_hops=1 binds at 5 calls, control reaches hop 2 at 6 calls.
 
 ### 4.3 Evaluated on saved benchmark data
 
@@ -1217,15 +1322,18 @@ Only components with completed, saved experiment artifacts are listed.
 - E-RAG Balanced: test-400 BM25 EM 0.4450 at 8.95 calls/Q; Phase 5 matrix (3 systems × 4 retrievers, 12 cells, recomputed by the verify script)
 - TrueAdaptive v1: Dev-100 MiniLM (EM 0.50, 4.91 calls/Q) and BM25 (EM 0.56, 4.58 calls/Q); Test-400 BM25 (EM 0.4750, 4.78 calls/Q) vs IRCoT (EM 0.4200, 2.545 calls/Q), McNemar p=0.0043 — the completed, saved demonstration for the head-to-head claim
 - Tuning steps 1–4: Dev-100 BM25 A/Bs (step 1 EM 0.56 flat; step 2 EM 0.54; step 3 both variants failed the gate; step 4 counterfactual EM 0.5100, selective EM 0.6456 — see §2)
+- Tuning step 5: Dev-100 BM25 A/B (EM 0.5100 unchanged, calls/Q 4.49 vs 4.65; gate failed on live calls only; verdict SUPERSEDED — see §2)
+- Tuning step 7 (offline only, no live run yet): counterfactual simulation on Dev-100 traces (LR, τ = 0.30, OOF): simulated EM 0.5000, F1 0.5837, calls/Q 3.98, STOP 70 / CONTINUE 24, excluded 6/100; Gate A PASS exactly at the floor — see §2. The policy is not wired in, so the tuned system's live numbers are unchanged.
 - H1 (interim, v1 system), H3, H6 analyses from stored Test-400 rows; H2 NLI evaluation on a 60-pair labelled set
-- E5 memory stream: evaluated on saved data (N=30) but uninformative — cache replay, not a null (see §1.4). Memory benefit is therefore NOT in this list.
+- E5 memory stream: evaluated on saved data (N=30) but uninformative — cache replay, not a null (see §1.4 and the step-6 §2 entry). Memory benefit is therefore NOT in this list.
 
 ### 4.4 Deferred or unimplemented
 
 - Missing-dependency fast path: no commit, file, or test in this repository refers to a mechanism by that name (commit history searched for related terms; nothing found). Status `not recoverable from repository`.
 - Adaptive retrieval: **no longer deferred** — implemented and evaluated as TrueAdaptive v1 (§2). (Listed as deferred in the supplied template; corrected here.)
 - Expected-information-gain query selection: implemented as direct EIG in TrueAdaptive v1 (`eig_strategy: direct` in `configs/erag_trueadaptive.yaml`); RIND/QFS-style token-level information-need detection is not implemented and is impossible via the black-box Groq API (no logits/attention), per the project record.
-- Memory-enabled execution: implemented (`src/systems/memory.py`) but disabled by default (`memory.enabled: false`); its benefit is unevaluated (E5 test cache-confounded); a clean re-test is designed as Step 6 and not yet run.
+- Memory-enabled execution: implemented (`src/systems/memory.py`) but disabled by default (`memory.enabled: false`); its benefit is unevaluated (E5 test cache-confounded); the clean re-test is designed as Step 6 — measurement built (`e5da900`), live A/B pending the step-7 outcome + a Groq key.
+- Learned continuation policy (step 7): final model trained, artifact written (`configs/continuation_policy_dev.json`); wiring into `run_erag` (B.1) in progress; live Dev-100 A/B (C.1) and Gate B pending the wiring + a Groq key.
 - Memory restoration and compatibility: `not recoverable from repository` — no evidence found.
 - Full NLI reliability evaluation: only the 60-pair H2 set (macro-F1 0.6825); a larger evaluation has not been run.
 - H4 Test-400 ablation (adaptive vs no-adaptive on Test-400): not run; the run spec is prepared (needs a Groq key).
@@ -1237,16 +1345,17 @@ Only components with completed, saved experiment artifacts are listed.
 
 ### 4.5 Current test status
 
-- Command (run for this draft): `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`
+- Command (re-run for this update): `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`
 - Completed exit code: 1
-- Passed / failed / xfailed counts: **87 passed, 1 failed, 0 xfailed in 24.33s** (a second run gave the same counts in 29.36s)
+- Passed / failed / xfailed counts: **126 passed, 1 failed, 0 xfailed in 26.44s** (HEAD `fc1a428` plus the uncommitted `--write-artifact` flag on `scripts/train_continuation_policy.py`, exercised separately by running the training script)
 - Remaining failure: `tests/test_retry_and_tracker.py::test_retry_exhaustion_raises_runtime_error` — the test expects the message "LLM call failed after 4 attempts"; the code retries 6 times (`src/llm/client.py:130`: "1 try + 5 retries = 6 attempts"; line 163 raises "LLM call failed after 6 attempts"). This is a test/code mismatch, not a system regression: the retry count in the code is 6 and the test was written for 4. The project record states it fails on base too; that was not independently re-verified in this draft (it would require checking out the base commit).
 - Remaining strict xfails: none observed in this run (0 xfailed).
+- Earlier counts for reference: 87 passed, 1 failed at HEAD `0ac6d99` (this draft's original measurement); 111 passed, 1 failed after the step-6 measurement build (`e5da900`). The growth is new tests (hopcap 9, memory-position 11, continuation-policy 8, analyzer-policy 7, plus mocked cap/mem tests), not behavior changes.
 
 ### 4.6 Current repository state
 
-- HEAD: `0ac6d99` ("Master plan: add section 12 experiment log (single chronological record)", 2026-11-09, branch `trueadaptive`)
-- Uncommitted changes (as found at the time of writing): modified `results/cache.sqlite`, modified `results/nli_memo.pkl` (both run artifacts, deliberately uncommitted); untracked `configs/erag_adaptive.yaml` (old untested draft), `docs/audit-cache-dataset-integrity.md`, `docs/openspec-setup.md`. The draft of this document (`docs/retrospective-changelog.md`) is itself untracked and uncommitted, by instruction.
+- HEAD: `fc1a428` ("Step 7 Phase A: offline measurement + Gate A PASS (marginal)", 2026-11-09, branch `trueadaptive`), 14 commits ahead of `origin/trueadaptive`, unpushed (needs a fresh token). Master `88f2512` (.mailmap) is 1 commit ahead of `origin/master`, unpushed.
+- Uncommitted changes (as found at the time of this update): modified `openspec/changes/learned-continuation-policy/design.md`, `openspec/changes/learned-continuation-policy/tasks.md`, `scripts/train_continuation_policy.py` (the `--write-artifact` flag, exercised by running the training script), `results/cache.sqlite`, `results/nli_memo.pkl` (both run artifacts, deliberately uncommitted); untracked `configs/continuation_policy_dev.json` (final-model artifact, verified — see the step-7 §2 entry), `configs/erag_adaptive.yaml` (old untested draft), `docs/audit-cache-dataset-integrity.md`, `docs/openspec-setup.md`, `openspec/changes/archive/2026-11-09-tune-hop2-sc-cap/`, `openspec/specs/hop2-sc-cap/`. This document was committed as `3da932b` and is updated here in the same working tree; the B.1 wiring subagent is running concurrently and has not yet written files.
 - Checkpoint tag target: the tag `checkpoint-pre-audit3` does not exist in this repository; the commit it is said to point at, `6aced98810227ce3404152799a426a97ca6d62a1`, exists (`6aced98`, 2026-11-08).
 - Historical result/cache changes: `results/cache.sqlite` was purged of 55 empty rows in `3064740` (backup recorded outside the repo, not verified in this draft) and has since grown with runs (26,488 rows at the last committed verification report, 27,617 rows when the verify script was re-run for this draft, 0 empty-text rows both times). No result JSONL was modified by the preparation of this document; the verify script's re-run rewrote `docs/verification-report.md` (timestamp and cache-row count only) and the file was restored with `git checkout` afterward.
 
@@ -1260,13 +1369,16 @@ Only components with completed, saved experiment artifacts are listed.
 | Contradiction veto | `not recoverable from repository` (identifiers not found in `src/`) | `tests/test_conflict_policy.py` — missing | `not recoverable from repository` | No hash supplied; no commit found by content search | N/A | Not recoverable from repository |
 | Missing-dependency stopping | `not recoverable from repository` | `tests/test_batch1_characterization.py` — missing | `not recoverable from repository` | `not recoverable from repository` | N/A | Not implemented (no evidence in repository) |
 | Adaptive retrieval (TrueAdaptive v1) | `src/epistemic/confidence.py` (`sequential_consistency()`), `src/systems/erag.py` | `tests/test_erag.py` (mocked call-count tests) | `erag-trueadaptive` | `738dd1e`, `7d5cba4`, `d5c820f`, `8a64503` | `results/trueadaptive/erag_trueadaptive_test_bm25.jsonl` | Implemented and evaluated (Test-400 BM25) |
-| Memory benefit | `src/systems/memory.py` | `tests/test_memory.py` | `tune-memory-effectiveness` (draft, design-only) | `18b051f` | `results/stream_mem.jsonl`, `results/stream_nomem.jsonl` | Implemented; NOT evaluated (E5 run is a cache replay, uninformative) |
+| Memory benefit | `src/systems/memory.py` | `tests/test_memory.py`, `tests/test_eval_memory_position.py` | `tune-memory-effectiveness` (active; measurement built `e5da900`) | `18b051f`, `e5da900` | `results/stream_mem.jsonl`, `results/stream_nomem.jsonl` | Implemented; NOT evaluated (E5 run is a cache replay, uninformative); clean re-test pending |
 | Sequential self-consistency (M=1→3, ΔH<0.05) | `src/epistemic/confidence.py` | `tests/test_erag.py` | `erag-trueadaptive` | `738dd1e` | `results/trueadaptive/erag_trueadaptive_dev.jsonl` | Implemented and tested; evaluated via v1 runs |
 | SC gated behind Fast Path | `src/systems/erag.py` | `tests/test_erag.py` | `erag-trueadaptive` | `7d5cba4` | `results/trueadaptive/erag_trueadaptive_test_bm25.jsonl` | Implemented and tested; evaluated via v1 runs |
 | Reader grounding re-read (step 1) | `src/llm/prompts.py` (`grounded_answer_messages()`), `src/systems/erag.py` | `tests/test_erag.py` | `tune-reader-grounding` (archived `2026-11-09-tune-reader-grounding`) | `303efb5`, `9d1d108` | `results/trueadaptive/erag_trueadaptive_bm25_dev_reread.jsonl` | Implemented and tested; evaluated on Dev-100 (smoke test) |
 | Question-grounded claim extraction, `source` field (step 2) | `src/epistemic/claims.py`, `src/epistemic/belief_graph.py` | `tests/test_claims.py`, `tests/test_erag.py` | `tune-claim-extraction` (archived `2026-11-09-tune-claim-extraction`) | `8c9f25e`, `c062baf` | `results/trueadaptive/erag_trueadaptive_bm25_dev_claims.jsonl` | Implemented and tested; evaluated on Dev-100 (smoke test) |
 | Unknown-prompt variants (step 3) | `src/llm/prompts.py`, `src/systems/erag.py` | `tests/test_prompts.py` | `tune-unknown-prompt` (archived `2026-11-09-tune-unknown-prompt`) | `c0b5e67`, `afc10f1` | `results/trueadaptive/erag_trueadaptive_bm25_dev_unknown_a.jsonl`, `..._unknown_b.jsonl` | Implemented and tested; evaluated on Dev-100 — negative result, mechanism dropped |
 | Selective answering, `theta_abs = 0.50` (step 4) | `src/systems/erag.py:346` (config value only; no `src/` change) | `tests/test_analyzer_theta.py` | `tune-theta-abs` (archived `2026-11-09-tune-theta-abs`) | `5738181`, `4701ac3`, `78df3cd` | `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`, `..._theta_b.jsonl` (discarded as live evidence — cache replays) | Implemented; evaluated on Dev-100 via the accepted pre-registered counterfactual (smoke test) |
+| Hop-2 SC cap (step 5) | `src/systems/erag.py:240` (`max_hops` read; config only, zero code) | `tests/test_analyzer_hopcap.py`, `tests/test_erag.py` (mocked cap tests) | `tune-hop2-sc-cap` (archived `2026-11-09-tune-hop2-sc-cap`) | `5c01ede`, `7a3598c` | `results/trueadaptive/erag_trueadaptive_bm25_dev_hopcap.jsonl` | Measured; A/B EM 0.5100 unchanged, calls/Q 4.49 vs 4.65; gate failed on live calls only; verdict SUPERSEDED, cap NOT adopted |
+| Memory effectiveness measurement (step 6) | `scripts/eval_memory.py` (`--position` section), `src/systems/erag.py:372-373` (`mem_store_size` / `mem_texts` row fields) | `tests/test_eval_memory_position.py`, `tests/test_erag.py` (mocked mem-field tests) | `tune-memory-effectiveness` (active, not archived) | `e5da900` | `data/manifests/stream_clusters.json` (30-row sidecar); E5 files `results/stream_mem.jsonl`, `results/stream_nomem.jsonl`, `results/stream_planted.jsonl` | Measurement built and tested; live A/B pending; E5 cache finding: the H5 null is a replay, uninformative, not a real null |
+| Learned continuation policy (step 7, Phase A) | `scripts/train_continuation_policy.py`, `scripts/extract_continuation_training.py` (offline); wiring into `src/systems/erag.py` in progress | `tests/test_continuation_policy.py`, `tests/test_analyzer_policy.py` | `learned-continuation-policy` (active, not archived) | `7a3598c`, `fc1a428` | `data/continuation_training_dev.jsonl`, `data/continuation_simulation_dev.json`, `configs/continuation_policy_dev.json` | Offline simulation: EM 0.5000, calls/Q 3.98; Gate A PASS exactly at the floor; final model trained; live evaluation pending |
 | TrueAdaptive v1 vs IRCoT, Test-400 BM25 | `src/systems/erag.py`, `src/systems/ircot.py` | N/A (benchmark) | `erag-trueadaptive` | `d69490f` | `results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`, `results/ircot_test_bm25.jsonl` | Evaluated: TA EM 0.4750 vs IRCoT EM 0.4200, McNemar p=0.0043 |
 | H1 (E-RAG beats Standard) | N/A (analysis) | N/A (analysis of stored rows) | N/A | `3468d08` | `results/hypotheses_h1_h6.json`, `docs/hypotheses-h1-h6-assessment.md` | Supported interim (v1 system; confirmatory re-run owed) |
 | H2 (NLI verifier) | `src/epistemic/nli.py` | `tests/test_nli.py` | N/A | `b9ee7ce`, `348735c` | `data/nli_eval_pairs.jsonl`, `results/nli_eval_h2.jsonl` | Evaluated on 60 pairs: NOT SUPPORTED (macro-F1 0.6825 < 0.70) |
@@ -1278,7 +1390,7 @@ Only components with completed, saved experiment artifacts are listed.
 | BM25 retriever | `src/retrieval/index.py` (`BM25Retriever`) | `tests/test_retrieval.py` | `retrieval` (spec) | `6d0c0f8`, `e8f3c27` | `results/bm25/*_test.jsonl`, `results/enriched/*_bm25_test.jsonl` | Implemented, tested, evaluated |
 | E5 / BGE retriever wrappers | `src/retrieval/index.py` | `tests/test_retrieval.py` | `retrieval` (spec) | `24dec3d` | `results/enriched/*_e5_test.jsonl`, `results/enriched/*_bge_test.jsonl` | Implemented, tested, evaluated (Phase 5 matrix) |
 | Test-400 error analysis | `scripts/analyze_trueadaptive_test400.py` | N/A (analysis) | N/A | `ed154d7` | `docs/trueadaptive-test400-error-analysis.md` | Implemented (as analysis); descriptive, from saved data |
-| Memory module (implementation) | `src/systems/memory.py` | `tests/test_memory.py` | `tune-memory-effectiveness` (draft, design-only) | `18b051f` | `data/manifests/stream.jsonl`, `data/manifests/planted.json` | Implemented and tested; benefit not evaluated |
+| Memory module (implementation) | `src/systems/memory.py` | `tests/test_memory.py` | `tune-memory-effectiveness` (active; measurement built `e5da900`) | `18b051f`, `e5da900` | `data/manifests/stream.jsonl`, `data/manifests/planted.json`, `data/manifests/stream_clusters.json` | Implemented and tested; benefit not evaluated |
 
 ## 6. Claims discipline
 
@@ -1335,7 +1447,7 @@ The current repository establishes mechanisms and offline tests, and — beyond 
 - **H1 supported interim** (v1 system vs Standard-BM25: ΔEM +0.0725, 95% CI [0.0350, 0.1125], p=0.00034); the confirmatory re-run on the tuned system is owed at Phase 2, and Holm correction is pending H4's Test-400 p-value.
 - **H6 supported strongly**: all of TrueAdaptive's gain over IRCoT concentrates where hop-0 retrieval was incomplete (n=192, ΔEM +0.1146, CI [0.0521, 0.1823], p=0.00094); zero gain where retrieval was complete (n=208, ΔEM 0.0000). This is the mechanism result, and it is scoped to the same Test-400 BM25 comparison.
 - **H2 not supported** (NLI verifier, 60-pair set: macro-F1 0.6825 < 0.70; contradicted recall 0.75 passed). **H5 not supported on a cache-confounded test** (the E5 memory run is a replay, not a null; memory benefit is unevaluated). **H4 Test-400 ablation not yet run** (dev interim inconclusive; the latency bound as written is unmeetable and needs a dated clarification).
-- **Tuned system (theta_abs = 0.50, max_claims = 8, reader grounding on, unknown prompt base) judged on dev only so far**: Dev-100 BM25 EM 0.5100, selective EM 0.6456, wrong-answer rate 0.3544, coverage 0.790 — via the accepted pre-registered counterfactual (the live runs were cache replays and were discarded as evidence). Test-400 confirmation is pending (Phase 2, pre-registered verdict).
+- **Tuned system (theta_abs = 0.50, max_claims = 8, reader grounding on, unknown prompt base) judged on dev only so far**: Dev-100 BM25 EM 0.5100, selective EM 0.6456, wrong-answer rate 0.3544, coverage 0.790 — via the accepted pre-registered counterfactual (the live runs were cache replays and were discarded as evidence). The step-5 static hop cap was measured and NOT adopted (EM unchanged, calls/Q 4.49 vs 4.65; verdict SUPERSEDED). Step 7's learned continuation policy passed its offline gate marginally (counterfactual simulation: EM 0.5000, 3.98 calls/Q; final model trained) but is not wired in yet, so the tuned system's live numbers are unchanged. Test-400 confirmation is pending (Phase 2, pre-registered verdict).
 - **Cost**: TrueAdaptive v1 uses 4.78 calls/Q on Test-400 BM25 vs 8.95 for Balanced and 2.545 for IRCoT; the Reference→Balanced call reduction is −39.8% (14.22 → 8.56 calls/Q, Test-400 MiniLM), not the "45.4%" figure that circulated earlier. Cost claims are scoped to these measured runs; token and latency figures are reported in `research/cost/` and were not independently recomputed for this draft.
 
-What the evidence does **not** establish: benchmark superiority on any dataset other than the HotpotQA dev-distractor slice; superiority on any retriever other than BM25 for the adaptive system; memory benefits; NLI verifier reliability beyond a 60-pair set; or robustness. The mechanisms are implemented and covered by offline tests (87 passed, 1 failed — the known pre-existing retry-test mismatch — at HEAD `0ac6d99`); the benchmark claims above are the only ones a completed, saved experiment demonstrates.
+What the evidence does **not** establish: benchmark superiority on any dataset other than the HotpotQA dev-distractor slice; superiority on any retriever other than BM25 for the adaptive system; memory benefits; NLI verifier reliability beyond a 60-pair set; or robustness. The mechanisms are implemented and covered by offline tests (126 passed, 1 failed — the known pre-existing retry-test mismatch — measured 2026-11-09 at HEAD `fc1a428` plus the uncommitted `--write-artifact` flag, exercised separately); the benchmark claims above are the only ones a completed, saved experiment demonstrates.
