@@ -360,7 +360,7 @@ Test-400 verdict, not at the dev gate.
   model-unknown rows remain unrecovered. Code and tests remain (variants
   available for later work), nothing branches on a non-base variant.
 
-### 3.4 Step 4 — theta_abs (PLANNED, decided by the paper's goal)
+### 3.4 Step 4 — theta_abs (DONE 2026-11-09 — theta_abs=0.50, gate PASS on the pre-registered counterfactual)
 
 - **Evidence:** 37 system abstentions (`answer_conf` median 0.214, 17 with
   correct drafts). Dev sweep (counterfactual on stored rows): t=0.00 → EM
@@ -383,7 +383,24 @@ Test-400 verdict, not at the dev gate.
   EM as a guardrail (not the maximand). The formal paper-goal statement is
   still open and can be refined later; this objective is what the step is
   built on.
-- **OpenSpec change:** `tune-theta-abs` (to be created when step 3 closes).
+- **OpenSpec change:** `tune-theta-abs` (archived 2026-11-09).
+- **Outcome:** A.1 analyzer `--theta` section built, verified, committed
+  (5738181; 69 tests passed). Live A/Bs ran 2026-11-09 (100/100, 0
+  failed) but the pre-registered cache tripwire FIRED (live calls/Q 0.04
+  / 0.02 — ~99% replays, because the threshold changes no prompt and no
+  call, so the reused namespace served the step-2 run's cached calls);
+  both files DISCARDED as evidence per the rule. User decision
+  2026-11-09: accept the pre-registered counterfactual as the evidence
+  (dated amendment in the change's design.md — the tripwire's premise is
+  false for threshold-only steps; the counterfactual numbers were fixed
+  before the runs, so nothing is cherry-picked). Gate on the
+  counterfactual: both candidates PASS all four measures (selective EM
+  0.6456 > 0.6353; wrong 0.3544 < 0.3647; EM 0.5100 ≥ 0.51, exactly at
+  the bound; calls 4.65/4.64 within 0.2 of 4.65); identical wrong-rate
+  falls → tie rule selects candidate A, **theta_abs = 0.50**, coverage
+  0.790. Tuned value recorded for the frozen tuned config. Margins are
+  1 row, inside the ±3-row dev noise band — the gate is a smoke test and
+  Test-400 is the judge.
 - **Dev gate (smoke test):** EM and selective EM move in the direction the
   goal requires; calls unchanged (thresholds cost no calls). If the goal is
   undecided when step 4 starts, the step is skipped and `theta_abs` stays
@@ -408,6 +425,10 @@ Test-400 verdict, not at the dev gate.
 - **Dev gate (smoke test):** calls/Q falls with EM not below the step-4
   tuned dev by more than 1 pt (a cost step that costs accuracy is a trade,
   not a win, and the trade is decided at the Test-400 verdict, not on dev).
+  Post-step-4 tuned dev baseline (the step-4 A file,
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`): EM
+  0.5100, 4.65 calls/Q — so step 5's gate is EM ≥ 0.5000 with calls/Q
+  and live calls/Q below 4.65.
 
 ### 3.6 Step 6 — Memory module effectiveness (component test; ADDED 2026-11-09)
 
@@ -735,7 +756,7 @@ TrueAdaptive v1 and for steps 1–2.
 | # | Decision | What decides it | Status |
 |---|---|---|---|
 | 1 | New dataset: 2WikiMultiHopQA or MuSiQue | The paper's claim (§5) | Open — user's call, before Phase 3 starts |
-| 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Open — user's call, before step 4 starts; if undecided, step 4 is skipped and `theta_abs` stays 0.4 |
+| 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Decided 2026-11-09 by the user: selective answering (reduce hallucination first); step 4 done, theta_abs=0.50, coverage 0.790 |
 | 3 | Keep step-1 re-read if Test-400 shows no gain | The pre-registered verdict (§4.2) | Decided by test, not by dev |
 | 3b | Memory in the frozen Test-400 system (on or off) | Step 6 gate (§3.6): stream A/B gain or call reduction, override test passes | Open — decided by step 6, before the §4.1 freeze |
 | 3c | Add the report's confirmatory H1/H4 analyses to Phase 2 (H1: TA vs Standard, paired bootstrap + McNemar; H4: adaptive vs no-adaptive ablation — needs a Test-400 ablation run) | The report (Nov 4) labels E-RAG vs IRCoT exploratory; H1/H4 are confirmatory with Holm correction | Open — the §4.2 verdict as written tests the exploratory comparison |

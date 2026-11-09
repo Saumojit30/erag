@@ -12,14 +12,15 @@ this step; their A/B baselines are this step's, whatever they are.
 
 - [x] 0.1 Create `openspec/changes/tune-theta-abs/` with `proposal.md`,
   `design.md`, `tasks.md` (this file), `specs/theta-abs/spec.md`.
-- [ ] 0.2 Validate with the local CLI:
+- [x] 0.2 Validate with the local CLI:
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
   and `.../openspec validate tune-theta-abs` — must be 0 failed before
-  any further work.
+  any further work. (8 passed, 0 failed, re-checked 2026-11-09 before
+  the gate commit.)
 
 ## A. Measurement first (no production change yet)
 
-- [ ] A.1 Extend `scripts/analyze_trueadaptive_test400.py` with a
+- [x] A.1 Extend `scripts/analyze_trueadaptive_test400.py` with a
   `--theta` section (section 13) reporting, for the `--ta-dev` file:
   N (deduped), failed count, EM, F1, selective EM (correct / answered),
   wrong-answer rate among answered, wrong answers among all rows,
@@ -49,25 +50,27 @@ this step; their A/B baselines are this step's, whatever they are.
   only fields the runner already writes (`answer_conf`, `abstained`,
   `unknown`, `draft`, `em`, `gold`, `llm_calls`, `cache_hits`,
   `failed`); no new trace field is needed.
-- [ ] A.2 Run the fast test suite (cache, config, metrics, erag,
+- [x] A.2 Run the fast test suite (cache, config, metrics, erag,
   retrieval, claims, prompts). All green before any live run. No `src/`
   change is expected in this change; if A.1 forces one, stop and amend
-  the change first.
+  the change first. (DONE 2026-11-09: 69 passed, committed 5738181;
+  no `src/` change.)
 
 ## B. Implementation
 
-- [ ] B.1 None expected: the threshold is the existing `erag.theta_abs`
+- [x] B.1 None expected: the threshold is the existing `erag.theta_abs`
   config value, set to `0.50` (candidate A) and `0.65` (candidate B) in
   the A/Bs' `--set` flags. Verify by grep that `theta_abs` is read only
   at the abstention rule in `src/systems/erag.py` (line 346) and in
   `scripts/profile_efficiency.py` (profiling script, not the experiment
-  path). Do NOT edit `configs/erag_trueadaptive.yaml` (frozen v1 config
+  path). (Verified 2026-11-09: only `erag.py:346` and
+  `profile_efficiency.py:143`. No config edited.) Do NOT edit `configs/erag_trueadaptive.yaml` (frozen v1 config
   — step-3 lesson) or `configs/base.yaml`; the chosen value is recorded
   for the frozen tuned config at end of Phase 1.
 
 ## C. Live A/Bs (Dev-100 BM25, tuned system)
 
-- [ ] C.1 Candidate A (`theta_abs=0.50`). Detached, sequential after
+- [x] C.1 Candidate A (`theta_abs=0.50`). Detached, sequential after
   nothing (this is the first of the two runs), Groq key transiently in
   `env` (never saved), with `HF_HUB_DISABLE_XET=1` and both `NO_PROXY`
   and lowercase `no_proxy` set to `localhost,127.0.0.1` (VM quirk —
@@ -77,30 +80,44 @@ this step; their A/B baselines are this step's, whatever they are.
   Output: `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`.
   Expect N=100 deduped, 0 failed. Check `cache_hits`/Q before believing
   the comparison (step-1 lesson); a ~0-live-call run is a replay —
-  discard it, do not analyze it.
-- [ ] C.2 Candidate B (`theta_abs=0.65`). Same setup, after C.1
+  discard it, do not analyze it. (RAN 2026-11-09, PID 10160: 100 deduped,
+  0 failed, 4.65 calls/Q, 4.61 cache_hits/Q, live 0.04/Q — TRIPWIRE
+  FIRED, file discarded as evidence per the pre-registered rule; see
+  design.md dated amendment 2026-11-09.)
+- [x] C.2 Candidate B (`theta_abs=0.65`). Same setup, after C.1
   finishes (sequential, same namespace, same key handling):
   `.venv/bin/python scripts/run_experiment.py --config configs/base.yaml configs/erag_trueadaptive.yaml --set retrieval.retriever_type=bm25 run.cache_namespace=dev_trueadaptive_v1_bm25 run.name=erag_trueadaptive_bm25_dev_theta_b erag.ground_final_read=true erag.max_claims=8 erag.unknown_prompt=base erag.theta_abs=0.65`
   Output: `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_b.jsonl`.
-  Expect N=100 deduped, 0 failed.
+  Expect N=100 deduped, 0 failed. (RAN 2026-11-09, PID 10160: 100
+  deduped, 0 failed, 4.64 calls/Q, 4.62 cache_hits/Q, live 0.02/Q —
+  TRIPWIRE FIRED, file discarded as evidence per the pre-registered
+  rule; see design.md dated amendment 2026-11-09.)
 
 ## D. Gate (per candidate, pre-registered in design.md)
 
-- [ ] D.1 For each candidate file, run the `--theta` section and check
+- [x] D.1 For each candidate file, run the `--theta` section and check
   ALL of: (1) selective EM strictly above the step-2 tuned dev baseline
   (0.6353); (2) wrong-answer rate among answered strictly below baseline
   (0.3647); (3) EM ≥ 0.51 (baseline 0.54 minus the pre-registered 0.03
   bound); (4) mean calls/Q within 0.2 of baseline 4.65 (sanity — the
   threshold costs no calls; a larger move means something else changed,
   investigate before passing). Coverage reported, not gated. N=100
-  deduped, 0 failed, else the gate does not pass.
-- [ ] D.2 Apply the selection rule: if both pass, the one with the
+  deduped, 0 failed, else the gate does not pass. (Applied 2026-11-09 to
+  the PRE-REGISTERED COUNTERFACTUAL per the dated amendment, since the
+  live files were discarded: both candidates PASS all four — selective
+  EM 0.6456, wrong 0.3544, EM 0.5100 exactly at the bound, calls 4.65 /
+  4.64. EM is exactly at the bound and the selective-EM move is 1 row —
+  inside the ±3-row dev noise band; the gate is a smoke test and
+  Test-400 is the judge.)
+- [x] D.2 Apply the selection rule: if both pass, the one with the
   larger wrong-answer-rate fall proceeds; tie → candidate A
   (`theta_abs=0.50`). If exactly one passes, it proceeds. If neither
   passes, `theta_abs` stays 0.4 — record as a negative result, NO third
   value inside this change. Report both candidates regardless of outcome.
   Record the chosen value (if any) and the coverage at that value for
-  the frozen tuned config.
+  the frozen tuned config. (DONE 2026-11-09: wrong-rate falls identical
+  (0.3544 both) → tie rule selects candidate A, **theta_abs = 0.50**,
+  coverage 0.790. Recorded for the frozen tuned config.)
 
 ## E. Commit + archive
 

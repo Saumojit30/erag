@@ -92,6 +92,44 @@ of Phase 1; the frozen v1 config is never edited.
   is a smoke test; the verdict is confirmed on Test-400 at the end of
   tuning (§4 of the master plan).
 
+## Dated amendment 2026-11-09 — tripwire fired; counterfactual accepted (user decision)
+
+- The C.1/C.2 live A/Bs ran 2026-11-09 (100/100 deduped, 0 failed each;
+  outputs `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`
+  and `_b.jsonl`) and the cache tripwire in the Guardrails above FIRED:
+  live calls/Q were 0.04 (A) and 0.02 (B) — ~99% cache replays. Per the
+  pre-registered rule the two files are DISCARDED as evidence and were
+  NOT analyzed as live tests. Their numbers at face value reproduce the
+  pre-registered counterfactual exactly (EM 0.5100, selective EM 0.6456,
+  wrong 0.3544, coverage 0.790; A 4.65 calls/Q, B 4.64), which is what a
+  replay must produce.
+- Root cause (design inconsistency, found by running, not by re-reading):
+  the change reuses the namespace deliberately AND the threshold changes
+  no prompt and no call — so a run in the reused namespace CANNOT
+  produce live calls for this mechanism. The tripwire's premise (a live
+  run in this namespace would test something new) is false for
+  threshold-only steps. It is a false positive here, not a failed test:
+  the counterfactual applies the threshold to the stored rows, and the
+  threshold's only effect is that re-labeling — a fresh-namespace run
+  would compute the same function on new LLM outputs, differing only by
+  temp-0.0 nondeterminism noise (±3 rows on dev, per step 1), while the
+  gate's margins are 1 row.
+- User decision 2026-11-09: ACCEPT the pre-registered counterfactual as
+  this step's evidence (do NOT re-run with fresh namespaces). The
+  counterfactual numbers were fixed in this design before the runs, so
+  accepting them selects no favorable evidence post-hoc. The gate is
+  applied to them as pre-registered: both candidates PASS all four
+  measures (selective EM 0.6456 > 0.6353; wrong 0.3544 < 0.3647; EM
+  0.5100 ≥ 0.51, exactly at the bound; calls 4.65/4.64 within 0.2 of
+  4.65); the wrong-rate falls are identical, so the tie rule selects
+  candidate A, **theta_abs = 0.50**, coverage 0.790 at that value.
+  Recorded for the frozen tuned config at end of Phase 1. The gate is a
+  smoke test; the verdict is confirmed on Test-400 (§4 of the master
+  plan). Lesson for later changes: a tripwire must be satisfiable by the
+  mechanism it guards — for threshold-only steps, pre-register the
+  counterfactual as the evidence and a fresh namespace as the
+  (optional) noise check, not the other way round.
+
 ## Correction note (applies the step-2/3 lesson)
 
 Steps 2 and 3 each found their measurement path broken or assumed. For
