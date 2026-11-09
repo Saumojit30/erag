@@ -236,6 +236,37 @@ at a reasonable computational cost?"
   result in the set, and it is the mechanism the paper should lead
   with: adaptive hops help exactly where the first retrieval fails.
 
+### H7 — Each adaptive component carries part of the gain (new, 2026-11-10)
+
+- **Claim:** the tuned system's accuracy/cost trade-off is carried by
+  its adaptive components, not by one of them alone — disabling the
+  Fast Path or the sequential SC worsens EM or raises calls/Q.
+  **Criterion:** SC-off vs tuned (paired, Test-400 BM25): EM lower
+  or calls/Q higher; Fast-Path-off vs its eager-SC control (paired,
+  Test-400 BM25): EM lower or calls/Q higher. H7 is exploratory (it
+  compares system variants, like the ERag-vs-IRCoT comparison); the
+  confirmatory claims remain H1 and H4.
+- **Evidence:** none yet — the D2 ablation runs in Phase 2 are the
+  evidence (master plan §4.1, dated amendment 2026-11-10).
+- **Verdict: NOT TESTED.**
+- **Why the Fast-Path-off needs a pair (code reading, 2026-11-10):**
+  the publication plan assumed Fast-Path-off is one config flag
+  (`erag.ablate=[no_fast]`). Reading `src/systems/erag.py` shows it
+  is not: in the frozen system the fast path fires in the deferred-SC
+  branch (lines ~258–270), which breaks without consulting `no_fast`
+  — and at hop 0 the learned policy has replaced the fast-path
+  decision anyway, so `no_fast` alone has ~no effect on the tuned
+  system. The flag only bites when SC is NOT deferred (the
+  decision-chain branch, line ~324). So the Fast-Path-off is a pair
+  with SC eager in both arms (`gate_sc_behind_fast_path=false`):
+  control (fast path on) vs `no_fast` (fast path off) — the
+  difference isolates the fast path's retrieval-skipping effect with
+  SC timing held constant. The SC-off is one run as assumed, except
+  it needs both overrides: `erag.sc_mode=fixed` AND
+  `erag.sc_samples=5` — the frozen config sets `sc_samples: 3`, so
+  `sc_mode=fixed` alone would run fixed SC with 3 samples, not the
+  5-sample reference.
+
 ### Scoreboard
 
 | ID | Verdict | Headline number |
@@ -243,11 +274,12 @@ at a reasonable computational cost?"
 | H1 | SUPPORTED (interim, v1) | ΔEM +0.0725, CI excludes 0; McNemar p=0.00034 |
 | H2 | NOT SUPPORTED (narrow miss) | Macro-F1 0.6825 < 0.70; contradicted recall 0.75 ≥ 0.70 |
 | H3 | SUPPORTED, weaker for TA | AUROC(c0) 0.5915, CI excludes 0.5; below Reference 0.6519 |
-| H4 | NOT TESTED (Test-400) | Dev ΔF1 +0.0304, CI includes 0; 3× bound needs clarification |
+| H4 | NOT TESTED (Test-400) | Dev ΔF1 +0.0304, CI includes 0; cost-per-correct-answer bound (clarified 2026-11-10) |
 | H5 | NOT SUPPORTED (retrieval half) | E5: identical EM, 0 calls saved; override 1/1 retrieved |
 | H6 | SUPPORTED, strongly | All gain in hop-0-incomplete subset: ΔEM +0.1146, CI excludes 0 |
+| H7 | NOT TESTED | D2 ablations in Phase 2 are the evidence |
 
-Three supported, two not supported, one untested. That is a normal,
+Three supported, two not supported, two untested. That is a normal,
 honest scoreboard for a research system: the core adaptivity claim
 (H6) and the head-to-head claim (H1) hold, the verifier (H2) and the
 memory (H5) do not do what the report claimed, and the cost claim

@@ -722,6 +722,40 @@ say so before the run.
   recovery). Output files are new; the v1 Test-400 files are never
   overwritten.
 
+**DATED AMENDMENT 2026-11-10 (D2 component ablations, publication-ready
+plan §3.3 — written before any Phase 2 run; no Phase 2 result has been
+seen):** three ablation runs join Phase 2, testing new hypothesis H7
+(each adaptive component carries part of the gain; see
+`docs/hypotheses-current-status.md`). All three are Test-400 BM25,
+fresh namespaces, config overrides only, no code:
+
+- **SC-off (1 run):** tuned system + `erag.sc_mode=fixed`
+  `erag.sc_samples=5` — fixed 5-sample SC instead of sequential
+  (M=1→3, ΔH<0.05). Both overrides are needed: the frozen config sets
+  `sc_samples: 3`, so `sc_mode=fixed` alone would run fixed SC with 3
+  samples, not the 5-sample reference. Namespace
+  `test_tuned_sc_fixed_v1_bm25`. Judged vs the tuned run (paired).
+- **Fast-Path-off (2 runs, a pair):** the publication plan assumed this
+  is one flag (`erag.ablate=[no_fast]`). Reading `src/systems/erag.py`
+  on 2026-11-10 shows it is not: in the frozen system the fast path
+  fires in the deferred-SC branch, which breaks without consulting
+  `no_fast` — and at hop 0 the learned policy has replaced the
+  fast-path decision anyway, so `no_fast` alone has ~no effect on the
+  tuned system. The flag only bites when SC is NOT deferred. So the
+  pair holds SC timing constant (eager in both arms,
+  `erag.gate_sc_behind_fast_path=false`): (a) control, fast path on;
+  (b) fast path off, `erag.ablate=[no_fast]`. The (b)−(a) difference
+  isolates the fast path's retrieval-skipping effect. Namespaces
+  `test_fp_control_v1_bm25` and `test_fp_off_v1_bm25`. Judged within
+  the pair (paired), not vs the tuned run — both pair arms differ from
+  the tuned system in SC timing, so a comparison to tuned would
+  conflate the two changes.
+- The H4 no-adaptive ablation (`erag.ablate=[no_adaptive]`, namespace
+  `test_noadaptive_v1_bm25`) is separate and unchanged. The §4.2
+  verdict is unchanged: it is judged on the tuned-vs-IRCoT BM25
+  comparison; the ablations are separately-judged component evidence
+  under H7.
+
 ### 4.2 The verdict (pre-registered)
 
 **Primary endpoint:** exact match (EM), paired McNemar exact two-sided test
