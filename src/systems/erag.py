@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from src.epistemic.belief_graph import BeliefGraph
 from src.epistemic.claims import extract_claims
 from src.epistemic.confidence import self_consistency, sequential_consistency
+from src.epistemic.continuation_policy import decide_policy, hop0_features, load_policy
 from src.eval.metrics import normalize_answer
 from src.llm.client import Tracker
 from src.llm.prompts import answer_messages, grounded_answer_messages
@@ -175,6 +176,18 @@ def run_erag(
     initial_draft = None
     prev_claims = None
 
+    # Learned continuation policy (step 7, B.1): when erag.continuation_policy
+    # names an artifact file, the policy replaces the fast-path + first
+    # gap-continuation decision at hop 0. Absent = today's static behavior
+    # exactly. A missing or malformed artifact raises here (fail loudly,
+    # never silently fall back to static behavior). Loaded once per call.
+    policy = None
+    policy_path = e.get("continuation_policy")
+    if policy_path:
+        policy = load_policy(policy_path)
+    policy_decision = None
+    policy_p = None
+
     while True:
         # Step 2: Generation of draft answer (step 3: reader prompt variant
         # from erag.unknown_prompt, default "base").
@@ -255,16 +268,56 @@ def run_erag(
                 c0 = graph.min_eff()
                 c0_source = "fast_path_min_eff"
                 sc_skipped_fast_path = True
-                break
-            sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
-            c0 = conf_value(sc, cfg)
-            c0_source = "sc"
-            graph = build_graph(claims, pool + mem_passages, nli, c0, cfg, ablate)
-            gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
-            trace[-1]["graph"] = graph.to_json()
+                if policy is None:
+                    break
+                # Policy active: do NOT break — the policy replaces the
+                # Fast-Path decision at hop 0 (it may CONTINUE a row the
+                # static system would stop on). Fall through to the policy
+                # branch below with c0/c0_source final.
+            else:
+                sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
+                c0 = conf_value(sc, cfg)
+                c0_source = "sc"
+                graph = build_graph(claims, pool + mem_passages, nli, c0, cfg, ablate)
+                gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
+                trace[-1]["graph"] = graph.to_json()
 
-        # Step 8 & 9: Gap selection and No-Gap Fast Path
-        if "no_conf" in ablate:
+        # Step 8 & 9: Gap selection and No-Gap Fast Path — or, at hop 0,
+        # the learned continuation policy (step 7, B.1), which REPLACES the
+        # fast-path + first gap-continuation decision. EIG gap selection,
+        # SC, abstention, and the max_hops ceiling are unchanged, and hop-1+
+        # continuation stays static.
+        if hop == 0 and policy is not None:
+            features = hop0_features(
+                c0=c0,
+                c0_source=c0_source,
+                sc_skipped=sc_skipped_fast_path,
+                graph_claims=graph.to_json(),
+                pool_titles=[p["title"] for p in pool],
+                # supporting_facts come from the manifest item in eval runs;
+                # absent in production (no manifest) -> hop0_recall 0.0.
+                supporting_facts=item.get("supporting_facts"),
+                question_type=item.get("type"),
+                hop0_draft=draft,
+            )
+            policy_decision, policy_p = decide_policy(policy, features)
+            if policy_decision == "stop":
+                break
+            # CONTINUE: pick the retrieval target.
+            # no_conf ablation: the static code always continues with the
+            # answer claim as target; the policy decision still governs at
+            # hop 0, so CONTINUE keeps that target. (Ablation runs are out
+            # of scope for the gate.)
+            if "no_conf" in ablate:
+                target = graph.answer_claim()
+            elif gaps:
+                target = graph.weakest(gaps)
+            else:
+                # Would-be fast-path row (no gaps, min_eff >= theta_fast):
+                # weakest claim as target, mirroring the static
+                # min_eff < theta_fast fallback branch.
+                target = graph.weakest(graph.claims)
+        elif "no_conf" in ablate:
             target = graph.answer_claim()
         elif gaps:
             target = graph.weakest(gaps)
@@ -373,6 +426,11 @@ def run_erag(
         "mem_texts": [p["text"] for p in mem_passages],
         "claim_fallbacks": sum(1 for c in claims if c.get("fallback", False)),
     }
+    # Learned continuation policy (step 7, B.1): record the decision on
+    # policy-active rows only; flag-absent rows carry no such fields.
+    if policy_decision is not None:
+        out["policy_decision"] = policy_decision
+        out["policy_p"] = float(policy_p)
     # Tune-reader-grounding (step 1): record the re-read only when the flag
     # is on, so flag-off runs produce byte-identical records to v1.
     if e.get("ground_final_read", False):

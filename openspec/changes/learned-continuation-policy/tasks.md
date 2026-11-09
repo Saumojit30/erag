@@ -162,7 +162,7 @@ offer); the build then follows this file.
 
 ## B. Implementation (only if Gate A passes)
 
-- [ ] B.1 Wire the policy into `run_erag` behind
+- [x] B.1 Wire the policy into `run_erag` behind
   `erag.continuation_policy` (path to the artifact file; absent =
   today's static behavior, exactly). At the hop-0 boundary (after
   hop-0 draft, claims, verification — the current fast-path / first
@@ -177,10 +177,42 @@ offer); the build then follows this file.
   retrieval even when gaps exist; a policy that says CONTINUE
   enters hop 1; with the flag absent the run behaves exactly as
   before (control test on the existing static path).
-- [ ] B.2 Fast suite green after B.1 (the suite as in steps 1–6).
+  DONE 2026-11-09, verified by the parent (see below): new module
+  `src/epistemic/continuation_policy.py` (load_policy + hop0_features
+  + policy_probability + decide_policy, no sklearn in src/) and the
+  wiring in `src/systems/erag.py` (+67/-9). The decision point is
+  after the deferred-SC resolution (c0/c0_source final); the
+  deferred fast-path `break` is conditional on the policy being
+  absent. CONTINUE on a would-be fast-path row picks the weakest
+  claim as target (mirrors the static min_eff < theta_fast fallback);
+  policy governs at hop 0 under `no_conf` (documented + tested).
+  12 new mocked tests (STOP fast-path, STOP despite gaps, CONTINUE
+  unknown draft, CONTINUE fast-path weakest claim, no_conf, flag-absent
+  controls, feature agreement, artifact loading/validation).
+  **Parent verification (independent):** read the module and the diff
+  line by line against `extract_features` (definitions identical,
+  incl. `draft_unknown` from the hop-0 draft); confirmed
+  `sc_skipped_fast_path` is initialized False and set True only in
+  the fast-path branches; confirmed the graph/gaps at the policy
+  branch are the same objects stored in trace[0] (fast-path case
+  keeps the provisional graph — matches the stored trace); ran the
+  full suite (139 passed, 1 failed known retry mismatch); proved
+  the tests genuine by stashing the wiring (5 behavior tests fail
+  without it); proved the module's probabilities match the fitted
+  sklearn pipeline to 1.1e-16 on all 100 dev rows and its decisions
+  reproduce the artifact's in-sample split (STOP 81 / CONTINUE 19).
+  Parent-added hardening: load_policy now requires the artifact's
+  feature list to be exactly the 12 MODEL_FEATURES in order
+  (coefficients are positional; a renamed/shortened list must fail
+  loudly, not score a wrong subset) + a test for it. Frozen
+  `configs/erag_trueadaptive.yaml` untouched; no Test-400 access;
+  no live runs.
+- [x] B.2 Fast suite green after B.1 (the suite as in steps 1–6).
   The known pre-existing failure
   (`test_retry_exhaustion_raises_runtime_error`, expects "after 4
   attempts", code says 6; fails on base too) stays untouched.
+  DONE 2026-11-09: 139 passed, 1 failed (only the known retry
+  mismatch), parent's own run.
 
 ## C. Live A/B (only if Gate A passed; needs a Groq key, transiently, none saved)
 
