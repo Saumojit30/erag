@@ -9,9 +9,11 @@ offer); the build then follows this file.
 
 ## 0. OpenSpec change (before any code)
 
-- [ ] 0.1 Create `openspec/changes/tune-memory-effectiveness/` with
+- [x] 0.1 Create `openspec/changes/tune-memory-effectiveness/` with
   `proposal.md`, `design.md`, `tasks.md` (this file),
-  `specs/memory-effectiveness/spec.md`.
+  `specs/memory-effectiveness/spec.md`. DONE 2026-11-09 (created in
+  db7b598; checkbox ticked by the parent during the step-6 status
+  check — all four files exist and validate).
 - [x] 0.2 Validate with the local CLI:
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
   and `.../openspec validate tune-memory-effectiveness` — must be 0
