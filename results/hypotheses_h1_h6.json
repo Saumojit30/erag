@@ -229,5 +229,55 @@
       "latency_ratio_full_vs_standard_wall": 26.045670553754345,
       "caveat": "Dev-100 only (N=100, ~+/-10pt noise); this is an INTERIM, not the confirmatory H4, which needs the Test-400 no-adaptive ablation run (not run; needs a Groq key). Wall latencies are confounded by cache state: Standard dev is heavily cache-replayed, so its wall latency is not a cache-off baseline. The 3x latency bound in H4 was a proposed limit, never confirmed; any multi-call system is far above 3x a 1-call cached Standard on wall latency."
     }
+  },
+  "H2": {
+    "n_pairs": 60,
+    "per_class": 20,
+    "distinct_questions": 20,
+    "confusion": {
+      "supported": [
+        12,
+        1,
+        7
+      ],
+      "contradicted": [
+        4,
+        15,
+        1
+      ],
+      "unresolved": [
+        0,
+        6,
+        14
+      ]
+    },
+    "per_class_prf": {
+      "supported": {
+        "P": 0.75,
+        "R": 0.6,
+        "F1": 0.667
+      },
+      "contradicted": {
+        "P": 0.682,
+        "R": 0.75,
+        "F1": 0.714
+      },
+      "unresolved": {
+        "P": 0.636,
+        "R": 0.7,
+        "F1": 0.667
+      }
+    },
+    "macro_f1": 0.6825,
+    "contradicted_recall": 0.75,
+    "criterion": {
+      "macro_f1_ge_0.70": false,
+      "contradicted_recall_ge_0.70": true
+    },
+    "verdict": "NOT SUPPORTED (narrow miss on macro-F1; contradicted recall passes)",
+    "pair_set": "data/nli_eval_pairs.jsonl",
+    "predictions": "results/nli_eval_h2.jsonl",
+    "model": "cross-encoder/nli-deberta-v3-base (repo src/epistemic/nli.py, cached locally)",
+    "notes": "Pair quality verified by parent: no hypothesis is a verbatim substring of its premise; all contradicted pairs record the flipped fact; 20 distinct dev questions x 3 pairs each (one per class from the same premise \u2014 pairs are not fully independent). Main weakness: supported recall 0.60 \u2014 7 supported claims called unresolved (verifier too conservative). With N=60 the macro-F1 miss (0.6825 vs 0.70) is within noise: one more correct supported prediction would change it. The 0.70 threshold itself was proposed, never confirmed (see report)."
   }
 }

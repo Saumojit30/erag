@@ -17,7 +17,7 @@ ordering; EM/F1 are the stored per-row values (repo `exact_match`).
 | ID | Verdict | One line |
 |----|---------|----------|
 | H1 | **SUPPORTED** (interim, v1 system) | TA beats Standard-BM25: dEM +0.0725, 95% CI [0.0350, 0.1125]; dF1 +0.0730, CI [0.0351, 0.1114]; McNemar p=0.00034 |
-| H2 | **PENDING** | No labelled NLI evaluation existed; pair set (60 pairs) being built and run separately |
+| H2 | **NOT SUPPORTED (narrow miss)** | Macro-F1 0.6825 < 0.70; contradicted recall 0.75 ≥ 0.70 |
 | H3 | **SUPPORTED, but weaker for TrueAdaptive** | TA AUROC(c0) 0.5915, CI [0.5421, 0.6391] — excludes 0.5, but below Reference 0.6519 / Balanced 0.6279 |
 | H4 | **NOT TESTED on Test-400; dev interim inconclusive** | Dev dF1 +0.0304, CI [-0.0607, 0.1211] (includes 0); Test-400 ablation not run (needs a Groq key) |
 | H5 | **NOT SUPPORTED on retrieval reduction** | E5: identical EM (0.4000), 0 calls saved; override 1/1 retrieved false beliefs, 1/5 planted |
@@ -51,19 +51,33 @@ ordering; EM/F1 are the stored per-row values (repo `exact_match`).
 
 - **Criterion:** macro-F1 and contradicted-class recall both ≥ 0.70
   (proposed threshold, never confirmed — see note).
-- **Method:** none existed. A search of the repo found no labelled NLI
-  evaluation anywhere: no pair-set results, no per-class precision/recall,
-  and the planted 1998-vs-1999 conflict test never ran. The only related
-  evidence is the no-NLI dev ablation (EM 0.47 without NLI vs 0.39 with
-  all modules on — removing NLI *improved* dev EM in that old run, which
-  is either N=100 noise or a sign the verifier was hurting; it is not the
-  H2 test either way).
-- **Status: PENDING.** A 60-pair labelled set (20 per class, dev questions
-  only, strict construction rules: no hypothesis verbatim from the premise;
-  contradicted pairs flip exactly one checkable fact; unresolved pairs
-  concern entities absent from the premise) is being built and run against
-  the repo's own NLI (`cross-encoder/nli-deberta-v3-base`, cached locally).
-  Outputs: `data/nli_eval_pairs.jsonl`, `results/nli_eval_h2.jsonl`.
+- **Method:** no labelled evaluation existed, so one was built for this
+  assessment: 60 pairs (20 per class) from 20 dev questions, premise =
+  the gold paragraphs' sentences, hypotheses written in the builder's own
+  words. Strict rules enforced and verified: no hypothesis is a verbatim
+  substring of its premise; contradicted pairs flip exactly one checkable
+  fact (year/name/place) with the flip recorded; unresolved pairs concern
+  entities absent from the premise. Pair set:
+  `data/nli_eval_pairs.jsonl`; predictions:
+  `results/nli_eval_h2.jsonl`. Model: the repo's own NLI
+  (`cross-encoder/nli-deberta-v3-base`, `src/epistemic/nli.py`, cached
+  locally). Note the design limit: each question contributes 3 pairs (one
+  per class from the same premise), so the 60 pairs are not fully
+  independent.
+- **Result (confusion matrix, rows = gold, cols = predicted
+  [supported, contradicted, unresolved]):** supported [12, 1, 7];
+  contradicted [4, 15, 1]; unresolved [0, 6, 14]. Per-class:
+  supported P=0.750 R=0.600 F1=0.667; contradicted P=0.682 R=0.750
+  F1=0.714; unresolved P=0.636 R=0.700 F1=0.667. **Macro-F1 0.6825;
+  contradicted recall 0.75.**
+- **Verdict: NOT SUPPORTED — a narrow miss.** Contradicted recall passes
+  (0.75 ≥ 0.70) but macro-F1 misses (0.6825 < 0.70). With N=60 the miss
+  is within noise: one more correct supported prediction would change it.
+  The main weakness is supported recall (0.60): 7 supported claims were
+  called unresolved — the verifier is conservative, saying "not enough
+  info" when the evidence is actually there. That conservatism is the same
+  failure mode the error analysis found downstream (claims present but not
+  used).
 - **Note:** the 0.70 threshold was "proposed, confirm on Day 2" in the
   report and was never confirmed. Before the H2 result is judged, the
   threshold needs a dated confirmation (or a stated reason for keeping
@@ -192,12 +206,18 @@ ordering; EM/F1 are the stored per-row values (repo `exact_match`).
 
 ## What is still open (after this assessment)
 
-1. **H2** — pair set + evaluation running separately; verdict pending.
-2. **H1 (confirmatory)** — re-run on the frozen tuned system at Phase 2;
+1. **H1 (confirmatory)** — re-run on the frozen tuned system at Phase 2;
    Holm correction across H1/H4 once H4's Test-400 p-value exists.
-3. **H4 (confirmatory)** — Test-400 no-adaptive ablation run (command
+2. **H4 (confirmatory)** — Test-400 no-adaptive ablation run (command
    above; needs a Groq key) + a dated clarification of the 3× latency
    bound.
-4. **H5** — re-test on the tuned system (Phase 1 Step 6).
-5. **H2 threshold** — dated confirmation of the 0.70 threshold (or a
+3. **H5** — re-test on the tuned system (Phase 1 Step 6).
+4. **H2 threshold** — dated confirmation of the 0.70 threshold (or a
    stated reason for keeping it) before the H2 result is judged.
+5. **H2 follow-up (optional, not required for the verdict)** — the
+   supported-recall weakness (0.60) suggests the verifier's
+   "not-enough-info" threshold may be too strict; a threshold sensitivity
+   check on the same 60 pairs (sweep θ_s/θ_c) would show whether the
+   macro-F1 miss is a threshold artifact. Do not tune the threshold on
+   these pairs and then claim H2 — any re-thresholding needs a fresh
+   pair set.
