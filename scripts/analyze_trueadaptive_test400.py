@@ -1,7 +1,7 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta]
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta] [--hopcap [--hopcap-baseline PATH]]
 
 --reread prints section 10, the claim-grounded re-read summary (tuning step 1):
 trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
@@ -25,6 +25,17 @@ mean llm_calls/cache_hits/live calls per question, and the two unknown
 populations (classified by draft text, not by the abstained flag — see
 theta_metrics), plus the counterfactual table at t = 0.40..0.80 for the
 --ta-dev file.
+
+--hopcap prints section 14, the hop-2 call-tail summary (tuning step 5):
+EM, F1, mean llm_calls/cache_hits/live calls per question, the hops
+distribution (n, mean calls, EM per hops value), the hop-2 row count and
+hop-2 calls, the tail rows (>=7 calls) with their call share, and — on
+hop-2 rows — the draft EM progression hop 0 -> hop 1 -> hop 2 (repo
+exact_match on trace[i].answer) against final EM. With
+--hopcap-baseline PATH it prints the same measures for the baseline file
+and the deltas (calls/Q, live calls/Q, EM). Section number note: this is
+section 14, not 13 — step 4's --theta section already took 13 (tasks.md
+A.2 said 13 when drafted; corrected here).
 
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
@@ -257,6 +268,123 @@ def theta_section(label, rows):
               f"wrong={m['wrong_rate']:.4f} coverage={m['coverage']:.3f}")
 
 
+def hopcap_metrics(rows):
+    """Hop-2 call-tail measures (tuning step 5, section 14).
+
+    `hops` is the last hop index (trace length is hops + 1); hop-2 calls
+    are the total llm_calls of rows with hops == 2, and the tail is rows
+    with llm_calls >= 7. Failed rows are excluded from every measure
+    except the failed count. EM/F1 are the stored repo values. The hop-2
+    draft EMs use repo exact_match on trace[i].answer vs gold (the
+    design's draft-level diagnostic for what hop 2 adds); the final EM on
+    hop-2 rows is the stored em, which is what the gate judges.
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    n = len(ok)
+    em = mean(r["em"] for r in ok) if ok else 0.0
+    f1 = mean(r["f1"] for r in ok) if ok else 0.0
+    calls = mean(r["llm_calls"] for r in ok) if ok else 0.0
+    hits = mean(r.get("cache_hits", 0) for r in ok) if ok else 0.0
+    hops_dist = {}
+    for h in sorted(set(r.get("hops", 0) for r in ok)):
+        hrs = [r for r in ok if r.get("hops", 0) == h]
+        hops_dist[h] = {
+            "n": len(hrs),
+            "calls": mean(r["llm_calls"] for r in hrs),
+            "em": mean(r["em"] for r in hrs),
+        }
+    h2 = [r for r in ok if r.get("hops", 0) == 2]
+    hop2_calls = sum(r["llm_calls"] for r in h2)
+    tail = [r for r in ok if r["llm_calls"] >= 7]
+    tail_calls = sum(r["llm_calls"] for r in tail)
+    total_calls = sum(r["llm_calls"] for r in ok)
+
+    def _draft_em(i):
+        if not h2:
+            return 0.0
+        return round(mean(
+            1.0 if exact_match(_trace_answer(r, i), r["gold"]) else 0.0
+            for r in h2), 4)
+
+    return {
+        "n": n,
+        "failed": sum(1 for r in rows if r.get("failed", False)),
+        "em": em,
+        "f1": f1,
+        "calls": calls,
+        "cache_hits": hits,
+        "live_calls": calls - hits,
+        "hops_dist": hops_dist,
+        "hop2_rows": len(h2),
+        "hop2_calls": hop2_calls,
+        "hop2_draft_em": (_draft_em(0), _draft_em(1), _draft_em(2)),
+        "hop2_final_em": mean(r["em"] for r in h2) if h2 else 0.0,
+        "tail_rows": len(tail),
+        "tail_calls": tail_calls,
+        "tail_share": tail_calls / total_calls if total_calls else 0.0,
+    }
+
+
+def _trace_answer(r, i):
+    """trace[i].answer, or '' when the row's trace is shorter than i+1."""
+    trace = r.get("trace") or []
+    return trace[i].get("answer", "") if len(trace) > i else ""
+
+
+def hopcap_deltas(cur, base):
+    """Current-minus-baseline deltas for the gate measures (step 5, D.1)."""
+    return {
+        "calls": cur["calls"] - base["calls"],
+        "live_calls": cur["live_calls"] - base["live_calls"],
+        "em": cur["em"] - base["em"],
+        "hop2_rows": cur["hop2_rows"] - base["hop2_rows"],
+        "hop2_calls": cur["hop2_calls"] - base["hop2_calls"],
+    }
+
+
+def hopcap_section(label, rows, baseline_rows=None):
+    """Section 14 (tuning step 5): hop-2 call-tail measures for a dev file.
+
+    Verified against stored files before any live run (tasks.md A.2):
+    step-2 tuned dev EM 0.5400, 4.65 calls/Q, 10 hop-2 rows, 78 hop-2
+    calls; Test-400 v1 42 hop-2 rows, 334 hop-2 calls, tail 54 rows /
+    422 calls; post-step-4 tuned dev (theta_a) EM 0.5100, 4.65 calls/Q.
+    With a baseline file, prints the same measures for it and the deltas.
+    """
+    section(f"14. Hop-2 call cap ({label})")
+    m = hopcap_metrics(rows)
+    print(f"N={m['n']} deduped, failed={m['failed']}; EM={m['em']:.4f} "
+          f"F1={m['f1']:.4f}")
+    print(f"mean llm_calls/Q={m['calls']:.2f} "
+          f"mean cache_hits/Q={m['cache_hits']:.2f} "
+          f"mean live calls/Q={m['live_calls']:.2f}")
+    dist = "; ".join(
+        f"hops {h}: n={d['n']}, mean calls={d['calls']:.2f}, EM={d['em']:.4f}"
+        for h, d in sorted(m["hops_dist"].items()))
+    print(f"hops distribution: {dist}")
+    print(f"hop-2 rows: {m['hop2_rows']} ({m['hop2_rows'] / m['n']:.1%} of rows); "
+          f"hop-2 calls: {m['hop2_calls']}")
+    print(f"tail rows (>=7 calls): {m['tail_rows']} ({m['tail_rows'] / m['n']:.1%} of rows); "
+          f"tail calls: {m['tail_calls']} ({m['tail_share']:.1%} of all calls)")
+    d0, d1, d2 = m["hop2_draft_em"]
+    print(f"hop-2 rows draft EM: hop-0 {d0:.4f} -> hop-1 {d1:.4f} -> hop-2 {d2:.4f}; "
+          f"final EM {m['hop2_final_em']:.4f} (draft-level diagnostic only — "
+          f"the gate judges final EM)")
+    if baseline_rows is None:
+        return
+    b = hopcap_metrics(baseline_rows)
+    print(f"baseline: N={b['n']} EM={b['em']:.4f} "
+          f"mean llm_calls/Q={b['calls']:.2f} "
+          f"mean live calls/Q={b['live_calls']:.2f} "
+          f"hop-2 rows: {b['hop2_rows']} hop-2 calls: {b['hop2_calls']}")
+    d = hopcap_deltas(m, b)
+    print(f"delta calls/Q: {d['calls']:+.2f}; "
+          f"delta live calls/Q: {d['live_calls']:+.2f}; "
+          f"delta EM: {d['em']:+.4f}; "
+          f"delta hop-2 rows: {d['hop2_rows']:+d}; "
+          f"delta hop-2 calls: {d['hop2_calls']:+d}")
+
+
 def reread_section(label, rows):
     """Section 10 (tuning step 1): what the claim-grounded re-read did.
 
@@ -303,6 +431,13 @@ def main():
     ap.add_argument("--theta", action="store_true",
                     help="print section 13, the selective-answering summary "
                          "(tuning step 4)")
+    ap.add_argument("--hopcap", action="store_true",
+                    help="print section 14, the hop-2 call-tail summary "
+                         "(tuning step 5)")
+    ap.add_argument("--hopcap-baseline", default=None,
+                    help="baseline dev file for the hop-2 comparison "
+                         "(default: none; post-step-4 tuned dev file for the "
+                         "step-5 A/B)")
     ap.add_argument("--unknown-baseline", default=None,
                     help="baseline dev file for the recovered-row comparison "
                          "(default: none; step-2 tuned dev file for the step-3 A/Bs)")
@@ -438,6 +573,10 @@ def main():
 
     if args.theta:
         theta_section("TA dev", dev)
+
+    if args.hopcap:
+        baseline = load(args.hopcap_baseline) if args.hopcap_baseline else None
+        hopcap_section("TA dev", dev, baseline)
 
 
 if __name__ == "__main__":

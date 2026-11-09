@@ -18,7 +18,7 @@ if step 4 is skipped, the baseline is the step-2 tuned dev file.
 
 ## A. Tests first (mocked LLM, no production change yet)
 
-- [ ] A.1 In `tests/test_erag.py`, add a mocked-LLM test proving the cap
+- [x] A.1 In `tests/test_erag.py`, add a mocked-LLM test proving the cap
   binds: `run_erag` with `erag.max_hops=1` never reaches hop 2. Mock
   the NLI to return `unresolved` (so gaps exist and the loop wants to
   continue) and the retriever to return novel passages at hop 0, so the
@@ -28,8 +28,13 @@ if step 4 is skipped, the baseline is the step-2 tuned dev file.
   reaches hop 0 (e.g. all claims supported → Fast Path) does NOT prove
   the cap binds; it must enter hop 1 and stop there. Run the test
   against `max_hops=2` as a control: the same mocks must reach hop 2.
-- [ ] A.2 Extend `scripts/analyze_trueadaptive_test400.py` with a
-  `--hopcap` section (section 13) reporting, for the `--ta-dev` file:
+  (DONE: `test_max_hops_1_never_reaches_hop_2` — hops==1, trace len 2,
+  5 calls exactly; control `test_max_hops_2_control_reaches_hop_2` —
+  same mocks, hops==2, trace len 3, 6 calls. No `src/` change.)
+- [x] A.2 Extend `scripts/analyze_trueadaptive_test400.py` with a
+  `--hopcap` section (section 14 — tasks.md said 13 when drafted, but
+  step 4's `--theta` section already took 13; corrected here, no result
+  change) reporting, for the `--ta-dev` file:
   N (deduped), failed count, EM, F1, mean `llm_calls`/Q, mean
   `cache_hits`/Q, mean live calls/Q (`llm_calls − cache_hits`), the hops
   distribution (n, mean calls, EM per hops value), hop-2 row count and
@@ -45,19 +50,34 @@ if step 4 is skipped, the baseline is the step-2 tuned dev file.
   reproduce these, stop and fix the measurement — do not run and report
   zeros. The section reads only fields the runner already writes
   (`llm_calls`, `cache_hits`, `hops`, `trace[i].answer`, `em`, `gold`,
-  `failed`); no new trace field is needed.
-- [ ] A.3 Run the fast test suite (cache, config, metrics, erag,
+  `failed`); no new trace field is needed. (DONE: section 14 implemented
+  as `hopcap_metrics` / `hopcap_deltas` / `hopcap_section` with
+  `--hopcap` and `--hopcap-baseline` flags; 9 tests in
+  `tests/test_analyzer_hopcap.py`, all passing after the implementation
+  (all 9 failed before it). Verification reproduced exactly: step-2 dev
+  EM 0.5400, 4.65 calls/Q, 10 hop-2 rows, 78 hop-2 calls; test 42 hop-2
+  rows, 334 hop-2 calls, tail 54 rows / 422 calls; theta_a EM 0.5100,
+  4.65 calls/Q. The section also reports the hop-2 draft EM progression
+  (test: 0.1429 -> 0.4762 -> 0.5238, final EM 0.4048 — the design's
+  numbers).)
+- [x] A.3 Run the fast test suite (cache, config, metrics, erag,
   retrieval, claims, prompts). All green before any live run. No `src/`
   change is expected in this change; if A.1–A.2 force one, stop and
-  amend the change first.
+  amend the change first. (DONE: 98 passed, 1 failed — the only failure
+  is the known pre-existing `test_retry_exhaustion_raises_runtime_error`
+  (expects "after 4 attempts", code says 6, fails on base too, untouched).
+  No `src/` change was made for this step; see the note below on a
+  pre-existing step-6 change found in the tree.)
 
 ## B. Implementation
 
-- [ ] B.1 None expected: the cap is the existing `erag.max_hops` config
+- [x] B.1 None expected: the cap is the existing `erag.max_hops` config
   value, set to `1` in the A/B's `--set` flags. Verify by grep that
   `max_hops` is read only at the loop stop in `src/systems/erag.py`
   (line 240) and in `scripts/profile_efficiency.py` (profiling script,
-  not the experiment path). Do NOT edit
+  not the experiment path). (Verified: `erag.py:240` is the only
+  functional read in `src/`; `profile_efficiency.py:106` is the
+  profiling script. No config edited, no new flag.) Do NOT edit
   `configs/erag_trueadaptive.yaml` (frozen v1 config) and do NOT add a
   new flag — if either looks necessary, stop and amend the change.
 

@@ -412,6 +412,71 @@ def test_no_reread_when_flag_off():
 
 
 
+
+# ---------------------------------------------------------------------------
+# Tune-hop2-sc-cap (step 5) — the max_hops cap binds (tasks.md A.1).
+# Tests first: mocked LLM on the v1 gated base. The NLI always returns
+# unresolved, so gaps always exist and the loop always wants another hop;
+# the retriever always returns a novel passage, so targeted_retrieve
+# always finds new evidence. The ONLY thing that can stop the loop is the
+# cap (or the Fast Path, which cannot fire while gaps exist). A test that
+# only reaches hop 0 (e.g. all claims supported -> Fast Path) would NOT
+# prove the cap binds; both tests below must enter hop 1.
+# ---------------------------------------------------------------------------
+
+_NOVEL2 = [{"title": "Marseille", "sentences": ["Marseille is a city in France."], "text": "Marseille. Marseille is a city in France."}]
+
+
+def _always_unresolved_nli():
+    nli = MagicMock()
+    nli.verify.return_value = {"status": "unresolved", "conflict": False, "sup": [], "con": []}
+    return nli
+
+
+def test_max_hops_1_never_reaches_hop_2():
+    """max_hops=1: the run enters hop 1 and stops there (5 calls).
+
+    Call order on the v1 gated base: hop 0 = 1 draft + 1 claims + 2
+    sequential-SC samples (agreeing, stops at 2), then 1 direct-EIG probe
+    finds Lyon; hop 1 = 1 draft (incremental claims reuse, no extraction
+    call). The hop-2 draft + extraction calls must not happen: 5 calls
+    total proves it, and the counting mock would raise StopIteration on
+    a 6th call. The retriever's probe list has exactly 2 entries, so a
+    runaway loop would also fail loudly on the exhausted side_effect.
+    """
+    llm = _CountingLLM(["Paris", _CLAIMS_JSON, "Paris", "Paris", "Paris"])
+    retriever = MagicMock()
+    retriever.search.side_effect = [list(_POOL), list(_NOVEL)]
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _always_unresolved_nli(),
+                   _v1_gated_cfg(max_hops=1), tr)
+    assert out["hops"] == 1
+    assert len(out["trace"]) == 2
+    assert tr.llm_calls == 5
+    assert llm.n_calls == 5
+
+
+def test_max_hops_2_control_reaches_hop_2():
+    """Control: the SAME mocks with max_hops=2 reach hop 2 (6 calls).
+
+    If the cap test above passed because the mocks never wanted a second
+    hop (e.g. the loop stopped early for another reason), this control
+    would also stop at hop 1 — it does not. The extra call is exactly
+    the hop-2 draft; hop-2 extraction is still skipped (incremental
+    claims reuse, draft unchanged).
+    """
+    llm = _CountingLLM(["Paris", _CLAIMS_JSON, "Paris", "Paris", "Paris", "Paris"])
+    retriever = MagicMock()
+    retriever.search.side_effect = [list(_POOL), list(_NOVEL), list(_NOVEL2)]
+    tr = Tracker()
+    out = run_erag(_item(), retriever, llm, _always_unresolved_nli(),
+                   _v1_gated_cfg(max_hops=2), tr)
+    assert out["hops"] == 2
+    assert len(out["trace"]) == 3
+    assert tr.llm_calls == 6
+    assert llm.n_calls == 6
+
+
 def test_build_graph_preserves_claim_source():
     """Step 2: claim "source" survives build_graph into the trace graph JSON.
 
