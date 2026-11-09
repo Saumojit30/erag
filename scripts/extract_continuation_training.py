@@ -12,10 +12,21 @@ Rules (design.md / tasks.md):
   name does not contain "dev" or that contains "test". Test-400 files
   are never valid input here — training on test would contaminate the
   Phase 2 verdict.
-- The row's `draft` field is the canonical draft; trace[0]['answer'] is
-  the hop-0 draft. The draft-unknown feature is the row draft field
-  being literally 'unknown' (the pre-registered verification count is
-  6 — the 2 empty-draft rows are NOT counted here).
+- The row's `draft` field is the canonical draft for FINAL-answer
+  classification (step-4 style counts); trace[0]['answer'] is the
+  hop-0 draft. AMENDMENT 2026-11-09 (user chose retrain): the
+  `draft_unknown` FEATURE is decision-time, so it is the hop-0 draft
+  being literally 'unknown' — NOT the row draft field. The original
+  build used the row draft (final draft, last hop, possibly
+  re-read-replaced), which does not exist at the hop-0 decision
+  point; on the dev file the two definitions diverge on 16/100 rows
+  (15 hop-0-unknown → final real answer, 1 hop-0-real → final
+  unknown, row 5abd44d9), and `draft_unknown` carries the largest
+  coefficient, so the original Gate A pass rested on a
+  definitionally wrong feature. The re-extraction supersedes it;
+  the verification count for the feature is now the hop-0 count
+  (20). The row-draft count (6) is still reported as an input-file
+  check.
 - The row's `recall` is FINAL recall and is never used as a hop-0
   feature. Hop-0 recall is recomputed from the manifest
   supporting_facts vs trace[0]['pool'] titles (the H6 method).
@@ -168,7 +179,7 @@ def extract_features(row, manifest_item):
         "mean_claim_conf": (sum(confs) / len(confs)) if confs else 0.0,
         "hop0_recall": hop0_recall(row, manifest_item),
         "type_comparison": 1 if row.get("type") == "comparison" else 0,
-        "draft_unknown": 1 if row.get("draft") == "unknown" else 0,
+        "draft_unknown": 1 if hop0_answer == "unknown" else 0,
         "sc_skipped": 1 if row.get("sc_skipped_fast_path") else 0,
         # label: hop-0 draft correct by repo exact_match
         "label": int(exact_match(hop0_answer, row["gold"])),
@@ -234,6 +245,10 @@ def extract_all(dev_path, manifest_path):
         "hops": dict(sorted(Counter(r.get("hops", 0) for r in ok).items())),
         "abstained": sum(1 for r in ok if r.get("abstained")),
         "draft_unknown": sum(1 for r in ok if r.get("draft") == "unknown"),
+        "hop0_draft_unknown": sum(
+            1 for r in ok
+            if (r.get("trace") or [{}])[0].get("answer", "") == "unknown"
+        ),
         "calls_per_q": (sum(r["llm_calls"] for r in ok) / len(ok)) if ok else 0.0,
         "accounting_violations": sum(1 for r in rows if not r["accounting_ok"]),
         "oracle": oracle_ceiling(rows),
@@ -244,6 +259,9 @@ def extract_all(dev_path, manifest_path):
 
 # Pre-registered verification numbers (tasks.md A.1): the extraction MUST
 # reproduce these exactly before any training.
+# AMENDMENT 2026-11-09 (user chose retrain): `draft_unknown` (6) is the
+# row-draft count, kept as an input-file check; the feature itself is now
+# hop-0 based, verified by `hop0_draft_unknown` (20).
 EXPECTED = {
     "n": 100,
     "failed": 0,
@@ -254,6 +272,7 @@ EXPECTED = {
     "hops": {0: 45, 1: 45, 2: 10},
     "abstained": 15,
     "draft_unknown": 6,
+    "hop0_draft_unknown": 20,
     "calls_per_q": 4.65,
     "accounting_violations": 0,
 }
@@ -294,7 +313,8 @@ def main():
     print(f"wrote {args.out}: N={summary['n']} deduped, failed={summary['failed']}")
     print(f"hop-0 draft EM={summary['hop0_em']:.4f} final EM={summary['final_em']:.4f} "
           f"fixed={summary['fixed']} broke={summary['broke']} hops={summary['hops']}")
-    print(f"abstained={summary['abstained']} draft-unknown={summary['draft_unknown']} "
+    print(f"abstained={summary['abstained']} draft-unknown(row)={summary['draft_unknown']} "
+          f"hop0-draft-unknown={summary['hop0_draft_unknown']} "
           f"calls/Q={summary['calls_per_q']:.2f} accounting violations={summary['accounting_violations']}")
     print(f"oracle ceiling (perfect draft-correctness model): included={o['included']} "
           f"excluded={o['excluded']} EM={o['em']:.4f} calls/Q={o['calls']:.2f}")

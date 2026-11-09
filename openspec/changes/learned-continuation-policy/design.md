@@ -32,9 +32,22 @@ For each dev row, from `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.
   supporting_facts vs `trace[0]['pool']` titles (the H6 method —
   the row's `recall` field is final recall, not hop-0 recall, and
   must NOT be used as a hop-0 feature)
-- question `type` (bridge / comparison), `draft == 'unknown'`
-  (row `draft` field, not `trace[0]['answer']` — the established
-  discipline), `sc_skipped_fast_path`
+- question `type` (bridge / comparison), `draft == 'unknown'`,
+  `sc_skipped_fast_path`
+- **AMENDMENT 2026-11-09 (user chose retrain):** the `draft_unknown`
+  feature is the HOP-0 draft (`trace[0]['answer']`) being literally
+  'unknown' — NOT the row `draft` field. The original build used the
+  row draft field (the established discipline for FINAL-answer
+  classification), but the row draft is the final draft (last hop,
+  possibly re-read-replaced; `src/systems/erag.py:354`) and does not
+  exist at the hop-0 decision point. The two definitions diverge on
+  16/100 dev rows (15 hop-0-unknown → final real answer, 1
+  hop-0-real → final unknown, row 5abd44d9); hop-0-unknown count is
+  20 vs row-draft-unknown 6; the other 11 features agree exactly.
+  `draft_unknown` carries the largest coefficient, so the original
+  Gate A pass (sim EM 0.5000, τ = 0.30) rested on a definitionally
+  wrong feature and is SUPERSEDED by the re-check below. The
+  row-draft discipline stands for final-answer classification only.
 
 Label: hop-0 draft correct by repo `exact_match`
 (`trace[0]['answer']` vs `gold`).
@@ -54,7 +67,7 @@ alternative — a depth-2 decision tree (interpretable, paper-friendly)
 — and take the better cross-validated result; no third model, no
 feature search after seeing results.
 
-### Final-model artifact (written 2026-11-09, after Gate A passed)
+### Final-model artifact (written 2026-11-09, after Gate A passed; REWRITTEN after the retrain — see below)
 
 `configs/continuation_policy_dev.json`, written by
 `scripts/train_continuation_policy.py --write-artifact` (which
@@ -64,17 +77,32 @@ winners — the format is linear-only). Contents: `model`
 `sc_skipped` excluded, perfectly collinear with `fast_path`),
 `coefficients` (12, in feature order), `intercept`,
 `scaler_mean` / `scaler_scale` (12 each, from the final fit on all
-100 rows), `tau` (0.30), `decision` (CONTINUE iff P < τ), and
+100 rows), `tau`, `decision` (CONTINUE iff P < τ), and
 `provenance` (training file, N=100, labels 48 correct / 52 wrong,
-date, CV method, OOF AUROC 0.6546, simulated EM 0.5000, simulated
-calls/Q 3.98, Gate A PASS). Inference is dependency-free: z =
+date, CV method, OOF AUROC, simulated EM, simulated calls/Q, Gate A
+PASS). Inference is dependency-free: z =
 intercept + Σ coefᵢ·(xᵢ − meanᵢ)/scaleᵢ, P = sigmoid(z) — no
-sklearn import in `src/`. Verified by the parent: pure-arithmetic
-recomputation from the artifact matches the fitted pipeline's
-predict_proba to 2.2e-16. Final in-sample model at τ=0.30 would
-STOP 74 / CONTINUE 26 (vs OOF 70/24) — the live Dev-100 run is
-in-sample for the final model by construction, so Gate B's
-agreement check, not the raw live numbers, is the wiring test.
+sklearn import in `src/`.
+
+**Superseded artifact (commit `d0fb457`, τ = 0.30, OOF AUROC
+0.6546, simulated EM 0.5000, calls/Q 3.98):** written after the
+original Gate A pass; verified by the parent (pure-arithmetic
+recomputation matched the fitted pipeline to 2.2e-16; final
+in-sample model at τ=0.30 would STOP 74 / CONTINUE 26 vs OOF
+70/24). It is SUPERSEDED by the retrain below and must NOT be
+used for wiring — it was trained on the wrong `draft_unknown`
+definition.
+
+**Current artifact (retrain, 2026-11-09):** τ = 0.05, OOF AUROC
+0.6775, simulated EM 0.5152, calls/Q 3.92, provenance records the
+retrain (hop-0 `draft_unknown` definition). `draft_unknown`
+coefficient −1.489 (was −0.767). Verified by the parent the same
+way (pure-arithmetic recomputation matches the fitted pipeline to
+2.2e-16; final in-sample model at τ=0.05 would STOP 81 / CONTINUE
+19 vs OOF 81/18 — the in-sample fit agrees closely with OOF).
+The live Dev-100 run is in-sample for the final model by
+construction, so Gate B's agreement check, not the raw live
+numbers, is the wiring test.
 
 ## Counterfactual simulation (Phase A, no LLM calls)
 
@@ -113,9 +141,10 @@ with that recorded.
 
 On the theta_a dev file (N=100 deduped, 0 failed): hop-0 draft EM
 0.4800, final EM 0.5100, fixed by hops 6, broke 3, hops {0:45,
-1:45, 2:10}, abstained 15, draft-unknown 6, baseline EM 0.5100,
-4.65 calls/Q. The A.1 extraction MUST reproduce these before any
-training. The oracle ceiling (perfect draft-correctness model) is
+1:45, 2:10}, abstained 15, draft-unknown 6 (row-draft count, kept as
+an input-file check), hop-0 draft-unknown 20 (the feature's count
+since the 2026-11-09 amendment), baseline EM 0.5100, 4.65 calls/Q.
+The A.1 extraction MUST reproduce these before any training. The oracle ceiling (perfect draft-correctness model) is
 computed in A.1 and recorded — it bounds what any policy can win
 here, so a policy near the oracle is suspicious, not impressive.
 (Computed 2026-11-09: included 83, excluded 17, EM 0.6506, calls/Q
@@ -132,6 +161,35 @@ AND simulated calls/Q strictly below 4.65. If it fails, the policy
 does not proceed to wiring — no live run, no threshold re-picking.
 If it passes, the final model is trained on all 100 dev rows and
 the artifact is written.
+
+### Re-check 2026-11-09 (supersedes the original pass)
+
+The original Gate A pass (τ = 0.30, simulated EM 0.5000, calls/Q
+3.98, STOP 70 / CONTINUE 24, excluded 6/100 — commit `fc1a428`)
+rested on the wrong `draft_unknown` definition (row draft, not
+hop-0 draft; see the Features amendment above). The B.1 subagent
+caught the gap before writing any code; the parent verified it
+independently (16/100 rows diverge; other 11 features agree
+exactly). The user chose the retrain. Re-extraction +
+re-training with the hop-0 definition, same pre-registered gate
+(no threshold, gate, or feature change beyond the definition
+fix): LR, τ = 0.05, simulated EM 0.5152, F1 0.6238, calls/Q 3.92
+(saved +0.73), coverage 0.869, STOP 81 / CONTINUE 18, excluded
+1/100 (1.0%). OOF AUROC 0.6775 (was 0.6546). **Gate A: PASS with
+margin** (EM +0.0152 above the floor, not exactly at it; F1 and
+coverage now ABOVE baseline 0.5969 / 0.790, previously below).
+Composition (parent): STOP on 2/6 fix-rows (lost 2, was 4), STOP
+on 2/3 broke rows (saved 2, was 1); STOP rows 47 correct at
+hop-0, CONTINUE rows 4 correct at final = 51/99. The τ curve is
+smooth (τ=0.10: EM 0.5204, 3.97 calls; τ=0.20–0.40: EM 0.5312–
+0.5368, 4.10–4.20 calls) — the result is not knife-edge on τ.
+The `draft_unknown` coefficient strengthened to −1.489 (was
+−0.767): a hop-0 "unknown" is a near-perfect marker of a wrong
+draft (label 0 always), so the model leans on it hard — which is
+legitimate at decision time, since an "unknown" hop-0 draft means
+the evidence did not support an answer. The `d0fb457` artifact
+(τ = 0.30) is SUPERSEDED and must not be used for wiring; the new
+artifact below replaces it.
 
 ## Gate B (live, pre-registered)
 

@@ -50,6 +50,13 @@ offer); the build then follows this file.
   numbers reproduced exactly; oracle ceiling included 83, excluded
   17, EM 0.6506, calls/Q 4.61 (saves only 0.04/Q — 28 of the 48
   correct drafts already stop at hop 0 under the static fast path).
+  RETRAIN AMENDMENT 2026-11-09 (user chose retrain): the
+  `draft_unknown` feature is now the hop-0 draft
+  (`trace[0]['answer']`); verification adds hop0_draft_unknown 20
+  (row-draft count 6 kept as an input-file check); 1 new test
+  (hop-0-unknown with real final draft → feature 1) + 1 updated
+  test (row-draft unknown with real hop-0 draft → feature 0); suite
+  127 passed, 1 failed (known retry mismatch).
 - [x] A.2 Call accounting: the extraction (or a paired function)
   reconstructs hop-0 calls per row from the code and the stored
   rows, and verifies the invariant for EVERY row: reconstructed
@@ -117,6 +124,19 @@ offer); the build then follows this file.
   0.30, OOF AUROC 0.6546, coefficients verified against the fitted
   pipeline to 2.2e-16 by pure-arithmetic recomputation; format
   recorded in design.md (linear-only, dependency-free inference).
+  **SUPERSEDED 2026-11-09:** the B.1 subagent found `draft_unknown`
+  was trained on the row draft (final draft, unavailable at hop 0);
+  the parent verified 16/100 rows diverge. The user chose the
+  retrain (options-widget tap 2026-11-09). Re-extraction with the
+  hop-0 definition + re-training, same pre-registered gate:
+  **Gate A RE-CHECK: PASS with margin** — LR, τ = 0.05, simulated
+  EM 0.5152, F1 0.6238, calls/Q 3.92 (saved +0.73), coverage 0.869,
+  STOP 81 / CONTINUE 18, excluded 1/100 (1.0%); OOF AUROC 0.6775;
+  F1 and coverage now ABOVE baseline; composition STOP on 2/6
+  fix-rows (lost 2), 2/3 broke rows (saved 2). New artifact written
+  (τ = 0.05, `draft_unknown` coef −1.489), verified to 2.2e-16;
+  the τ = 0.30 artifact is superseded and must not be used for
+  wiring. B.1 proceeds on the retrained artifact.
 
 - [x] A.5 Analyzer section: add a `--policy` section to
   `scripts/analyze_trueadaptive_test400.py` (new section number

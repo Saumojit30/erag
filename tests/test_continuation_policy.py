@@ -8,10 +8,15 @@ Rules these tests enforce (from design.md / tasks.md):
 - Training source is ONLY the post-step-4 tuned dev file + dev.jsonl.
   The extractor MUST refuse any input path that is not a dev file.
 - Row keys are used exactly as stored: the row's `draft` field is the
-  canonical draft (trace[0]['answer'] is the hop-0 draft); the row's
-  `recall` is FINAL recall and must NOT be used as a hop-0 feature —
-  hop-0 recall is recomputed from the manifest supporting_facts vs
-  trace[0]['pool'] titles (the H6 method).
+  canonical draft for FINAL-answer classification
+  (trace[0]['answer'] is the hop-0 draft); the row's `recall` is FINAL
+  recall and must NOT be used as a hop-0 feature — hop-0 recall is
+  recomputed from the manifest supporting_facts vs trace[0]['pool']
+  titles (the H6 method). AMENDMENT 2026-11-09 (user chose retrain):
+  the `draft_unknown` FEATURE is the hop-0 draft being literally
+  'unknown' — a decision-time feature cannot be the final draft,
+  which does not exist at hop 0 (the two diverge on 16/100 dev
+  rows).
 - Hop-0 calls = 1 draft + 1 extraction + SC samples (0 when SC was
   skipped on the Fast Path, 2 when c0 == 1.0, else 3 — sequential SC
   stops at 2 only on two agreeing samples, so c0 == 1.0 implies 2
@@ -168,13 +173,35 @@ def test_extract_features_wrong_draft_and_unknown_flag():
     )
     feats = extract.extract_features(row, _manifest_item("q2", titles=("Paris",)))
     assert feats["label"] == 0  # hop-0 draft "London" != gold "Paris"
-    assert feats["draft_unknown"] == 1  # row draft field is literally 'unknown'
+    # AMENDMENT 2026-11-09: the feature follows the HOP-0 draft, not the
+    # row draft field — the row draft is "unknown" here, but the hop-0
+    # draft is "London", so the feature is 0.
+    assert feats["draft_unknown"] == 0
     assert feats["fast_path"] == 0
     assert feats["n_contradicted"] == 1
     assert feats["ab_contradicted"] == 1
     assert feats["ab_supported"] == 0
     assert feats["hop0_recall"] == 0.0  # pool ["London"] misses gold title
     assert feats["hop0_calls"] == 5  # draft + extraction + 3 SC samples
+
+
+def test_extract_features_unknown_hop0_draft_real_final_draft():
+    # The converse case: hop-0 draft "unknown", final draft a real answer
+    # (e.g. recovered by the step-1 re-read). The feature is 1 — it
+    # follows the hop-0 draft, the only draft that exists at decision
+    # time. (15 of the 100 dev rows look like this.)
+    graph = [
+        _claim("Paris is the capital.", "supported", answer_bearing=True, conf=0.9),
+    ]
+    row = _row(
+        "q3", gold="Paris", draft="Paris", hop0_answer="unknown",
+        c0=2 / 3, c0_source="sc", sc_skipped=False,
+        answers=["unknown", "Paris"], hops=1, calls=7, hits=0,
+        graph=graph, pool=["Paris"],
+    )
+    feats = extract.extract_features(row, _manifest_item("q3", titles=("Paris",)))
+    assert feats["draft_unknown"] == 1  # hop-0 draft is literally 'unknown'
+    assert feats["label"] == 0  # hop-0 draft "unknown" != gold "Paris"
 
 
 def test_extract_refuses_test_file_path():
@@ -234,7 +261,11 @@ def test_stored_dev_file_reproduces_verification_numbers():
     assert out["broke"] == 3
     assert out["hops"] == {0: 45, 1: 45, 2: 10}
     assert out["abstained"] == 15
-    assert out["draft_unknown"] == 6
+    assert out["draft_unknown"] == 6  # row-draft count, input-file check
+    # AMENDMENT 2026-11-09: the feature is hop-0 based — 20 rows start
+    # with an "unknown" hop-0 draft (15 recovered to a real final draft,
+    # 5 stayed unknown, plus 1 row that went real -> unknown).
+    assert out["hop0_draft_unknown"] == 20
     assert out["calls_per_q"] == pytest.approx(4.65)
     assert out["accounting_violations"] == 0  # invariant holds for every row
     # Oracle ceiling is recorded (perfect draft-correctness model).
