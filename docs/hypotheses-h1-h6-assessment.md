@@ -78,10 +78,34 @@ ordering; EM/F1 are the stored per-row values (repo `exact_match`).
   info" when the evidence is actually there. That conservatism is the same
   failure mode the error analysis found downstream (claims present but not
   used).
-- **Note:** the 0.70 threshold was "proposed, confirm on Day 2" in the
-  report and was never confirmed. Before the H2 result is judged, the
-  threshold needs a dated confirmation (or a stated reason for keeping
-  0.70) — recorded here as an amendment to make, not a rewrite.
+- **Why it failed — systematic failure modes (per-window debug runs):**
+  (1) **Multi-hop claims score neutral ≈ 1.0.** `verify()` scores
+  independent 2-sentence windows within one paragraph and takes the max,
+  so a claim needing facts from two paragraphs (or an anaphoric link)
+  gets ent≈0, con≈0 — 7 supported claims lost this way. ERag's extracted
+  claims are exactly this kind of multi-hop synthesis, so this is the
+  verifier's biggest blind spot. (2) **Same-topic/different-entity is
+  read as contradiction, not neutral.** 6 unresolved pairs called
+  contradicted (con 0.98–0.9999). Two causes: the subject-entity
+  extractor fragments multi-word entities ("University of Miami" →
+  `['University', "Miami's"]`), so the contradiction gate opens on the
+  generic word "University"; and the cross-encoder itself treats a
+  same-topic different-entity claim as false rather than unaddressed. In
+  production this marks claims about absent entities "contradicted"
+  instead of "unresolved", corrupting the belief graph's gap computation.
+  (3) **The tie-break overrules a detected contradiction.** One
+  contradicted claim was called supported because `verify()`'s rule
+  (supported if be ≥ bc − 0.05) let a strong entailment on one aspect
+  beat a near-certain contradiction (0.9996) on another aspect of the
+  same claim. (4) **Max-aggregation picks the worst window.** Entailment
+  fired on windows lacking the evidence (entity/title overlap), and a
+  near-verbatim window scored neutral while an adjacent window scored
+  contradiction — both directions of window-level error exist.
+- **Reproducibility:** the three scripts are preserved in `scripts/`
+  (`build_nli_pairs_h2.py` — reproduces the pair file byte-identically;
+  `run_nli_h2.py` — ~4.5 min CPU; `debug_nli.py <pair-ids>` — per-window
+  scores). The eval redirects the NLI memo to `/tmp` so the repo's
+  `results/nli_memo.pkl` stays untouched.
 
 ## H3 — Higher self-consistency goes with correct answers
 
