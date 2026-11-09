@@ -421,15 +421,30 @@ def policy_metrics(rows):
         }
     decisions = {"STOP": 0, "CONTINUE": 0, "unknown": 0}
     for r in ok:
+        # The design contract is lowercase ("stop"/"continue", as the
+        # runner writes in B.1); accept either case so a casing slip
+        # never silently reports a live policy run as "unknown" — that
+        # is exactly what happened on the first C.1 run (2026-11-09):
+        # the section reported 0 STOP / 0 CONTINUE / 100 unknown on a
+        # file whose rows all carry the field.
         d = r.get("policy_decision")
+        d = d.upper() if isinstance(d, str) else None
         if d == "STOP":
             decisions["STOP"] += 1
         elif d == "CONTINUE":
             decisions["CONTINUE"] += 1
         else:
             decisions["unknown"] += 1
-    stop_rows = [r for r in ok if r.get("policy_decision") == "STOP"]
-    cont_rows = [r for r in ok if r.get("policy_decision") == "CONTINUE"]
+    stop_rows = [
+        r for r in ok
+        if isinstance(r.get("policy_decision"), str)
+        and r["policy_decision"].upper() == "STOP"
+    ]
+    cont_rows = [
+        r for r in ok
+        if isinstance(r.get("policy_decision"), str)
+        and r["policy_decision"].upper() == "CONTINUE"
+    ]
     return {
         "n": n,
         "failed": sum(1 for r in rows if r.get("failed", False)),

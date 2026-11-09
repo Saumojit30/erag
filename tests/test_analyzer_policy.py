@@ -51,11 +51,14 @@ def _row(id, hops, calls, em, f1=0.0, hits=0, failed=False,
 
 
 def test_policy_metrics_synthetic():
+    # Decisions use the design contract: lowercase, as the runner
+    # writes them (the old test used uppercase, which hid the casing
+    # bug that made the first C.1 run report 0/0/100).
     rows = [
-        _row("a", 0, 2, 1, f1=0.9, hits=0, decision="STOP"),
-        _row("b", 0, 2, 0, f1=0.2, hits=2, decision="STOP"),
-        _row("c", 1, 5, 1, f1=0.8, hits=1, decision="CONTINUE"),
-        _row("d", 1, 4, 0, f1=0.0, hits=4, decision="CONTINUE"),
+        _row("a", 0, 2, 1, f1=0.9, hits=0, decision="stop"),
+        _row("b", 0, 2, 0, f1=0.2, hits=2, decision="stop"),
+        _row("c", 1, 5, 1, f1=0.8, hits=1, decision="continue"),
+        _row("d", 1, 4, 0, f1=0.0, hits=4, decision="continue"),
         _row("e", 1, 6, 1, f1=1.0, hits=0),  # no decision field -> unknown
     ]
     m = analyzer.policy_metrics(rows)
@@ -81,8 +84,8 @@ def test_policy_rows_without_field_all_unknown():
 
 def test_policy_failed_rows_excluded_but_counted():
     rows = [
-        _row("a", 0, 2, 1, decision="STOP"),
-        _row("b", 1, 5, 0, failed=True, decision="CONTINUE"),
+        _row("a", 0, 2, 1, decision="stop"),
+        _row("b", 1, 5, 0, failed=True, decision="continue"),
     ]
     m = analyzer.policy_metrics(rows)
     assert m["n"] == 1
@@ -107,8 +110,8 @@ def test_stored_theta_a_baseline_reproduces():
 
 def test_policy_section_prints(capsys):
     rows = [
-        _row("a", 0, 2, 1, f1=0.9, hits=0, decision="STOP"),
-        _row("b", 1, 5, 0, f1=0.1, hits=2, decision="CONTINUE"),
+        _row("a", 0, 2, 1, f1=0.9, hits=0, decision="stop"),
+        _row("b", 1, 5, 0, f1=0.1, hits=2, decision="continue"),
     ]
     analyzer.policy_section("synthetic", rows)
     out = capsys.readouterr().out
@@ -122,8 +125,8 @@ def test_policy_section_prints(capsys):
 
 def test_policy_section_agreement_check(capsys):
     rows = [
-        _row("a", 0, 2, 1, f1=0.9, hits=0, decision="STOP"),
-        _row("b", 1, 5, 0, f1=0.1, hits=2, decision="CONTINUE"),
+        _row("a", 0, 2, 1, f1=0.9, hits=0, decision="stop"),
+        _row("b", 1, 5, 0, f1=0.1, hits=2, decision="continue"),
     ]
     sim = {"em": 0.5000, "calls": 3.98}
     analyzer.policy_section("synthetic", rows, simulation=sim)
@@ -136,10 +139,25 @@ def test_policy_section_agreement_check(capsys):
 
 
 def test_policy_section_baseline_deltas(capsys):
-    rows = [_row("a", 0, 2, 1, decision="STOP")]
+    rows = [_row("a", 0, 2, 1, decision="stop")]
     base = [_row("a", 0, 2, 1), _row("b", 1, 5, 0)]
     analyzer.policy_section("synthetic", rows, baseline_rows=base)
     out = capsys.readouterr().out
     assert "baseline:" in out
     assert "delta calls/Q:" in out
     assert "delta EM:" in out
+
+
+def test_policy_decision_case_insensitive():
+    """Regression test for the C.1 casing bug (2026-11-09): the runner
+    writes lowercase ("stop"/"continue") per the design contract, and
+    the section must count both cases — an uppercase row must not
+    fall through to "unknown"."""
+    rows = [
+        _row("a", 0, 2, 1, decision="STOP"),
+        _row("b", 1, 5, 0, decision="continue"),
+    ]
+    m = analyzer.policy_metrics(rows)
+    assert m["decisions"] == {"STOP": 1, "CONTINUE": 1, "unknown": 0}
+    assert m["stop_em"] == 1.0
+    assert m["continue_em"] == 0.0

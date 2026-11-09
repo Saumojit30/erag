@@ -159,6 +159,16 @@ offer); the build then follows this file.
   agreement vs simulation dEM +0.0100, dCalls/Q +0.67. Sections
   13/14 re-verified intact. Fast suite 126 passed, 1 failed (only
   the known pre-existing retry mismatch).
+  **BUG FOUND IN C.1 (2026-11-09, fixed the same day):** the section
+  compared `policy_decision` against uppercase "STOP"/"CONTINUE",
+  but the runner writes lowercase "stop"/"continue" per the design
+  contract — so the first C.1 analysis reported 0 STOP / 0
+  CONTINUE / 100 unknown on a file whose rows all carry the field.
+  The A.5 tests had used uppercase synthetic rows, which is why the
+  bug was never caught. Fix: `policy_metrics` normalizes the field
+  value with `.upper()` (accepts either case); tests switched to
+  the lowercase contract + a new case-insensitivity regression
+  test; suite 42 passed (policy analyzer + erag tests).
 
 ## B. Implementation (only if Gate A passes)
 
@@ -216,7 +226,7 @@ offer); the build then follows this file.
 
 ## C. Live A/B (only if Gate A passed; needs a Groq key, transiently, none saved)
 
-- [ ] C.1 One run: tuned system + policy, Dev-100 BM25, reused dev
+- [x] C.1 One run: tuned system + policy, Dev-100 BM25, reused dev
   namespace `dev_trueadaptive_v1_bm25` (the policy changes which
   calls happen, not the prompts, so cached calls still count as
   calls and the run is fast). Single `--set` with all overrides
@@ -230,20 +240,48 @@ offer); the build then follows this file.
   Then analyze with the `--policy` analyzer section (A.5): live EM,
   calls/Q, live calls/Q (recorded, NOT gated), hops distribution,
   and the agreement check vs the simulation.
-- [ ] C.2 Compare against the post-step-4 tuned dev baseline
+  DONE 2026-11-09, parent's own run (Groq key transient, smoke-
+  tested 200, never saved): detached PID 6549/6550, finished in
+  ~35 s (mostly cache replays), 100/100 rows, 0 failed, 0 API
+  failures. Output
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_policy.jsonl`
+  (100 lines, 100 unique ids). Live: EM 0.5000, F1 0.6114, calls/Q
+  4.07, cache_hits/Q 3.96, live calls/Q 0.11, coverage 0.83,
+  selective EM 0.6024, recall 0.765, retrievals 1.32/Q. Hops {0:82,
+  1:15, 2:3}; policy decisions STOP 81 / CONTINUE 19 (one CONTINUE
+  row stayed at hop 0 — no new retrieval). STOP-rows EM 0.5679,
+  CONTINUE-rows EM 0.2105 (the policy stops on the better
+  questions); STOP hop-0-draft EM 0.5926.
+- [x] C.2 Compare against the post-step-4 tuned dev baseline
   (EM 0.5100, 4.65 calls/Q) AND against the Phase A simulation.
   Record the baseline file path and its numbers in the commit
-  message.
+  message. DONE 2026-11-09: baseline
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`
+  (EM 0.5100, F1 0.5969, 4.65 calls/Q, live 0.04); deltas ΔEM
+  −0.0100 (−1 row), Δcalls/Q −0.58; agreement vs simulation (EM
+  0.5152, calls/Q 3.92): dEM −0.0152, dCalls/Q +0.15. The fixed §15
+  analyzer reproduces every number exactly (independent recompute
+  agrees: STOP 81 EM 0.5679, CONTINUE 19 EM 0.2105).
 
 ## D. Gate B (pre-registered, design.md)
 
-- [ ] D.1 The policy enters the frozen Test-400 system ONLY if
+- [x] D.1 The policy enters the frozen Test-400 system ONLY if
   ALL of: live EM ≥ 0.5000; live calls/Q strictly below 4.65; live
   numbers within ±0.02 EM / ±0.2 calls/Q of the simulation (else
   the wiring is wrong — fix the wiring, do not re-tune); N=100
   deduped, 0 failed rows. If the gate fails, record the result and
   do not re-tune the policy to compensate — the tuned system keeps
   the static hop rules. Do NOT run Test-400 for this step.
+  **VERDICT 2026-11-09 (parent): GATE B PASS.** Live EM 0.5000 ≥
+  0.5000 (exactly at the floor — one fewer correct row fails it);
+  live calls/Q 4.07 < 4.65; dEM −0.0152 within ±0.02 and dCalls/Q
+  +0.15 within ±0.2 of the simulation; N=100 deduped, 0 failed.
+  The policy ENTERS the frozen Test-400 system. Honest reading:
+  the live EM is 1 row below baseline (0.5100 → 0.5000) and the
+  saving is −0.58 calls/Q; STOP-rows EM 0.5679 vs CONTINUE-rows
+  0.2105 shows the policy stops on the better questions. The live
+  run was ~97% cache replay (live calls/Q 0.11, recorded not
+  gated); Test-400 is the real judge.
 - [ ] D.2 Commit the change (extraction + training scripts +
   policy artifact + tests + analyzer section + dev result) on
   `trueadaptive`, with the gate verdict and per-arm numbers in the
