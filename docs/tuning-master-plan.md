@@ -97,8 +97,14 @@ against.
   `9d1d108`. Dev-100 BM25 A/B: EM 0.56 flat, F1 0.661, coverage 0.86,
   4.75 calls/Q; re-read triggered 16/100, fixed 2, broke 1 (net +1).
   Gate PASS (narrowly). See §3.1 for the confound found.
-- **Step 2 (claim extraction) — proposed, not built.** OpenSpec change
-  `tune-claim-extraction` (commit `0e51368`), validated 4 passed, 0 failed.
+- **Step 2 (claim extraction) — DONE, gate 3/4, kept by user decision,
+  archived 2026-11-09.** OpenSpec change `tune-claim-extraction`
+  (commit `0e51368`), build `8c9f25e`, archived `c062baf`. Question-grounded
+  claims in the single extraction call (zero new LLM calls), each claim with
+  a `"source"` field, `max_claims` 5→8. Dev A/B: EM 0.5400 vs 0.5600 (−2 rows,
+  inside ±3-row noise), gold-in-claims among full-recall wrong rows 0.524 vs
+  0.333 baseline, answer-bearing question-sourced 6/100 (gate ≤10% PASS).
+  Gate failed on EM only; user chose to proceed. Tuned value: `max_claims: 8`.
   See §3.2.
 - **Memory module — implemented, disabled, effectiveness unproven.** The
   Titan-inspired Verified-Belief Episodic Memory (`src/systems/memory.py`:
@@ -582,12 +588,31 @@ hop-1+ continuation stays static.
   breaks; F1 and coverage dip below baseline. OOF AUROC 0.6546 vs
   c0 alone 0.484. No Test-400 data anywhere in training/features/τ
   (only a path constant in tests, used to assert refusal). Fast
-  suite 126 passed, 1 failed (known retry mismatch). **Final-model
-  training + artifact NOT done** — the user decides whether to
-  proceed to B-phase (wiring) or stop here, before any `src/`
-  change. If the user proceeds: B.1 wire behind
-  `erag.continuation_policy`, C.1 live Dev-100 A/B (needs a Groq
-  key), D.1 Gate B, E.1 archive.
+  suite 126 passed, 1 failed (known retry mismatch).
+- **Final model trained 2026-11-09 after the user chose "Wire it in"**
+  (commit `d0fb457`): artifact `configs/continuation_policy_dev.json`,
+  τ = 0.30, OOF AUROC 0.6546, verified to 2.2e-16. **SUPERSEDED —
+  see the retrain below; the τ = 0.30 artifact must not be used for
+  wiring.**
+- **RETRAIN 2026-11-09 (commit `7872b24`) — the original Gate A pass
+  is superseded.** The B.1 subagent found `draft_unknown` was trained
+  on the row draft (the FINAL draft, `erag.py:354`), which does not
+  exist at the hop-0 decision point; the parent verified the two
+  definitions diverge on 16/100 dev rows (15 hop-0-unknown → final
+  real answer, 1 real → unknown) while the other 11 features agree
+  exactly. The user chose the retrain. Re-extraction with the hop-0
+  definition (`trace[0]['answer']`) + re-training, same pre-registered
+  gate: LR, τ = 0.05, simulated EM 0.5152, F1 0.6238, calls/Q 3.92
+  (saved +0.73), coverage 0.869, STOP 81 / CONTINUE 18, excluded
+  1/100 (1.0%); OOF AUROC 0.6775. **Gate A re-check: PASS with
+  margin** (EM +0.0152 above the floor; F1 and coverage now ABOVE
+  baseline 0.5969 / 0.790; composition: STOP on 2/6 fix-rows, 2/3
+  broke rows saved). New artifact written (τ = 0.05,
+  `draft_unknown` coef −1.489), verified to 2.2e-16; suite 127 passed,
+  1 failed (known retry mismatch). B.1 re-spawned with the corrected
+  brief; C.1 live A/B awaits B.1 + a Groq key. The retrain is a
+  methods disclosure for the paper, not a footnote (see
+  `docs/paper-readiness-plan.md` W4.3).
 - **Interaction:** step 5 is SUPERSEDED by this step (see §3.5) —
   the hop-depth decision is the policy's job now. Step 6's stream
   A/B still awaits a Groq key and runs on the post-step-7 tuned
@@ -618,9 +643,18 @@ stated reason, before the run it affects.
 
 ### 4.1 What runs
 
-- **Systems:** (a) tuned TrueAdaptive — all gated tuning steps (1–5) plus
-  the memory decision from step 6 (§3.6), frozen config; (b) fresh IRCoT —
-  same frozen config as the v1 Test-400 run.
+**DATED AMENDMENT 2026-11-09 (before any Phase 2 run — no Phase 2
+result has been seen):** the tuned system below now includes step 7
+(the learned continuation policy) and its artifact in the frozen
+config, because step 7 was created after §4 was written and its Gate A
+re-check passed with margin (commit `7872b24`, τ = 0.05, sim EM
+0.5152, calls/Q 3.92). If the policy fails Gate B, the frozen config
+uses the post-step-4 system instead and the amendment is updated to
+say so before the run.
+
+- **Systems:** (a) tuned TrueAdaptive — all gated tuning steps (1–7)
+  plus the memory decision from step 6 (§3.6), frozen config; (b)
+  fresh IRCoT — same frozen config as the v1 Test-400 run.
 - **Setting:** BM25, k=3, distractor, HotpotQA Test-400 (N=400), both systems
   run fresh, all live calls (0 cache hits expected — new prompts and new
   namespaces).
@@ -631,7 +665,9 @@ stated reason, before the run it affects.
 - **Frozen config:** a new frozen config file for the tuned system
   (`configs/erag_trueadaptive_tuned.yaml`, written at the end of Phase 1 from
   the gated flags: `ground_final_read`, `max_claims`, prompt revisions,
-  `theta_abs`, hop-2 cap, and the memory on/off decision from step 6).
+  `theta_abs`, hop-2 cap, the memory on/off decision from step 6, and the
+  continuation-policy artifact from step 7 — `erag.continuation_policy`
+  pointing at `configs/continuation_policy_dev.json` if Gate B passes).
   IRCoT runs its existing frozen config. No `--set` overrides at run time
   except the retriever, namespace, and run name — the frozen files are the
   record.
@@ -768,8 +804,20 @@ none is started in this plan.
   paragraph with its gate result), the error analysis, the cost analysis
   (calls/Q, tokens, dollars), and the ablations (the tuning steps are natural
   ablations: v1 → +step 1 → +step 2 → …).
-- **Venue:** undecided. The forwarded audit prompt suggested Springer; that
-  is the prompt's suggestion, not a user decision (§9).
+- **Venue:** the user stated (2026-11-09) the venue is a Springer
+  conference at Sri Sri University, Cuttack — NOT IEEE. Likely match
+  found by web search: GreenAI-2027 (2nd Int. Conf. on Green AI &
+  Industrial Applications, Jan 29–30 2027, Sri Sri University Cuttack;
+  selected papers to Springer AISSE, Scopus-indexed) — BUT its
+  full-paper deadline was 15 Oct 2026, already passed when checked
+  2026-11-09. The user has NOT confirmed GreenAI-2027 is the one;
+  other SSU possibility is HITA 2027 (submissions open soon, venue
+  TBD — HITA 2025 was at SSU). See `docs/paper-readiness-plan.md`
+  W4.4: confirm the conference (and whether a late/short-paper route
+  exists) or pick another SSU Springer conference with an open
+  deadline; re-verify every deadline at submission time. The
+  call-reduction result (4.78 vs 8.95 calls/Q) is a genuine green-AI
+  framing hook if GreenAI is the target.
 - **What is not in this plan:** writing the manuscript itself — that is a
   separate piece of work once the results exist, with its own OpenSpec
   change if the user wants the same discipline for it.
@@ -853,7 +901,7 @@ TrueAdaptive v1 and for steps 1–2.
 | 3c | Add the report's confirmatory H1/H4 analyses to Phase 2 (H1: TA vs Standard, paired bootstrap + McNemar; H4: adaptive vs no-adaptive ablation — needs a Test-400 ablation run) | The report (Nov 4) labels E-RAG vs IRCoT exploratory; H1/H4 are confirmatory with Holm correction | Open — the §4.2 verdict as written tests the exploratory comparison |
 | 4 | When (and whether) to push `trueadaptive` to origin | User, each time | Open — nothing pushed so far |
 | 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
-| 6 | Paper venue | User, after results exist | Open — Springer was the forwarded prompt's suggestion, not a decision |
+| 6 | Paper venue | User, after results exist | User stated 2026-11-09: Springer conference at Sri Sri University, Cuttack (NOT IEEE). Specific conference unconfirmed; GreenAI-2027's full-paper deadline (15 Oct 2026) already passed when checked 2026-11-09 — see `docs/paper-readiness-plan.md` W4.4 |
 | 7 | Whether the closed-book gate (v2) is ever built | Only if a later diagnosis shows retrieval is the bottleneck; the current analysis says it is not | Deferred |
 | 8 | FlashRAG + other unsupplied inspiration papers: supply them, or confirm out of scope | User | Open — related work (§6) cannot be closed without them |
 
@@ -1159,10 +1207,54 @@ here only if a stored file or a commit backs it.
   `data/continuation_training_dev.jsonl`,
   `data/continuation_simulation_dev.json`, tests
   `test_continuation_policy.py` (8), `test_analyzer_policy.py`
-  (7), analyzer §15. **Final-model training + artifact NOT done —
-  the user decides whether to proceed to B-phase (wiring) or stop
-  here.** If proceeding: B.1 wiring, C.1 live Dev-100 A/B (needs a
-  Groq key), D.1 Gate B, E.1 archive.
+  (7), analyzer §15. **Final-model training + artifact: the user
+  chose to proceed — see the retrain entry below (the tau = 0.30
+  artifact from commit d0fb457 was superseded by the retrain).**
+
+### 2026-11-09 — Step 7: user chose "Wire it in"; final model trained, then RETRAINED (Gate A re-check PASS with margin)
+
+- User chose to wire it in (options-widget tap). Final model trained
+  by the parent (`--write-artifact`, commit `d0fb457`): artifact
+  `configs/continuation_policy_dev.json`, tau = 0.30, OOF AUROC 0.6546,
+  verified to 2.2e-16; design.md artifact-format section added.
+- **BLOCKER found by the B.1 subagent before writing any code,
+  verified independently by the parent:** `draft_unknown` was trained
+  on the row `draft` field — the FINAL draft (last hop, possibly
+  re-read-replaced, `erag.py:354`), not the hop-0 draft. The two
+  definitions diverge on 16/100 dev rows (15 hop-0-unknown to final
+  real answer, 1 real to unknown, row 5abd44d9); hop-0-unknown count
+  is 20 vs row-draft-unknown 6; the other 11 features agree exactly.
+  `draft_unknown` carries the largest coefficient (-0.767), so the
+  original Gate A pass rested on a definitionally wrong feature.
+  B.1 stopped before writing any code; no files changed.
+- **User chose the retrain (options-widget tap 2026-11-09).**
+  Re-extraction with the hop-0 definition + re-training, same
+  pre-registered gate (commit `7872b24`): extraction reproduces all
+  verification numbers + hop0_draft_unknown 20; LR, tau = 0.05,
+  simulated EM 0.5152, F1 0.6238, calls/Q 3.92 (saved +0.73),
+  coverage 0.869, STOP 81 / CONTINUE 18, excluded 1/100 (1.0%);
+  OOF AUROC 0.6775; composition STOP on 2/6 fix-rows, 2/3 broke
+  rows saved; tau curve smooth (tau=0.10: EM 0.5204, 3.97 calls).
+  **Gate A re-check: PASS with margin.** New artifact written
+  (tau = 0.05, `draft_unknown` coef -1.489), verified to 2.2e-16;
+  the tau = 0.30 artifact is SUPERSEDED and must not be used for
+  wiring. Suite 127 passed, 1 failed (known retry mismatch). B.1
+  re-spawned with the corrected brief (hop-0 definition + CONTINUE
+  on a fast-path row picks the weakest claim; policy governs at hop
+  0 under `no_conf`); C.1 live A/B awaits B.1 + a Groq key. The
+  retrain is a methods disclosure for the paper, not a footnote.
+
+### 2026-11-09 — Paper-readiness audit (docs/paper-readiness-plan.md)
+
+- The user asked for a rigorous audit of the current plan to make the
+  paper ready. Verdict: the evidence core is real (v1 Test-400
+  significant; H1/H6 supported), but Phase 1 is unfinished, Phase 2
+  and Phase 3 have not run, no manuscript exists, no venue is
+  confirmed, and the plan documents had drifted from reality (8
+  findings F1-F8; F1-F4 fixed in the same commit as the plan doc).
+  The plan lists the ordered work (W0-W5) and the seven asks from
+  the user (Groq key, GitHub token, dataset choice, missing papers,
+  venue confirmation, hypothesis hygiene, MiniLM confirmation).
 
 ## Appendix — Key numbers (frozen)
 
