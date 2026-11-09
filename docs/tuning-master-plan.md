@@ -613,6 +613,26 @@ hop-1+ continuation stays static.
   brief; C.1 live A/B awaits B.1 + a Groq key. The retrain is a
   methods disclosure for the paper, not a footnote (see
   `docs/paper-readiness-plan.md` W4.3).
+- **B.1 DONE 2026-11-09, committed `a0eb216`, verified by the parent:**
+  new module `src/epistemic/continuation_policy.py` (load_policy,
+  hop0_features, policy_probability, decide_policy — pure arithmetic,
+  no sklearn in `src/`) and the wiring in `src/systems/erag.py`
+  (+67/-9). Decision point after the deferred-SC resolution
+  (c0/c0_source final); deferred fast-path `break` conditional on
+  the policy being absent. 12 new mocked tests (STOP fast-path, STOP
+  despite gaps, CONTINUE unknown draft, CONTINUE fast-path weakest
+  claim, `no_conf`, flag-absent controls, feature agreement,
+  artifact validation). Parent verification: definitions identical
+  to `extract_features` incl. `draft_unknown` from the hop-0 draft;
+  feature agreement row-for-row 1e-9 on all 100 dev rows; module
+  probabilities match the fitted pipeline to 1.1e-16 and decisions
+  reproduce the artifact's in-sample split (STOP 81 / CONTINUE 19);
+  tests proven genuine by stashing the wiring (5 behavior tests fail
+  without it); full suite 139 passed, 1 failed (known retry
+  mismatch). Parent-added hardening: load_policy requires the
+  artifact's feature list to be exactly the 12 MODEL_FEATURES in
+  order. Frozen v1 config untouched; no Test-400 access; no live
+  runs. C.1 live A/B awaits a Groq key.
 - **Interaction:** step 5 is SUPERSEDED by this step (see §3.5) —
   the hop-depth decision is the policy's job now. Step 6's stream
   A/B still awaits a Groq key and runs on the post-step-7 tuned
@@ -1243,6 +1263,14 @@ here only if a stored file or a commit backs it.
   on a fast-path row picks the weakest claim; policy governs at hop
   0 under `no_conf`); C.1 live A/B awaits B.1 + a Groq key. The
   retrain is a methods disclosure for the paper, not a footnote.
+
+- **B.1 DONE 2026-11-09, committed `a0eb216`, verified by the parent
+  by independent re-read of the module + diff, full-suite re-run,
+  genuineness check (stash wiring → 5 behavior tests fail), and a
+  probability cross-check (module matches the fitted pipeline to
+  1.1e-16 on all 100 dev rows; decisions STOP 81 / CONTINUE 19).
+  12 new mocked tests; suite 139 passed, 1 failed (known retry
+  mismatch). C.1 live A/B awaits a Groq key.
 
 ### 2026-11-09 — Paper-readiness audit (docs/paper-readiness-plan.md)
 
