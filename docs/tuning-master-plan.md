@@ -756,6 +756,16 @@ sections) and the verification script (`scripts/verify_results.py`) must pass
   result is inconclusive (not significant, or the dev advantage does not
   replicate in direction). If both run, both are reported — never pick the
   better one post-hoc.
+- **AMENDMENT 2026-11-10 (under the delegated mandate, proceeding on the
+  recommendation — the user delegated the pre-Phase-2 decisions on
+  2026-11-10):** run HotpotQA MiniLM Test-400 regardless of the BM25
+  verdict — the MiniLM rule above is superseded for HotpotQA. Rationale:
+  the retriever-robustness check is worth having even on a significant
+  BM25 result (it tests whether the win is retriever-specific), and the
+  publication-ready plan recommends it. If both run, both are reported —
+  never pick the better one post-hoc. The §4.2 verdict itself is
+  unchanged: it is judged on BM25; the MiniLM result is a second check,
+  not a second verdict.
 - Dedupe by id keeping the LAST row (the resume-retried stale row lesson).
 - The analysis uses the repo's `exact_match`, never a hand-rolled normalizer.
 - Groq key and any tokens are transient only, as always.
@@ -974,11 +984,11 @@ TrueAdaptive v1 and for steps 1–2.
 
 | # | Decision | What decides it | Status |
 |---|---|---|---|
-| 1 | New dataset: 2WikiMultiHopQA or MuSiQue | The paper's claim (§5) | Open — user's call, before Phase 3 starts |
+| 1 | New dataset: 2WikiMultiHopQA or MuSiQue | The paper's claim (§5) | Decided 2026-11-09 by the user: BOTH, 2Wiki first then MuSiQue (recorded in §5; this row was stale) |
 | 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Decided 2026-11-09 by the user: selective answering (reduce hallucination first); step 4 done, theta_abs=0.50, coverage 0.790 |
 | 3 | Keep step-1 re-read if Test-400 shows no gain | The pre-registered verdict (§4.2) | Decided by test, not by dev |
 | 3b | Memory in the frozen Test-400 system (on or off) | Step 6 gate (§3.6): stream A/B gain or call reduction, override test passes | Open — decided by step 6, before the §4.1 freeze |
-| 3c | Add the report's confirmatory H1/H4 analyses to Phase 2 (H1: TA vs Standard, paired bootstrap + McNemar; H4: adaptive vs no-adaptive ablation — needs a Test-400 ablation run) | The report (Nov 4) labels E-RAG vs IRCoT exploratory; H1/H4 are confirmatory with Holm correction | Open — the §4.2 verdict as written tests the exploratory comparison |
+| 3c | Add the report's confirmatory H1/H4 analyses to Phase 2 (H1: TA vs Standard, paired bootstrap + McNemar; H4: adaptive vs no-adaptive ablation — needs a Test-400 ablation run) | The report (Nov 4) labels E-RAG vs IRCoT exploratory; H1/H4 are confirmatory with Holm correction | Decided 2026-11-10 — YES, both join Phase 2 (under the delegated mandate, proceeding on the recommendation): H1 re-run on the tuned system + H4 Test-400 ablation + Holm across H1/H4 |
 | 4 | When (and whether) to push `trueadaptive` to origin | User, each time | Open — nothing pushed so far |
 | 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
 | 6 | Paper venue | User, after results exist | User stated 2026-11-09: Springer conference at Sri Sri University, Cuttack (NOT IEEE). Specific conference unconfirmed; GreenAI-2027's full-paper deadline (15 Oct 2026) already passed when checked 2026-11-09 — see `docs/paper-readiness-plan.md` W4.4 |

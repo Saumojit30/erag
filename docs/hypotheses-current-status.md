@@ -48,7 +48,10 @@ at a reasonable computational cost?"
   evidence supports is called supported, a claim the evidence contradicts
   is called contradicted, and a claim the evidence does not address is
   called unresolved. **Criterion:** macro-F1 and contradicted-class
-  recall both ≥ 0.70 (a proposed threshold, never confirmed — see §4).
+  recall both ≥ 0.70. **Dated confirmation 2026-11-10:** the 0.70
+  threshold is confirmed as-is (under the delegated mandate, proceeding
+  on the recommendation). Re-thresholding after seeing the 0.6825 miss
+  would be cherry-picking; the narrow miss stands as a miss.
 - **Evidence:** no labelled evaluation existed, so one was built for
   this assessment: 60 pairs (20 per class) from 20 dev questions,
   premise = the gold paragraphs' sentences, hypotheses written in own
@@ -83,10 +86,10 @@ at a reasonable computational cost?"
   (0.9996) with a strong entailment on a different aspect of the same
   claim. (4) Max-aggregation picks the worst window: entailment fires
   on windows lacking the evidence, from title/entity overlap.
-- **Remains:** a dated confirmation of the 0.70 threshold (or a stated
-  reason for keeping it) before the H2 result is judged; optionally, a
-  threshold-sensitivity check on the same 60 pairs — but any
-  re-thresholding needs a fresh pair set before it can be claimed.
+- **Remains:** nothing to re-run for the threshold — it is confirmed
+  (2026-11-10, above). Optionally, a threshold-sensitivity check on the
+  same 60 pairs — but any re-thresholding needs a fresh pair set before
+  it can be claimed.
 
 ### H3 — Higher self-consistency goes with correct answers
 
@@ -130,8 +133,19 @@ at a reasonable computational cost?"
 
 - **Claim:** doing retrieval adaptively (only when the system is
   uncertain) beats doing the full pipeline with adaptivity switched off,
-  without costing too much. **Criterion:** ΔF1 CI excludes 0 AND
-  latency stays within 3× Standard RAG (a proposed limit).
+  without costing too much. **Criterion:** ΔF1 CI excludes 0 AND cost
+  per correct answer of the adaptive system is no worse than the
+  no-adaptive ablation's. **Dated clarification 2026-11-10:** the cost
+  bound replaces the proposed "latency within 3× Standard RAG" bound
+  (under the delegated mandate, proceeding on the recommendation, and
+  before the Test-400 ablation run). Cost per correct answer is measured
+  in LLM calls: total `llm_calls` divided by the number of correct
+  answers, computed from the stored rows by the repo's exact match. The
+  dollar conversion (Groq per-token pricing, verified at manuscript
+  time) is a reporting step (publication plan D6), not a second bound.
+  The 3× latency bound is retired because, as written, no multi-hop
+  system can meet it (see the problem stated below) — and a bound no
+  honest system can meet is not a bound, it is a trap.
 - **Evidence (dev interim only):** full E-RAG Active vs no-adaptive
   ablation (hop limit 0) on Dev-100, paired. Full EM 0.3900 / F1 0.4800
   at 14.72 calls; no-adaptive EM 0.3700 / F1 0.4496 at 7.00 calls.
@@ -154,11 +168,10 @@ at a reasonable computational cost?"
   E-RAG vs 1 for Standard, and any system making >3 calls/Q exceeds
   3× a 1-call baseline on calls alone (TA 4.78×, Balanced 8.95×).
   The bound was a proposed limit, never confirmed.
-- **Remains:** the Test-400 ablation run; and a dated clarification of
-  the bound **before** that run — e.g. latency within 3× *IRCoT*, or
-  cost-per-correct-answer instead of raw latency. What must not happen
-  is silent non-compliance: running the test, seeing the bound fail,
-  and quietly dropping it.
+- **Remains:** the Test-400 ablation run (the bound is now clarified
+  above, before the run, as required). What must not happen is silent
+  non-compliance: running the test, seeing the bound fail, and quietly
+  dropping it.
 
 ### H5 — Verified-belief memory cuts retrieval without lowering accuracy
 
