@@ -836,6 +836,164 @@ TrueAdaptive v1 and for steps 1–2.
 
 ---
 
+## 12. Experiment log (chronological — the single record of what ran and what it showed)
+
+The traces of this project live in many places: result JSONLs in
+`results/`, commits on `trueadaptive`, OpenSpec changes (archived per
+step), analysis reports in `docs/`, and memory. This section is the one
+file that ties them together. **Rule going forward: every run, analysis,
+and decision gets an entry here the same day it happens** — date, what
+ran, the config that matters, the output file, the headline numbers, the
+verdict, and the commit. The JSONLs and commits are the evidence; this
+log is the index. Nothing is logged from memory alone: a number appears
+here only if a stored file or a commit backs it.
+
+### 2026-11-08 — TrueAdaptive v1 built (branch `trueadaptive`, off merged 9564676)
+
+- Spec: OpenSpec change `erag-trueadaptive` (6c671d0). Build: call-count
+  tests with a mocked LLM (d5c820f), sequential SC M=1→3 ΔH<0.05 (738dd1e),
+  SC gated behind the Fast Path (7d5cba4), frozen config
+  `configs/erag_trueadaptive.yaml` (8a64503). Closed-book gate deferred to
+  v2. Mocked fast path: 2 calls (was 5 Balanced / 7 Reference).
+
+### 2026-11-08 — v1 Dev-100 validation (MiniLM, then BM25)
+
+- MiniLM (ece1c0e), `results/trueadaptive/erag_trueadaptive_dev.jsonl`:
+  EM 0.50, F1 0.6018, 4.91 calls/Q. Gate MET (≤6 calls, EM ≥0.50, exactly
+  at the threshold).
+- BM25 (ef937fc), `results/trueadaptive/erag_trueadaptive_bm25_dev.jsonl`:
+  EM 0.56, F1 0.6495, 4.58 calls/Q. BM25 leads MiniLM on dev; chosen
+  first for Test-400, MiniLM only if the BM25 result is inconclusive.
+
+### 2026-11-08/09 — Audit remediation (audit: `docs/audit-adaptive-llm-calling.md`)
+
+- Cache-write guard (7c32650), purge of 55 empty cache rows with a backup
+  outside the repo (3064740), row-level retriever provenance (4040bfc),
+  cache key versioned `v: 2` (011e5d2), verification script
+  `scripts/verify_results.py` (10/10 PASS). Corrections: "45.4% call
+  reduction" is −39.8%; Phase 5 report named the wrong model/cost rates
+  (actual `openai/gpt-oss-20b`, Groq $0.10/$0.20 per 1M); Standard Dev-100
+  EM is 0.4400, not 0.4200.
+
+### 2026-11-09 — Test-400 BM25 head-to-head, TrueAdaptive v1 vs IRCoT (d69490f)
+
+- Both fresh, frozen configs, k=3, distractor, N=400, 0 cache hits.
+  TrueAdaptive (`results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`,
+  namespace `test_trueadaptive_v1_bm25`): **EM 0.4750, F1 0.6192, 4.78
+  calls/Q**. IRCoT (`results/ircot_test_bm25.jsonl`, namespace
+  `test_ircot_v1_bm25`): **EM 0.4200, F1 0.5674, 2.55 calls/Q**.
+  McNemar b=38, c=16, **p=0.0043 — SIGNIFICANT**, first significant
+  frozen-system E-RAG vs IRCoT Test-400 result. Also beats Balanced BM25
+  (0.4450 at 8.95 calls) by +3.0 pts at −46.6% calls. Per the agreed rule,
+  MiniLM Test-400 is NOT required (user has not explicitly confirmed).
+  Caveat: TA file has 401 lines (resume retried 1 failed Q, stale row);
+  dedupe by id keeping the last row → N=400.
+
+### 2026-11-09 — Test-400 error analysis (ed154d7)
+
+- Script `scripts/analyze_trueadaptive_test400.py`, report
+  `docs/trueadaptive-test400-error-analysis.md`. Error budget (400):
+  right 190, wrong 133, system-abstained 37, model-unknown 40.
+  **Reasoning, not retrieval, is the bottleneck:** 107/133 wrong had
+  recall==1.0; of those 70 had gold in trace claims (reader/graph
+  bottleneck), 37 never extracted gold as a claim. Only 26 wrong were
+  retrieval failures. Hops help net +28 (fixed 42, broke 14; hop-0 draft
+  EM 0.4050 → final 0.4750). The 77 unknowns are two populations
+  (37 system abstentions, answer_conf median 0.214; 40 reader refusals,
+  answer_conf median 0.875). Call tail: 54 rows ≥7 calls = 22% of calls
+  at EM 0.333. Fast-path SC gate works (86 skips, 2 calls, EM 0.547).
+  Tuning order set by this analysis: (1) reader/graph, (2) claim
+  extraction, (3) model-unknown prompt, (4) theta_abs by paper goal,
+  (5) hop-2 SC cap, (6) closed-book gate deferred.
+
+### 2026-11-09 — H1–H6 assessment (3468d08, H2: b9ee7ce)
+
+- Script `scripts/analyze_hypotheses_h1_h6.py`, report
+  `docs/hypotheses-h1-h6-assessment.md`, status doc
+  `docs/hypotheses-current-status.md` (82c5a6e). **H1 SUPPORTED interim**
+  (TA vs Standard-BM25 ΔEM +0.0725, CI [0.0350, 0.1125], p=0.00034;
+  confirmatory re-run on the tuned system owed at Phase 2).
+  **H2 NOT SUPPORTED** (60-pair NLI set, macro-F1 0.6825 < 0.70, narrow
+  miss; contradicted recall 0.75 passed). **H3 SUPPORTED but weakened for
+  TA** (AUROC on c0 0.5915 vs Reference 0.6519). **H4 dev interim
+  INCONCLUSIVE** (ΔF1 +0.0304, CI includes 0; Test-400 ablation still
+  owed). **H5 NOT SUPPORTED as stated, but the test is cache-confounded**
+  (E5 mem arm served cache_hits == llm_calls on 30/30 rows — a replay,
+  not a null; re-test is step 6). **H6 SUPPORTED strongly** (all of TA's
+  gain over IRCoT concentrates where hop-0 retrieval was incomplete:
+  ΔEM +0.1146, CI [0.0521, 0.1823], p=0.00094; zero gain where retrieval
+  was complete). Decision recorded: complete the analyses, do not redraft
+  hypotheses after seeing results (HARKing risk).
+
+### 2026-11-09 — Step 1, reader grounding (DONE, gate PASS, mechanism kept)
+
+- Change `tune-reader-grounding` (c3c97dc); implementation behind
+  `erag.ground_final_read` (303efb5); analyzer `--reread` section
+  (2b1118c); archived (5bf633b). Dev A/B (9d1d108),
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_reread.jsonl`: EM
+  0.5600 vs 0.5600 flat, F1 0.6611 vs 0.6495, calls 4.75 vs 4.58.
+  Re-read triggered 16/100, fixed 2, broke 1 (net +1) — a wash on dev;
+  kept, Test-400 judges it. Confound recorded: cache-key v=2 meant the
+  tuned run was effectively all-live; temp-0.0 nondeterminism flipped 8
+  untouched rows, so the EM tie carries ~±3 rows of noise. Lesson:
+  never assume cache replay — verify `cache_hits` before believing a
+  paired comparison.
+
+### 2026-11-09 — Step 2, claim extraction (DONE, gate 3/4, kept by user decision)
+
+- Change `tune-claim-extraction` (0e51368); build (8c9f25e); archived
+  (c062baf). Variant A built: question-grounded claims in the single
+  extraction call (zero new LLM calls), each claim with a `source` field
+  (`draft`/`question`), `max_claims` 5→8. Dev A/B,
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_claims.jsonl`: EM
+  0.5400 vs step-1 tuned 0.5600 (−2 rows, inside the ±3-row noise band),
+  F1 0.6391, calls 4.65/Q. Mechanism: gold-in-claims among full-recall
+  wrong rows 0.524 vs 0.333 baseline (PASS); answer-bearing
+  question-sourced claims 6/100 (gate ≤10% PASS). Gate FAILS on EM only
+  (3/4); user chose to proceed. Tuned value: `max_claims: 8`. Cache note:
+  2.53 cache_hits/Q — namespace reused, only extraction calls were live.
+
+### 2026-11-09 — Step 3, model-unknown prompt (DONE, gate FAILED, mechanism DROPPED)
+
+- Change `tune-unknown-prompt` (0d6942b); build + gate (c0b5e67);
+  archived (afc10f1). Two variants behind `erag.unknown_prompt`:
+  best_guess (`results/trueadaptive/erag_trueadaptive_bm25_dev_unknown_a.jsonl`)
+  unknowns 6/100 (needed ≤4 — FAIL), EM 0.5500, 4.76 calls/Q;
+  cite_first (`..._unknown_b.jsonl`) unknowns 5/100 (FAIL), EM 0.5600,
+  4.48 calls/Q. Both 3/4. Per the pre-registered rule the mechanism was
+  DROPPED; `unknown_prompt` stays `"base"` in the frozen tuned config.
+  The 40 Test-400 model-unknown rows remain unrecovered.
+
+### 2026-11-09 — Step 4, theta_abs (DONE, gate PASS on the pre-registered counterfactual)
+
+- Change `tune-theta-abs` (drafted in db7b598); A.1 analyzer `--theta`
+  section + 9 tests (5738181, fast suite 69 passed; reproduces all
+  verification numbers exactly); gate verdict (4701ac3); archived
+  (78df3cd). Live A/Bs ran (100/100, 0 failed each,
+  `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl` /
+  `_b.jsonl`) but the pre-registered cache tripwire FIRED (live calls/Q
+  0.04 / 0.02 — ~99% replays, because the threshold changes no prompt
+  and no call); both files DISCARDED as live evidence per the rule.
+  User decision 2026-11-09: accept the pre-registered counterfactual as
+  the evidence (dated amendment in the change's design.md — the
+  tripwire's premise is false for threshold-only steps; the numbers were
+  fixed before the runs, so nothing is cherry-picked). Gate on the
+  counterfactual: both candidates PASS all four measures (selective EM
+  0.6456 > 0.6353; wrong 0.3544 < 0.3647; EM 0.5100 ≥ 0.51, exactly at
+  the bound; calls 4.65/4.64 within 0.2 of 4.65); identical wrong-rate
+  falls → tie rule selects candidate A, **theta_abs = 0.50**, coverage
+  0.790. Margins are 1 row, inside the ±3-row dev noise band — the gate
+  is a smoke test and Test-400 is the judge. Step-5 baseline is now the
+  post-step-4 tuned dev (theta_a file): EM 0.5100, 4.65 calls/Q.
+
+### Housekeeping (same period)
+
+- `.mailmap` fix for Manoj Adapakala's authorship (88f2512, master, 1
+  commit ahead of origin, unpushed). Branch `trueadaptive` 4 commits
+  ahead of origin (db7b598, 5738181, 4701ac3, 78df3cd), unpushed — both
+  need a fresh GitHub token, transient only. Nothing pushed to
+  ManojAdapakala/ERag, ever (push URL `no_push`).
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**
