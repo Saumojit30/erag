@@ -79,7 +79,7 @@ against.
   verification script `scripts/verify_results.py` (10 checks, all passing).
 - **Test-400 BM25 head-to-head, completed 2026-11-09** (commit `d69490f`):
   TrueAdaptive v1 **EM 0.4750, F1 0.6192, 4.78 calls/Q** vs fresh IRCoT
-  **EM 0.4200, F1 0.5674, 2.55 calls/Q**. McNemar paired b=38, c=16,
+  **EM 0.4200, F1 0.5674, 2.545 calls/Q**. McNemar paired b=38, c=16,
   **p=0.0043 (exact 0.0038) — significant**, the first significant
   frozen-system E-RAG vs IRCoT Test-400 result. TrueAdaptive also beats
   Balanced BM25 Test-400 (0.4450 at 8.95 calls) by +3.0 pts at −46.6% calls.
@@ -195,7 +195,7 @@ against.
 | IRCoT, Dev-100 | BM25 | 0.4400 | — | 2.38 |
 | Balanced, Dev-100 | BM25 | 0.5100 | — | 8.92 |
 | TrueAdaptive v1, Test-400 | BM25 | 0.4750 | 0.6192 | 4.78 |
-| IRCoT fresh, Test-400 | BM25 | 0.4200 | 0.5674 | 2.55 |
+| IRCoT fresh, Test-400 | BM25 | 0.4200 | 0.5674 | 2.545 |
 | Balanced, Test-400 | BM25 | 0.4450 | — | 8.95 |
 
 Full numbers (coverage, recall, selective EM, McNemar) are in the error
@@ -881,7 +881,7 @@ here only if a stored file or a commit backs it.
   TrueAdaptive (`results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`,
   namespace `test_trueadaptive_v1_bm25`): **EM 0.4750, F1 0.6192, 4.78
   calls/Q**. IRCoT (`results/ircot_test_bm25.jsonl`, namespace
-  `test_ircot_v1_bm25`): **EM 0.4200, F1 0.5674, 2.55 calls/Q**.
+  `test_ircot_v1_bm25`): **EM 0.4200, F1 0.5674, 2.545 calls/Q**.
   McNemar b=38, c=16, **p=0.0043 — SIGNIFICANT**, first significant
   frozen-system E-RAG vs IRCoT Test-400 result. Also beats Balanced BM25
   (0.4450 at 8.95 calls) by +3.0 pts at −46.6% calls. Per the agreed rule,
@@ -994,13 +994,35 @@ here only if a stored file or a commit backs it.
   need a fresh GitHub token, transient only. Nothing pushed to
   ManojAdapakala/ERag, ever (push URL `no_push`).
 
+### 2026-11-09 — E-RAG Retrospective Changelog created
+
+- Document `docs/retrospective-changelog.md` (1,341 lines): a retrospective
+  reconstruction of the project's technical history from repository
+  evidence only, in the user's template (timeline, change entries, repair
+  sequence, current state, evidence map, claims discipline, paper-facing
+  narrative). 33 dated change entries plus 4 template entries marked
+  `not recoverable from repository`; 24 evidence-map rows. Headline
+  finding: the template's §3 repair sequence (Batch 2A, provenance
+  safeguards, conflict-policy characterization, contradiction veto) does
+  NOT exist in this repository — the three cited commits are bad objects,
+  the tag `checkpoint-pre-audit3` does not exist (the commit `6aced98`
+  does), the test files and `src/provenance.py` are missing, and no
+  commit ever introduced the veto identifiers; the draft records the
+  actual repair sequence (the audit remediation) instead. Current test
+  status measured for the draft and re-verified by the parent: full suite
+  87 passed, 1 failed (the known pre-existing retry-test mismatch),
+  0 xfailed; `scripts/verify_results.py` 10/10 PASS. Rounding correction
+  made during verification: IRCoT Test-400 exact mean is 1018/400 =
+  2.545 calls/Q; the plan's 2.55 (half-up) and Python's 2.54 were both
+  roundings of the same value — both documents now state 2.545.
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**
 EM 0.4750, F1 0.6192, 4.78 calls/Q, coverage 0.8075, recall 0.8975.
 Calls {2:86, 4:59, 5:126, 6:75, 7:23, 8:18, 9:13}; hops {0:160, 1:198, 2:42}.
 
-**IRCoT fresh, Test-400 BM25:** EM 0.4200, F1 0.5674, 2.55 calls/Q,
+**IRCoT fresh, Test-400 BM25:** EM 0.4200, F1 0.5674, 2.545 calls/Q,
 coverage 0.78, recall 0.7975. McNemar vs TA: b=38, c=16, p=0.0043
 (exact 0.0038).
 
