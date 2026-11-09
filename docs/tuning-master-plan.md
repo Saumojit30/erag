@@ -87,8 +87,7 @@ against.
   as a claim (claim extraction). Hops help net +28. The 77 unknowns are two
   populations (37 abstentions vs 40 reader refusals) — do not conflate.
   Call tail: 54 rows ≥7 calls consume 22% of calls at EM 0.333.
-- **Step 1 (reader grounding) — built, gated, archived (archive pending,
-  see §10).** OpenSpec change `tune-reader-grounding` (commit `c3c97dc`),
+- **Step 1 (reader grounding) — built, gated, archived.** OpenSpec change `tune-reader-grounding` (commit `c3c97dc`),
   implementation `303efb5`, analysis-script extension `2b1118c`, A/B result
   `9d1d108`. Dev-100 BM25 A/B: EM 0.56 flat, F1 0.661, coverage 0.86,
   4.75 calls/Q; re-read triggered 16/100, fixed 2, broke 1 (net +1).
@@ -219,7 +218,7 @@ Every step follows the same lifecycle, no exceptions:
    mechanism stays in. On pass, commit code + tests + dev results. On fail,
    record the result, do not tune thresholds to compensate, and either try
    the recorded variant as its own change or drop the mechanism.
-7. **Archive.** `openspec archive <change>` when the step closes, then start
+7. **Archive.** `openspec archive <change> -y` (always with `-y`) when the step closes, then start
    the next change. Archiving must not block the next step's proposal.
 
 **Cost budget for the phase:** the tuned system must stay ≤ 6 calls/Q on
@@ -236,8 +235,8 @@ Test-400 verdict, not at the dev gate.
 - **Mechanism:** conditional claim-grounded re-read after the hop loop (draft
   "unknown" OR draft disagrees with the answer claim), grounded on supported
   claims, behind `erag.ground_final_read` (default false).
-- **OpenSpec change:** `tune-reader-grounding` (archived; archive command
-  pending, see §10).
+- **OpenSpec change:** `tune-reader-grounding` (archived 2026-11-09 as
+  `2026-11-09-tune-reader-grounding`).
 - **Dev A/B result:** EM 0.56 flat, F1 0.661, coverage 0.86, 4.75 calls/Q;
   triggered 16/100, fixed 2, broke 1 (net +1). Gate PASS (narrowly).
 - **Confound found (recorded for all later steps):** the A/B was supposed to
@@ -604,7 +603,9 @@ TrueAdaptive v1 and for steps 1–2.
    flag-off case (byte-identical to the previous system).
 5. **Flags, not forks.** Every mechanism lands behind a config flag
    (default off). The previous system stays runnable; the A/B is a flag flip.
-6. **Archive when the step closes.** `openspec archive <change>`, then the
+6. **Archive when the step closes.** `openspec archive <change> -y` (always
+   with `-y` — without it the command blocks forever on its confirmation
+   prompt, see §10), then the
    next change starts. Archiving is bookkeeping and must not block the next
    step's proposal (step 1's archive command hung — see §10 — and step 2's
    proposal was committed anyway).
@@ -684,13 +685,16 @@ TrueAdaptive v1 and for steps 1–2.
   to formatting; the re-read prompt already asks for the short-answer format,
   and the model still varied it. Worth one line in the paper's limitations;
   not worth a tuning step on its own.
-- **OpenSpec CLI hangs.** The `openspec archive tune-reader-grounding`
-  command has been running ~18 minutes with no output (validate standalone
-  takes ~2s). Possibly hung. It holds no run state — only the step-1 change
-  directory — so it blocks nothing, but the archive is unconfirmed. If it
-  never returns, archive by re-running it once, and if that hangs too, record
-  the change as closed in `tasks.md` and move on. Tooling friction must not
-  block the research.
+- **OpenSpec CLI hangs — RESOLVED 2026-11-09.** The `openspec archive
+  tune-reader-grounding` command ran ~18 minutes with no output, then the
+  runtime restarted and the session had no confirmed result. Root cause
+  found on recovery: the command was run WITHOUT `-y`, so it was waiting on
+  an interactive confirmation prompt with no TTY — not a CLI bug. Re-ran
+  once with `-y`: archived in ~1s as `2026-11-09-tune-reader-grounding`,
+  spec merged to `openspec/specs/reader-grounding/spec.md`, validate 4
+  passed 0 failed. **Lesson: always run `openspec archive` with `-y`
+  (non-interactive) in this environment; without it the command blocks
+  forever on its confirmation prompt.**
 - **`--set` overwrites.** The runner's `--set` is `nargs="*"` with default
   store action: repeated `--set` flags overwrite, only the last survives.
   All overrides go in ONE `--set`. (Caught in step 1: the first A/B attempt
