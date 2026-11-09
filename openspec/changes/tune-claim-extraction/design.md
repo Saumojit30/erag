@@ -90,3 +90,23 @@ as considered alternatives, not built.
   live-vs-live; the proposal's Impact section records the noise this
   implies (~±3 EM rows at N=100). Do not claim a clean paired comparison.
 - No threshold, retriever, graph, NLI, or reader change in this change.
+
+## Correction (2026-11-09, found during build)
+
+The design assumed "the claims (with `"source"`) are already in every
+hop's `trace[].graph[]`". That was wrong: `build_graph` in
+`src/systems/erag.py` called `g.add(text, answer_bearing, depends_on,
+c0, ev)` without passing `source`, and `BeliefGraph.add` / `Claim` in
+`src/epistemic/belief_graph.py` had no `source` field, so `to_json()`
+could never emit it. Without a fix, the dev A/B file's source measures
+would all read 0 and the D.1 gate's ≤10% answer-bearing-question-sourced
+check would pass vacuously.
+
+Fix (B.4, part of this change, no behavior change): `Claim` gains a
+`source: str = "draft"` field; `BeliefGraph.add` takes `source` (default
+`"draft"`, invalid values coerce to `"draft"`); `build_graph` passes
+`c.get("source", "draft")`. Nothing branches on `source` — the
+guardrail above still holds; it is advisory metadata for measurement
+only, and `to_json()` serializes it because it serializes `vars(c)`.
+Covered by `test_build_graph_preserves_claim_source` in
+`tests/test_erag.py`.

@@ -34,6 +34,7 @@ class Claim:
     conflict: bool = False
     conf: float = 0.0  # Confidence after logit-space evidence update
     eff: float = 0.0   # Effective confidence after weakest-link propagation
+    source: str = "draft"  # Advisory metadata: "draft" or "question"; never branched on
 
 
 class BeliefGraph:
@@ -59,6 +60,7 @@ class BeliefGraph:
         depends_on: List[int],
         c0: float,
         ev: Dict[str, Any],
+        source: str = "draft",
     ) -> None:
         """Add a claim node to the graph. Only backwards edges (0 <= d < idx) are retained to guarantee acyclicity."""
         idx = len(self.claims)
@@ -74,6 +76,7 @@ class BeliefGraph:
                 sup=list(ev.get("sup", [])),
                 con=list(ev.get("con", [])),
                 conflict=bool(ev.get("conflict", False)),
+                source=source if source in ("draft", "question") else "draft",
             )
         )
 

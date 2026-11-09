@@ -97,7 +97,7 @@ def build_graph(
             theta_s = n.get("theta_s", 0.5)
             theta_c = n.get("theta_c", 0.5)
             ev = nli.verify(c["text"], passages, theta_s=theta_s, theta_c=theta_c, pre_filter=pre_filter)
-        g.add(c["text"], c["answer_bearing"], c["depends_on"], c0, ev)
+        g.add(c["text"], c["answer_bearing"], c["depends_on"], c0, ev, source=c.get("source", "draft"))
     return g.update()
 
 

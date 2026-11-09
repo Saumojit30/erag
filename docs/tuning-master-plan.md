@@ -7,9 +7,11 @@ separate plan (`~/workspace/goals/erag-adaptive-rag-project/files/production-rag
 and is not in this document. DevDoc is a separate project and is not in this
 document.
 
-**Status:** 2026-11-09. Step 1 of tuning is built and gated. Step 2 is proposed
-(OpenSpec change drafted, no code). Steps 3–5 are planned here and not started.
-Step 6 (memory effectiveness) was added 2026-11-09 after the user pointed out
+**Status:** 2026-11-09. Steps 1–2 of tuning are built and gated (step 2 kept
+by user decision after a 3/4 gate pass; EM 0.54 vs 0.56 inside noise).
+Step 3 is being drafted as its own OpenSpec change. Steps 4–5 are planned
+here and not started. Step 6 (memory effectiveness) was added 2026-11-09
+after the user pointed out
 the plan omitted it. Test-400, new dataset, and paper are planned here and not
 started. This plan is the document OpenSpec changes
 are built against: every tuning step gets its own OpenSpec change (proposal,
@@ -277,7 +279,7 @@ Test-400 verdict, not at the dev gate.
   returned an empty string (pre-existing robustness gap, not caused by the
   re-read).
 
-### 3.2 Step 2 — Claim extraction (PROPOSED, not built)
+### 3.2 Step 2 — Claim extraction (BUILT, gate passed by user decision 2026-11-09)
 
 - **Evidence:** 37 rows with recall 1.0 where gold was never a claim.
   Diagnosis: all 37 wrong draft (0 unknown); sub-patterns are wrong-answer
@@ -289,13 +291,29 @@ Test-400 verdict, not at the dev gate.
   (zero new LLM calls), each claim with a `"source"` field, cap 5 → 8 in the
   A/B. The draft-free second pass and the freeze fix are recorded follow-ups,
   not bundled.
-- **OpenSpec change:** `tune-claim-extraction` (commit `0e51368`).
+- **OpenSpec change:** `tune-claim-extraction` (commit `0e51368`; build
+  commits below).
 - **Dev gate (smoke test):** EM not below the step-1 tuned dev (0.56);
   gold-in-claims rate among full-recall wrong dev rows improves on the 0.333
   baseline (12/18 never claimed); calls +≤0.5/Q; answer-bearing claim
   question-sourced in ≤10% of rows.
 - **Build order:** mocked-LLM tests → prompt + `_parse` change → fast suite
   → Dev-100 BM25 A/B (needs a Groq key transiently) → gate → commit → archive.
+- **Result (Dev-100 BM25 A/B, `results/trueadaptive/erag_trueadaptive_bm25_dev_claims.jsonl`,
+  N=100, 0 failed):** EM 0.5400 vs step-1 tuned 0.5600 (2 rows lower —
+  inside the documented ±3-row live-call noise band); F1 0.6391 vs 0.6611;
+  calls 4.65/Q vs 4.75. Mechanism measures: gold-in-claims 0.524 (11/21)
+  vs 0.333 baseline; 349/764 claims question-sourced (45.7%); gold-bearing
+  claim question-sourced in 48/73 rows; answer-bearing question-sourced
+  6/100 (≤10% PASS); re-read triggered 24/100, fixed 3, broke 0. Cache
+  note: 2.53 cache_hits/Q (step-1 run 0.02) — namespace reused, only
+  extraction calls were live. **Gate: 3/4 pass; EM fails on the point
+  estimate only. User decision 2026-11-09: proceed (keep the mechanism),
+  Test-400 judges it.** Tuned value recorded: `max_claims: 8` (goes in the
+  frozen tuned config at end of Phase 1, not yet a file). Build also found
+  and fixed a design error: `"source"` was dropped at the graph boundary
+  (`build_graph` never passed it, `Claim` had no field) — threaded through
+  with a test (`test_build_graph_preserves_claim_source`); docs amended.
 
 ### 3.3 Step 3 — Model-unknown prompt experiment (PLANNED)
 

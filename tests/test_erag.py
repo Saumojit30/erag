@@ -410,3 +410,19 @@ def test_no_reread_when_flag_off():
     assert "reread_trigger" not in out
     assert "reread_answer" not in out
 
+
+
+def test_build_graph_preserves_claim_source():
+    """Step 2: claim "source" survives build_graph into the trace graph JSON.
+
+    Without this threading, the --claims analyzer's source measures read 0
+    on every file (the graph boundary dropped the field), and the D.1 gate's
+    <=10% answer-bearing-question-sourced check would pass vacuously.
+    """
+    claims = [
+        {"text": "Thon Maker is a basketball player.", "answer_bearing": True, "depends_on": [], "source": "draft"},
+        {"text": "Thon Marial Maker was born in South Sudan.", "answer_bearing": False, "depends_on": [], "source": "question"},
+        {"text": "A claim with no source field.", "answer_bearing": False, "depends_on": []},
+    ]
+    g = build_graph(claims, [], None, 0.8, {"erag": {}, "nli": {}}, set())
+    assert [c["source"] for c in g.to_json()] == ["draft", "question", "draft"]

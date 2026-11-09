@@ -1,13 +1,20 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--ta-dev PATH]
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--ta-dev PATH]
 
 --reread prints section 10, the claim-grounded re-read summary (tuning step 1):
 trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
 file and the TA test file. --ta-dev PATH points the dev analysis at a different
-file (the tuned dev A/B output). Without flags the script behaves exactly as
-before; on a v1 file (no `grounded_reread` field) section 10 reports 0 triggers.
+file (the tuned dev A/B output). --claims prints section 11, the claim-source
+summary (tuning step 2): gold-in-claims rate among full-recall wrong rows
+(gate measure), the share of question-sourced claims, how many gold-bearing
+claims are question-sourced, and how often the answer-bearing claim is
+question-sourced. Without flags the script behaves exactly as
+before; on a v1 file (no `grounded_reread` field) section 10 reports 0 triggers,
+and on a v1 file (no `source` on graph claims) section 11 reports 0
+question-sourced claims — v1 predates the source field, so that is expected,
+not a mechanism failure.
 
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
@@ -61,6 +68,51 @@ def gold_in_claims(r):
     return False
 
 
+def all_claims(r):
+    """Every claim in every hop's graph (the trace records the graph, not the raw extraction)."""
+    out = []
+    for hop in (r.get("trace") or []):
+        out.extend(hop.get("graph") or [])
+    return out
+
+
+def gold_bearing_sources(r):
+    """Sources of the claims containing the gold answer ('draft' when the field is absent, i.e. v1 files)."""
+    g = norm(r["gold"])
+    if not g:
+        return []
+    return [c.get("source", "draft") for c in all_claims(r) if g in norm(c.get("text", ""))]
+
+
+def claims_section(label, rows):
+    """Section 11 (tuning step 2): what the question-grounded claims did.
+
+    Gate measure is the gold-in-claims rate among full-recall wrong rows
+    (dev baseline v1: 0.333, 6/18 claimed, 12 never). The source measures
+    count claims with source == "question"; claims without a source field
+    (v1 files, predating the field) count as "draft".
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    section(f"11. Claim sources ({label})")
+    wrong_full = [r for r in ok if r["em"] == 0 and not r.get("unknown") and r.get("recall") == 1.0]
+    hit = [r for r in wrong_full if gold_in_claims(r)]
+    rate = len(hit) / len(wrong_full) if wrong_full else 0.0
+    print(f"gold-in-claims among full-recall wrong rows: {len(hit)}/{len(wrong_full)} "
+          f"({rate:.3f}) — gate baseline dev 0.333 (6/18); never claimed: {len(wrong_full) - len(hit)}")
+    claims = [c for r in ok for c in all_claims(r)]
+    q = sum(1 for c in claims if c.get("source") == "question")
+    print(f"claims: {len(claims)} total across {len(ok)} rows, {q} question-sourced "
+          f"({q / len(claims):.3f} of all claims)" if claims else "claims: 0 total")
+    gold_rows = [r for r in ok if gold_in_claims(r)]
+    q_gold = sum(1 for r in gold_rows if "question" in gold_bearing_sources(r))
+    print(f"rows with gold in claims: {len(gold_rows)}; of those, a gold-bearing claim is "
+          f"question-sourced in {q_gold}")
+    ab_q = sum(1 for r in ok
+               if any(c.get("answer_bearing") and c.get("source") == "question" for c in all_claims(r)))
+    print(f"answer-bearing claim is question-sourced in {ab_q}/{len(ok)} rows "
+          f"({ab_q / len(ok):.1%} of rows) — gate: <=10%")
+
+
 def section(title):
     print(f"\n=== {title} ===")
 
@@ -104,6 +156,8 @@ def main():
     ap = argparse.ArgumentParser(description="TrueAdaptive error analysis")
     ap.add_argument("--reread", action="store_true",
                     help="print section 10, the claim-grounded re-read summary")
+    ap.add_argument("--claims", action="store_true",
+                    help="print section 11, the claim-source summary (tuning step 2)")
     ap.add_argument("--ta-dev", default=DEV,
                     help="dev results file (default: %(default)s)")
     args = ap.parse_args()
@@ -224,6 +278,10 @@ def main():
     if args.reread:
         reread_section("TA dev", dev)
         reread_section("TA test", ta)
+
+    if args.claims:
+        claims_section("TA dev", dev)
+        claims_section("TA test", ta)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,12 @@ CLAIM_SYSTEM = (
     "Use at most {n} claims. Each claim is one self-contained sentence that names its entities "
     '(no pronouns). Mark exactly one claim that states the final answer with "answer": true. '
     '"depends_on" lists the 0-based indexes of EARLIER claims it relies on. '
-    'Return only JSON: {{"claims": [{{"text": "...", "answer": false, "depends_on": []}}]}}'
+    "After the claims that support the given Answer, also list claims from the Context that "
+    "answer the Question, including any that disagree with the given Answer or give a different "
+    "name, date, or value. Use full names exactly as written in the Context, not shortened forms "
+    'from the Answer. Each claim carries a "source": "draft" for claims supporting the given '
+    'Answer, "question" for claims from the Context that answer the Question. '
+    'Return only JSON: {{"claims": [{{"text": "...", "answer": false, "depends_on": [], "source": "draft"}}]}}'
 )
 
 
@@ -35,11 +40,19 @@ def _parse(raw: str, max_claims: int) -> List[Dict[str, Any]]:
             d for d in r.get("depends_on", [])
             if isinstance(d, int) and 0 <= d < len(out)
         ]
+        # "source" is advisory metadata for measurement: "draft" for claims
+        # supporting the given answer, "question" for claims from the context
+        # that answer the question. Absent or invalid values default to
+        # "draft" (backward compatible with old mock JSON and stored responses).
+        source = r.get("source")
+        if source not in ("draft", "question"):
+            source = "draft"
         out.append({
             "text": str(r["text"]).strip(),
             "answer_bearing": bool(r.get("answer")),
             "depends_on": deps,
             "fallback": False,
+            "source": source,
         })
 
     # Ensure at least one claim is marked as the answer-bearing claim
@@ -76,6 +89,7 @@ def extract_claims(
                 "answer_bearing": True,
                 "depends_on": [],
                 "fallback": True,
+                "source": "draft",
             }
         ]
     return claims
