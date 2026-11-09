@@ -12,10 +12,11 @@ by user decision after a 3/4 gate pass; EM 0.54 vs 0.56 inside noise).
 Step 3 is DONE 2026-11-09 — both variants failed the unknown-reduction
 gate (best_guess 6/100, cite_first 5/100 vs ≤4 required), mechanism
 dropped per the pre-registered rule, `unknown_prompt` stays `"base"`.
-Steps 4–5 are planned here and not started. Step 6 (memory
-effectiveness) was added 2026-11-09 after the user pointed out
-the plan omitted it. Test-400, new dataset, and paper are planned here and not
-started. This plan is the document OpenSpec changes
+Step 4's goal is now set by the user (2026-11-09): reduce hallucination
+is the main objective, reduced LLM cost second — so step 4 is selective
+answering, and its change is being drafted. Steps 5–6 changes are drafted
+(design-only, uncommitted, validated). Test-400, new dataset, and paper
+are planned here and not started. This plan is the document OpenSpec changes
 are built against: every tuning step gets its own OpenSpec change (proposal,
 design, tasks, spec) before any code, and every change must trace back to a
 section of this plan.
@@ -376,6 +377,12 @@ Test-400 verdict, not at the dev gate.
   abstain more) or maximum EM (answer everything, abstain less)? A low
   `theta_abs` raises EM and coverage and lowers selective EM; a high one does
   the opposite. The dev sweep cannot make this choice; the goal does.
+  **Decided 2026-11-09 by the user:** the main objective is to REDUCE
+  HALLUCINATION of RAG, with reduced LLM cost second — so step 4 is
+  selective answering. Judge by selective EM and wrong-answer rate, with
+  EM as a guardrail (not the maximand). The formal paper-goal statement is
+  still open and can be refined later; this objective is what the step is
+  built on.
 - **OpenSpec change:** `tune-theta-abs` (to be created when step 3 closes).
 - **Dev gate (smoke test):** EM and selective EM move in the direction the
   goal requires; calls unchanged (thresholds cost no calls). If the goal is
@@ -393,7 +400,11 @@ Test-400 verdict, not at the dev gate.
   saving ≈ 100 calls/400 questions, measurable precisely from the output
   file. EM effect must be measured, not assumed — if hop-2 SC is load-bearing
   for the few rows it helps, the cap is narrowed, not forced.
-- **OpenSpec change:** `tune-hop2-sc-cap` (to be created when step 4 closes).
+- **OpenSpec change:** `tune-hop2-sc-cap` (DRAFTED 2026-11-09, design-only,
+  uncommitted, validate 6 passed 0 failed). Correction found in the draft:
+  the plan's SC-cap sketch doesn't match the code (SC runs once, at hop 0),
+  so the mechanism is `erag.max_hops=1`, config-only, zero code. Expected
+  saving ~74 calls/400 test at draft-level −2 rows.
 - **Dev gate (smoke test):** calls/Q falls with EM not below the step-4
   tuned dev by more than 1 pt (a cost step that costs accuracy is a trade,
   not a win, and the trade is decided at the Test-400 verdict, not on dev).
@@ -442,9 +453,18 @@ system.
   ~±18 pts), extend the manifest with more entity-sharing clusters *before*
   running (a data-prep change, decided in the step's proposal, not after
   seeing results).
-- **OpenSpec change:** `tune-memory-effectiveness` (to be created when step
-  5 closes). The change also records whether the memory module stays in the
-  paper's claims at all.
+- **OpenSpec change:** `tune-memory-effectiveness` (DRAFTED 2026-11-09,
+  design-only, uncommitted, validate 7 passed 0 failed). Decision: extend
+  stream 30→60 Qs (5→10 clusters × 6), first 30 rows byte-identical.
+  **E5 cache finding (2026-11-09, verified from stored rows):** the E5
+  effectiveness null is cache-confounded — the mem arm served
+  `cache_hits == llm_calls` on 30/30 rows (shared default namespace),
+  answers/EM/F1 identical to nomem. Memory changed no LLM prompt in E5,
+  so H5's NOT SUPPORTED rests on an uninformative test; the override
+  mechanism is NOT confounded. Step 6 uses one fresh namespace per arm
+  with a live-calls tripwire, and H5 is revisited after step 6 with a
+  dated note. Raw HotpotQA file is absent from this VM — extension needs
+  a scripted fetch, fallback to N=30 as-is.
 - **Gate:** memory goes into the frozen Test-400 system ONLY if the stream
   A/B shows an EM gain or a call reduction with EM not falling, and the
   override test passes on the tuned system. Otherwise memory stays OFF for
