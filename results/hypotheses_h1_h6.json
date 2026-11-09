@@ -1,0 +1,233 @@
+{
+  "H1": {
+    "n": 400,
+    "ta_em": 0.475,
+    "std_em": 0.4025,
+    "ta_f1": 0.6191562049062049,
+    "std_f1": 0.5461472922502334,
+    "d_em_mean_lo_hi": [
+      0.0725,
+      0.035,
+      0.1125
+    ],
+    "d_f1_mean_lo_hi": [
+      0.07300891265597148,
+      0.03510919462481962,
+      0.11143666549953313
+    ],
+    "mcnemar": {
+      "a_only": 46,
+      "b_only": 17,
+      "p": 0.00033670934946623826
+    },
+    "caveat": "Standard-BM25 rows carry no row-level 'retriever' field (pre-provenance file); BM25 is established by the file's location in results/bm25/ and the audit record. Paired by question id (400/400). This is the v1 TrueAdaptive system, not the final tuned system: the confirmatory H1 should be re-run on the frozen tuned system at Phase 2. Holm correction is pending H4's Test-400 p-value (no Test-400 ablation run exists yet)."
+  },
+  "H1_context_balanced": {
+    "d_em": [
+      0.0425,
+      0.0025,
+      0.085
+    ],
+    "d_f1": [
+      0.03514948662878229,
+      -0.00589761989225515,
+      0.07749549612807642
+    ]
+  },
+  "H3": {
+    "trueadaptive": {
+      "n": 400,
+      "auroc_c0": 0.5914661654135338,
+      "auroc_c0_ci95": [
+        0.5420719527320447,
+        0.6390528057980198
+      ],
+      "auroc_answer_conf": 0.6285964912280702,
+      "auroc_answer_conf_ci95": [
+        0.5747006152677306,
+        0.6802870362122887
+      ],
+      "ece": 0.45385511889458185,
+      "brier": 0.4295746890111123
+    },
+    "balanced_bm25": {
+      "n": 400,
+      "auroc_c0": 0.6279481728919931,
+      "auroc_c0_ci95": [
+        0.583747836003764,
+        0.6716511678425741
+      ],
+      "auroc_answer_conf": 0.7290464621925296,
+      "auroc_answer_conf_ci95": [
+        0.6796472830403205,
+        0.7746793886250152
+      ],
+      "ece": 0.42166666666666675,
+      "brier": 0.41555555555555557
+    },
+    "reference": {
+      "n": 400,
+      "auroc_c0": 0.6518580186180277,
+      "auroc_c0_ci95": [
+        0.6032562970900593,
+        0.6995244591731926
+      ],
+      "auroc_answer_conf": 0.7367617750195514,
+      "auroc_answer_conf_ci95": [
+        0.6861969048067343,
+        0.7822764682453405
+      ]
+    }
+  },
+  "H6": {
+    "hop0_complete_recall_1.0": {
+      "n": 208,
+      "ta_em": 0.5769230769230769,
+      "ircot_em": 0.5769230769230769,
+      "std_em": 0.5817307692307693,
+      "ta_f1": 0.7301413863913864,
+      "ircot_f1": 0.7470579139626086,
+      "d_em_ta_minus_ircot": [
+        0.0,
+        -0.03365384615384615,
+        0.03365384615384615
+      ],
+      "d_f1_ta_minus_ircot": [
+        -0.016916527571222147,
+        -0.04674268537991671,
+        0.012891165972507883
+      ],
+      "mcnemar_ta_vs_ircot": {
+        "a_only": 6,
+        "b_only": 6,
+        "p": 1.0
+      }
+    },
+    "hop0_incomplete_recall_lt_1.0": {
+      "n": 192,
+      "ta_em": 0.3645833333333333,
+      "ircot_em": 0.25,
+      "std_em": 0.20833333333333334,
+      "ta_f1": 0.4989222582972583,
+      "ircot_f1": 0.3728264790764791,
+      "d_em_ta_minus_ircot": [
+        0.11458333333333333,
+        0.052083333333333336,
+        0.18229166666666666
+      ],
+      "d_f1_ta_minus_ircot": [
+        0.12609577922077922,
+        0.05937624007936508,
+        0.19226835881132748
+      ],
+      "mcnemar_ta_vs_ircot": {
+        "a_only": 32,
+        "b_only": 10,
+        "p": 0.0009406740282429382
+      }
+    }
+  },
+  "H5": {
+    "mem": {
+      "n": 30,
+      "em": 0.4,
+      "f1": 0.48275132275132276,
+      "calls": 14.3,
+      "retrievals": 2.5,
+      "mem_used_rows": 2
+    },
+    "nomem": {
+      "n": 30,
+      "em": 0.4,
+      "f1": 0.48275132275132276,
+      "calls": 14.3,
+      "retrievals": 2.5,
+      "mem_used_rows": 0
+    },
+    "planted": {
+      "n": 30,
+      "em": 0.4,
+      "f1": 0.48275132275132276,
+      "calls": 14.3,
+      "retrievals": 2.5,
+      "mem_used_rows": 2
+    },
+    "d_em_mem_minus_nomem": 0.0,
+    "calls_saved_per_q": 0.0,
+    "retrievals_saved_per_q": 0.0,
+    "planted_beliefs": 5,
+    "overridden_events": 1,
+    "override_rate": 0.2,
+    "used_without_override_ids": [
+      "5abbb0655542992ccd8e7f72"
+    ],
+    "used_beliefs": {
+      "5addfe1c5542995b365fabaf": {
+        "em": 0.0,
+        "memory_texts": [],
+        "events": [
+          {
+            "event": "overridden",
+            "belief": "Wolfgang Becker is a French film director born in Paris.",
+            "by": [
+              "Wolfgang Becker"
+            ]
+          }
+        ]
+      },
+      "5abbb0655542992ccd8e7f72": {
+        "em": 1.0,
+        "memory_texts": [],
+        "events": []
+      }
+    },
+    "planted_belief_texts": [
+      "Paul Hindemith was born in 1875 in Frankfurt, Germany.",
+      "The Battle of Manila occurred in January 1943 during the Pacific War.",
+      "University of Colorado is a private research university founded by John Evans.",
+      "Wolfgang Becker is a French film director born in Paris.",
+      "Elizabeth Taylor was born on February 27, 1890 in London."
+    ],
+    "note": "Override rate counts overridden EVENTS over planted beliefs; beliefs never retrieved cannot be overridden. A used-but-not-overridden belief passed NLI verification and entered the pool."
+  },
+  "H4": {
+    "dev_interim": {
+      "n": 100,
+      "full_em": 0.39,
+      "noad_em": 0.37,
+      "full_f1": 0.4799896214896215,
+      "noad_f1": 0.44955311355311356,
+      "d_em_full_minus_noad": [
+        0.02,
+        -0.07,
+        0.11
+      ],
+      "d_f1_full_minus_noad": [
+        0.030436507936507935,
+        -0.06068630952380952,
+        0.12105912698412694
+      ],
+      "mcnemar": {
+        "a_only": 12,
+        "b_only": 10,
+        "p": 0.8318119049072266
+      },
+      "latency": {
+        "full_active_dev": {
+          "mean_wall_latency_s": 23.753228423595427,
+          "mean_calls": 14.72
+        },
+        "no_adaptive_dev": {
+          "mean_wall_latency_s": 0.7574764633178711,
+          "mean_calls": 7
+        },
+        "standard_dev": {
+          "mean_wall_latency_s": 0.9119837546348571,
+          "mean_calls": 1
+        }
+      },
+      "latency_ratio_full_vs_standard_wall": 26.045670553754345,
+      "caveat": "Dev-100 only (N=100, ~+/-10pt noise); this is an INTERIM, not the confirmatory H4, which needs the Test-400 no-adaptive ablation run (not run; needs a Groq key). Wall latencies are confounded by cache state: Standard dev is heavily cache-replayed, so its wall latency is not a cache-off baseline. The 3x latency bound in H4 was a proposed limit, never confirmed; any multi-call system is far above 3x a 1-call cached Standard on wall latency."
+    }
+  }
+}
