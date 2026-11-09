@@ -406,7 +406,7 @@ Test-400 verdict, not at the dev gate.
   undecided when step 4 starts, the step is skipped and `theta_abs` stays
   0.4 — a missing decision is not a reason to tune blind.
 
-### 3.5 Step 5 — Hop-2 SC cap (A-BUILD DONE 2026-11-09; live A/B awaits a Groq key)
+### 3.5 Step 5 — Hop-2 SC cap (A/B DONE, SUPERSEDED by step 7 — see below)
 
 - **Evidence:** 54 rows ≥7 calls consume 422 of 1,910 calls (22%) at EM
   0.3333; 20 of them end unknown. Mean calls by hops: 0→3.02, 1→5.52,
@@ -439,6 +439,16 @@ Test-400 verdict, not at the dev gate.
   theta_a baseline EM 0.5100, 4.65 calls/Q). `max_hops` read only at
   `src/systems/erag.py:240`. Live A/B (C.1) needs a Groq key,
   transient only.
+- **A/B (DONE 2026-11-09) + VERDICT: SUPERSEDED (commit 7a3598c,
+  archived as `2026-11-09-tune-hop2-sc-cap`).** A/B finished 100/100,
+  0 failed: EM 0.5100 (unchanged), F1 0.5969, calls/Q 4.49 vs 4.65
+  (−0.16), live calls/Q 0.06 vs 0.04 (+0.02), hop-2 rows 10→0,
+  hop-2 calls 78→0. As written the gate FAILS on the live-calls
+  measure only (6 vs 4 live calls, both runs ~99% replays — replay
+  noise). The user chose the learned continuation policy (step 7)
+  instead of deciding the gate: the hop-depth decision is the
+  policy's job now, `max_hops` stays 2 as a ceiling, the static cap
+  is not adopted. The gate is not re-judged.
 
 ### 3.6 Step 6 — Memory module effectiveness (component test; ADDED 2026-11-09)
 
@@ -524,7 +534,45 @@ system.
   still not in the repo; if it is supplied, the hypothesis statement is
   re-checked against it.
 
-### 3.7 What is explicitly NOT in Phase 1
+### 3.7 Step 7 — Learned continuation policy (NEW MECHANISM, user-chosen 2026-11-09)
+
+The user asked whether the system is properly adaptive or just static
+values. The structure is adaptive (per-question effort 2→9 calls,
+H6 shows the work lands where retrieval was incomplete), but the
+decision boundaries are hand-set constants — steps 1–6 calibrated
+them, none made the system more adaptive. This step replaces the
+fixed hop-0 continuation decision with a learned one: a logistic
+regression on hop-0 features (c0, claim verification statuses,
+hop-0 recall, question type, draft-unknown flag) predicting P(hop-0
+draft is correct); CONTINUE iff P < τ, τ chosen by 5-fold
+cross-validation on dev. It subsumes the theta_fast fast-path rule
+and the first gap-continuation rule at hop 0. EIG gap selection, SC,
+abstention (theta_abs=0.5), and max_hops=2 (ceiling) are unchanged;
+hop-1+ continuation stays static.
+
+- **Training data:** dev only (post-step-4 tuned traces, N=100);
+  Test-400 is never used for training, feature selection, τ choice,
+  or model selection. Label (hop-0 draft correct) is 48/100 — the
+  framing that makes this learnable at N=100 (predicting
+  "continuing helps" has only 6 positives). Dev verification
+  numbers (theta_a): hop-0 draft EM 0.4800, final EM 0.5100, fixed
+  6, broke 3, hops {0:45, 1:45, 2:10}.
+- **Gates (pre-registered, change `learned-continuation-policy`,
+  drafted 2026-11-09, validate 9 passed 0 failed):** (A) offline
+  counterfactual simulation on dev, out-of-fold only — simulated EM
+  ≥ 0.5000 AND simulated calls/Q strictly below 4.65, else the
+  policy is not wired in; (B) live Dev-100 A/B — live EM ≥ 0.5000
+  AND live calls/Q strictly below 4.65 AND live numbers within
+  ±0.02 EM / ±0.2 calls/Q of the simulation. Live calls/Q is NOT
+  gated (the step-5 lesson: two 99%-replay runs can't discriminate
+  on live calls). Phase A is in flight; its gate decides wiring.
+- **Interaction:** step 5 is SUPERSEDED by this step (see §3.5) —
+  the hop-depth decision is the policy's job now. Step 6's stream
+  A/B still awaits a Groq key and runs on the post-step-7 tuned
+  system if the policy passes its gates, else on the post-step-4
+  system.
+
+### 3.8 What is explicitly NOT in Phase 1
 
 - **Closed-book gate (v2).** Deferred. The error analysis says retrieval is
   not the bottleneck (107/133 wrong had recall 1.0), so skipping retrieval
@@ -1047,6 +1095,22 @@ here only if a stored file or a commit backs it.
   N=30 fallback stands, no Parquet reconstruction, no invented
   questions. Both live A/Bs await Groq keys; step 6's also awaits the
   step-5 verdict.
+
+### 2026-11-09 — Step 5 A/B + verdict SUPERSEDED; step 7 drafted (7a3598c)
+
+- Step 5 A/B finished 100/100, 0 failed: EM 0.5100 (unchanged),
+  calls/Q 4.49 vs 4.65 (−0.16), live calls/Q 0.06 vs 0.04 (+0.02),
+  hop-2 rows 10→0, hop-2 calls 78→0. Gate as written fails on the
+  live-calls measure only (6 vs 4 live calls — replay noise). The
+  user chose the learned continuation policy instead of deciding
+  the gate: step 5 closes SUPERSEDED (not passed, not failed),
+  archived as `2026-11-09-tune-hop2-sc-cap`; `max_hops` stays 2 as
+  a ceiling. Step 7 change `learned-continuation-policy` drafted
+  (proposal/design/tasks/spec; validate 9 passed, 0 failed) — a
+  learned draft-correctness model (logistic regression on hop-0
+  features, dev only) replacing the fixed hop-0 continuation
+  decision. Phase A (offline counterfactual, no LLM calls) is in
+  flight; its gate decides whether the policy gets wired in.
 
 ## Appendix — Key numbers (frozen)
 
