@@ -9,8 +9,10 @@ document.
 
 **Status:** 2026-11-09. Steps 1–2 of tuning are built and gated (step 2 kept
 by user decision after a 3/4 gate pass; EM 0.54 vs 0.56 inside noise).
-Step 3's OpenSpec change is drafted and validated, awaiting user approval
-to build. Steps 4–5 are planned here and not started. Step 6 (memory
+Step 3 is DONE 2026-11-09 — both variants failed the unknown-reduction
+gate (best_guess 6/100, cite_first 5/100 vs ≤4 required), mechanism
+dropped per the pre-registered rule, `unknown_prompt` stays `"base"`.
+Steps 4–5 are planned here and not started. Step 6 (memory
 effectiveness) was added 2026-11-09 after the user pointed out
 the plan omitted it. Test-400, new dataset, and paper are planned here and not
 started. This plan is the document OpenSpec changes
@@ -315,7 +317,7 @@ Test-400 verdict, not at the dev gate.
   (`build_graph` never passed it, `Claim` had no field) — threaded through
   with a test (`test_build_graph_preserves_claim_source`); docs amended.
 
-### 3.3 Step 3 — Model-unknown prompt experiment (PLANNED)
+### 3.3 Step 3 — Model-unknown prompt experiment (DONE 2026-11-09 — GATE FAILED, MECHANISM DROPPED)
 
 - **Evidence:** 40 rows end with the draft literally "unknown" while the
   graph is confident (`answer_conf` median 0.875, `c0` median 1.000). Only
@@ -345,6 +347,17 @@ Test-400 verdict, not at the dev gate.
   protection.
 - **Dev gate (smoke test):** EM not below the step-2 tuned dev; model-unknown
   rows on dev fall; calls +≤0.5/Q. The real measure is Test-400 (§4).
+- **Outcome (2026-11-09, Dev-100 BM25 A/B, N=100 each, 0 failed):**
+  `best_guess` unknowns 6/100 (falls by 1 — gate needed ≥3), recovered 2/7
+  EM 0.50, EM 0.5500, calls 4.76/Q; `cite_first` unknowns 5/100 (falls by
+  2), recovered 3/7 EM 0.6667, EM 0.5600, calls 4.48/Q. Both 3/4 on the
+  gate — both FAIL on the primary measure (unknown reduction). Per the
+  pre-registered rule the mechanism is DROPPED: `erag.unknown_prompt`
+  stays `"base"` in the frozen tuned config; no third variant inside this
+  change. The EM upticks (+1, +2 rows) sit inside the ±3-row noise band.
+  Dev is a weak instrument here (only 7 unknown rows); the 40 Test-400
+  model-unknown rows remain unrecovered. Code and tests remain (variants
+  available for later work), nothing branches on a non-base variant.
 
 ### 3.4 Step 4 — theta_abs (PLANNED, decided by the paper's goal)
 

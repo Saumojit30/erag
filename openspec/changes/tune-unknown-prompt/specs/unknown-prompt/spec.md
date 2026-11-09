@@ -90,3 +90,21 @@ the pool, as today.
 
 - **WHEN** the variant prompt is inspected
 - **THEN** it contains no gold answer, label, or worked example
+
+## Outcome (2026-11-09, Dev-100 BM25 A/B, N=100 each, 0 failed)
+
+Gate per variant: unknowns fall by ≥3 rows (7 → ≤4); recovered-row EM ≥ 0.5;
+EM not below step-2 tuned dev (0.54); mean calls rise ≤ 0.5/Q (≤ 5.15).
+
+- **best_guess:** unknowns 6/100 (falls by 1 — FAIL); recovered 2/7, EM 0.50
+  (pass); EM 0.5500 (pass); calls 4.76/Q (+0.11, pass). **Gate FAILS (3/4).**
+- **cite_first:** unknowns 5/100 (falls by 2 — FAIL); recovered 3/7, EM 0.6667
+  (pass); EM 0.5600 (pass); calls 4.48/Q (−0.17, pass). **Gate FAILS (3/4).**
+
+Per the pre-registered selection rule (design.md §D.1), neither variant
+proceeds and the mechanism is dropped — no third variant inside this change.
+`erag.unknown_prompt` stays `"base"` (v1 behavior) in the frozen tuned
+config. The EM upticks (+1 and +2 rows) sit inside the documented ±3-row
+live-call noise band and do not overrule the gate. Both variants are
+reported; the code and tests remain (variants available for later work),
+but nothing branches on a non-base variant in the tuned system.

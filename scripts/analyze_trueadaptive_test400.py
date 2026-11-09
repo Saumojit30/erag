@@ -1,7 +1,7 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--ta-dev PATH]
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH]
 
 --reread prints section 10, the claim-grounded re-read summary (tuning step 1):
 trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
@@ -10,11 +10,15 @@ file (the tuned dev A/B output). --claims prints section 11, the claim-source
 summary (tuning step 2): gold-in-claims rate among full-recall wrong rows
 (gate measure), the share of question-sourced claims, how many gold-bearing
 claims are question-sourced, and how often the answer-bearing claim is
-question-sourced. Without flags the script behaves exactly as
-before; on a v1 file (no `grounded_reread` field) section 10 reports 0 triggers,
-and on a v1 file (no `source` on graph claims) section 11 reports 0
-question-sourced claims — v1 predates the source field, so that is expected,
-not a mechanism failure.
+question-sourced. --unknown prints section 12, the unknown-row summary
+(tuning step 3): model-unknown count (flag `unknown`, not abstained) and
+system-abstained count, plus — with --unknown-baseline PATH — the rows that
+were unknown in the baseline file and are answered in this file, with their
+EM (recovered-row accuracy, the step-3 gate measure). Without flags the script
+behaves exactly as before; on a v1 file (no `grounded_reread` field) section 10
+reports 0 triggers, and on a v1 file (no `source` on graph claims) section 11
+reports 0 question-sourced claims — v1 predates the source field, so that is
+expected, not a mechanism failure.
 
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
@@ -117,6 +121,43 @@ def section(title):
     print(f"\n=== {title} ===")
 
 
+def unknown_section(label, rows, baseline_rows=None):
+    """Section 12 (tuning step 3): model-unknown rows and recovered rows.
+
+    Model-unknown = flag `unknown` and NOT abstained (the reader itself said
+    "unknown"); system-abstained = flag `abstained` (the rule withheld a
+    draft). The two populations must not be conflated (see module docstring).
+    With a baseline file, "recovered" rows are the ones that were
+    model-unknown in the baseline and are answered (not `unknown`) here;
+    their EM is the step-3 gate measure (recovered-row accuracy). The flags
+    are written by the runner on every stored row (scripts/run_experiment.py
+    writes `unknown`; run_erag writes `abstained`), so no new trace field
+    is needed — verified against the step-2 tuned dev file (7 model-unknown,
+    8 system-abstained).
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    section(f"12. Unknown rows ({label})")
+    mod_unk = [r for r in ok if r.get("unknown") and not r.get("abstained")]
+    sys_ab = [r for r in ok if r.get("abstained")]
+    print(f"model-unknown: {len(mod_unk)}/{len(ok)} rows (flag `unknown`, not abstained) "
+          f"— gate baseline dev 7 (step-2 tuned); system-abstained: {len(sys_ab)}/{len(ok)}")
+    if baseline_rows is None:
+        return
+    base_by_id = {r["id"]: r for r in baseline_rows if not r.get("failed", False)}
+    cur_by_id = {r["id"]: r for r in ok}
+    base_unk = [r for r in base_by_id.values() if r.get("unknown") and not r.get("abstained")]
+    recovered = [cur_by_id[r["id"]] for r in base_unk
+                 if r["id"] in cur_by_id and not cur_by_id[r["id"]].get("unknown")]
+    if not recovered:
+        print(f"recovered rows (unknown in baseline, answered here): 0/{len(base_unk)}")
+        return
+    rec_em = mean(r["em"] for r in recovered)
+    rec_ab = sum(1 for r in recovered if r.get("abstained"))
+    print(f"recovered rows (unknown in baseline, answered here): {len(recovered)}/{len(base_unk)}; "
+          f"recovered-row EM: {rec_em:.4f} — gate: >= 0.5; "
+          f"of those, {rec_ab} were then withheld by abstention")
+
+
 def reread_section(label, rows):
     """Section 10 (tuning step 1): what the claim-grounded re-read did.
 
@@ -158,6 +199,11 @@ def main():
                     help="print section 10, the claim-grounded re-read summary")
     ap.add_argument("--claims", action="store_true",
                     help="print section 11, the claim-source summary (tuning step 2)")
+    ap.add_argument("--unknown", action="store_true",
+                    help="print section 12, the unknown-row summary (tuning step 3)")
+    ap.add_argument("--unknown-baseline", default=None,
+                    help="baseline dev file for the recovered-row comparison "
+                         "(default: none; step-2 tuned dev file for the step-3 A/Bs)")
     ap.add_argument("--ta-dev", default=DEV,
                     help="dev results file (default: %(default)s)")
     args = ap.parse_args()
@@ -282,6 +328,11 @@ def main():
     if args.claims:
         claims_section("TA dev", dev)
         claims_section("TA test", ta)
+
+    if args.unknown:
+        baseline = load(args.unknown_baseline) if args.unknown_baseline else None
+        unknown_section("TA dev", dev, baseline)
+        unknown_section("TA test", ta)
 
 
 if __name__ == "__main__":

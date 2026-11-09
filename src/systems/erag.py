@@ -176,8 +176,9 @@ def run_erag(
     prev_claims = None
 
     while True:
-        # Step 2: Generation of draft answer
-        draft = llm.chat(answer_messages(q, pool), tracker, temperature=0.0)
+        # Step 2: Generation of draft answer (step 3: reader prompt variant
+        # from erag.unknown_prompt, default "base").
+        draft = llm.chat(answer_messages(q, pool, variant=e.get("unknown_prompt", "base")), tracker, temperature=0.0)
         if hop == 0:
             initial_draft = draft
 
