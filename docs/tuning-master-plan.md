@@ -149,6 +149,22 @@ against.
   numbers (Reference Test-400 EM 0.4525) show recovery past 0.28, but the
   report contains no record of that resolution. Report's cost expectation:
   worst case ~18 calls/Q for 2-hop E-RAG; TrueAdaptive measured 4.78.
+- **H1–H6 assessed 2026-11-09 (commit `3468d08`).** From stored results
+  only, script `scripts/analyze_hypotheses_h1_h6.py`, report
+  `docs/hypotheses-h1-h6-assessment.md`. Verdicts: H1 SUPPORTED (interim,
+  v1: TA vs Standard-BM25 dEM +0.0725 CI [0.0350, 0.1125], McNemar
+  p=0.00034; Holm pending H4; confirmatory re-run on the tuned system
+  pending); H3 SUPPORTED but weaker for TA (AUROC(c0) 0.5915 vs Reference
+  0.6519 — Fast-Path gating + sequential SC coarsen the confidence
+  signal); H6 SUPPORTED strongly (all TA gain over IRCoT in the
+  hop-0-incomplete subset, dEM +0.1146; zero gain where retrieval was
+  complete — corrects the earlier "leans against" reading, which used
+  final recall instead of hop-0 recall); H5 NOT SUPPORTED on retrieval
+  reduction (E5 identical EM, 0 calls saved; override 1/1 retrieved,
+  1/5 planted); H4 NOT TESTED on Test-400 (dev interim inconclusive;
+  3× latency bound unmeetable as stated and cache-confounded — needs a
+  dated clarification); H2 PENDING (60-pair labelled set being built and
+  run separately).
 - **No manuscript text exists.** The report is a plan + status report with a
   paper blueprint (two working titles, claim-to-evidence map), not a paper
   draft: no abstract/introduction/conclusion text. The Implementation Guide
