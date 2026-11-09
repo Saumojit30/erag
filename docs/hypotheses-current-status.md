@@ -1,0 +1,449 @@
+# Current hypotheses, TrueAdaptive status, and what comes next
+
+Date: 2026-11-09. Branch: `trueadaptive` (local only, never pushed).
+HEAD at writing: `348735c`. Companion documents: the H1–H6 assessment
+(`docs/hypotheses-h1-h6-assessment.md`, with the script
+`scripts/analyze_hypotheses_h1_h6.py` and the machine-readable results
+`results/hypotheses_h1_h6.json`) and the master plan
+(`docs/tuning-master-plan.md`, which is the pre-registered record for
+Phase 2).
+
+This file answers four questions in one place: what the hypotheses are
+and where each stands; where TrueAdaptive is now; what the next steps
+are; and how the hypotheses are allowed to change later — versus the
+sequence adaptive → tune → test on test data → new dataset.
+
+## 1. The six hypotheses — claim, evidence, verdict, what remains
+
+The hypotheses come from the Nov 4, 2026 report
+(`~/workspace/user/files/ERAG_Human_Style_Research_Report_FULL_ONE.pdf`).
+H1 and H4 are the confirmatory pair (McNemar paired EM, Holm correction
+across the two); every other comparison, including E-RAG vs IRCoT, is
+exploratory per the report. The primary research question they serve:
+"Can evidence-aware uncertainty estimation and claim-level verification
+guide adaptive retrieval in multi-hop RAG, improving answer reliability
+at a reasonable computational cost?"
+
+### H1 — E-RAG beats Standard RAG (confirmatory)
+
+- **Claim:** the epistemic system answers better than a fixed one-pass
+  Standard RAG pipeline. **Criterion:** the 95% paired-bootstrap CI of
+  ΔF1/ΔEM excludes 0 in E-RAG's favour.
+- **Evidence:** TrueAdaptive vs Standard-BM25, Test-400 (N=400, paired
+  by question). TA EM 0.4750 vs Standard 0.4025; TA F1 0.6192 vs
+  Standard 0.5461. ΔEM +0.0725, 95% CI [0.0350, 0.1125]; ΔF1 +0.0730,
+  CI [0.0351, 0.1114]; McNemar p=0.00034. (For context, the older
+  Balanced system clears H1 on EM but not on F1 — its ΔF1 CI includes
+  0. TrueAdaptive clears both.)
+- **Verdict: SUPPORTED (interim).** Two qualifications: this is the v1
+  system, not the final tuned system, so the confirmatory H1 must be
+  re-run on the frozen tuned system at Phase 2; and the Holm correction
+  is pending H4's Test-400 p-value.
+- **Remains:** the Phase 2 re-run on the tuned system; Holm once H4's
+  Test-400 p-value exists.
+
+### H2 — The NLI verifier separates supported / contradicted / unresolved
+
+- **Claim:** the NLI verifier's verdicts track the truth — a claim the
+  evidence supports is called supported, a claim the evidence contradicts
+  is called contradicted, and a claim the evidence does not address is
+  called unresolved. **Criterion:** macro-F1 and contradicted-class
+  recall both ≥ 0.70 (a proposed threshold, never confirmed — see §4).
+- **Evidence:** no labelled evaluation existed, so one was built for
+  this assessment: 60 pairs (20 per class) from 20 dev questions,
+  premise = the gold paragraphs' sentences, hypotheses written in own
+  words (no hypothesis verbatim from its premise; contradicted pairs
+  flip exactly one checkable fact, recorded; unresolved pairs concern
+  entities absent from the premise). Model: the repo's own NLI
+  (`cross-encoder/nli-deberta-v3-base`). Files:
+  `data/nli_eval_pairs.jsonl`, `results/nli_eval_h2.jsonl`; repro
+  scripts in `scripts/` (`build_nli_pairs_h2.py`,
+  `run_nli_h2.py`, `debug_nli.py`). Confusion matrix (rows gold, cols
+  predicted [supported, contradicted, unresolved]): supported [12, 1,
+  7]; contradicted [4, 15, 1]; unresolved [0, 6, 14].
+  **Macro-F1 0.6825; contradicted recall 0.75.**
+- **Verdict: NOT SUPPORTED — a narrow miss.** Contradicted recall
+  passes (0.75 ≥ 0.70) but macro-F1 misses (0.6825 < 0.70). With N=60
+  the miss is within noise — one more correct supported prediction
+  would change it. The main weakness is supported recall (0.60): 7
+  supported claims were called unresolved. The verifier is
+  conservative, not trigger-happy.
+- **Why it failed (per-window debug runs):** (1) `verify()` scores
+  independent 2-sentence windows and takes the max, so a claim needing
+  facts from two paragraphs scores neutral ≈ 1.0 — ERag's extracted
+  claims are exactly this kind of multi-hop synthesis. (2)
+  Same-topic/different-entity is read as contradiction, not neutral:
+  the entity extractor fragments multi-word names ("University of
+  Miami" → `University` + `Miami's`), and the cross-encoder treats a
+  different-entity claim as false rather than unaddressed — in
+  production this marks claims about absent entities "contradicted"
+  instead of "unresolved", corrupting the belief graph's gap
+  computation. (3) The tie-break (supported if entailment ≥
+  contradiction − 0.05) overrules a near-certain contradiction
+  (0.9996) with a strong entailment on a different aspect of the same
+  claim. (4) Max-aggregation picks the worst window: entailment fires
+  on windows lacking the evidence, from title/entity overlap.
+- **Remains:** a dated confirmation of the 0.70 threshold (or a stated
+  reason for keeping it) before the H2 result is judged; optionally, a
+  threshold-sensitivity check on the same 60 pairs — but any
+  re-thresholding needs a fresh pair set before it can be claimed.
+
+### H3 — Higher self-consistency goes with correct answers
+
+- **Claim:** questions the system is more self-consistent on are more
+  often answered correctly — i.e. the confidence signal means
+  something. **Criterion:** the AUROC CI excludes 0.5. H3 is about
+  *self-consistency*, so the correct field is c0 (initial
+  self-consistency), not `answer_conf` (final confidence).
+- **Evidence:** AUROC(c0) on Test-400. TrueAdaptive 0.5915, 95% CI
+  [0.5421, 0.6391]; Reference 0.6519 [0.6033, 0.6995]; Balanced 0.6279
+  [0.5837, 0.6717]. TA's calibration is also worse (ECE 0.4539 /
+  Brier 0.4296 vs Reference 0.3868 / 0.2796). Note: the older cost CSV
+  reported Reference AUROC 0.7368 — that used `answer_conf`, not c0;
+  recomputed both ways the numbers match exactly, so the CSV is
+  consistent and the two fields simply measure different things.
+- **Verdict: SUPPORTED, but weaker for TrueAdaptive.** The criterion
+  is met, yet TA's confidence discriminates markedly worse than the
+  older systems'. The likely cause is the adaptivity itself: the
+  Fast-Path gate stamps one shared confidence value on skipped rows,
+  and sequential SC (M=1→3) gives coarser granularity than fixed
+  5-sample SC. Fewer samples bought efficiency at the price of signal
+  quality — the same warning Adaptive-RAG's oracle gap carries
+  (their oracle classifier would jump HotpotQA F1 53.82 → 64.00).
+- **Remains:** nothing to re-run for H3 itself. The implication to
+  carry forward: if a later tuning step coarsens the confidence signal
+  further (e.g. more aggressive Fast-Path gating), H3 should be
+  re-checked on the tuned system alongside H1.
+
+### H4 — Adaptive retrieval beats the no-adaptive ablation at acceptable cost (confirmatory)
+
+- **Claim:** doing retrieval adaptively (only when the system is
+  uncertain) beats doing the full pipeline with adaptivity switched off,
+  without costing too much. **Criterion:** ΔF1 CI excludes 0 AND
+  latency stays within 3× Standard RAG (a proposed limit).
+- **Evidence (dev interim only):** full E-RAG Active vs no-adaptive
+  ablation (hop limit 0) on Dev-100, paired. Full EM 0.3900 / F1 0.4800
+  at 14.72 calls; no-adaptive EM 0.3700 / F1 0.4496 at 7.00 calls.
+  ΔF1 +0.0304, 95% CI [−0.0607, 0.1211]; ΔEM +0.0200, CI [−0.0700,
+  0.1100]; McNemar p=0.8318. On Dev-100 the difference is inside
+  noise, as expected at N=100.
+- **Verdict: NOT TESTED (confirmatory).** The Test-400 ablation has
+  not run. Prepared run (needs a Groq key, ~20–30 min, ~1,500–2,000
+  calls, fresh namespace so it is all-live): the frozen TrueAdaptive
+  config plus `erag.ablate=[no_adaptive]`, BM25, Test-400, namespace
+  `test_noadaptive_v1_bm25`.
+- **The 3× latency bound is a problem, stated plainly.** As literally
+  written it is not met by any multi-hop system in the stored data:
+  TrueAdaptive mean wall latency 5.92s vs Standard-BM25 0.28s (21×);
+  on dev, full Active 23.75s vs Standard 0.91s (26×). Those wall
+  latencies are confounded by cache state (Standard's runs are heavily
+  cache-replayed; TA's was all-live), so the ratio is not a clean
+  measurement — but more fundamentally, the bound contradicts the
+  report's own numbers: its worst-case estimate was ~18 calls/Q for
+  E-RAG vs 1 for Standard, and any system making >3 calls/Q exceeds
+  3× a 1-call baseline on calls alone (TA 4.78×, Balanced 8.95×).
+  The bound was a proposed limit, never confirmed.
+- **Remains:** the Test-400 ablation run; and a dated clarification of
+  the bound **before** that run — e.g. latency within 3× *IRCoT*, or
+  cost-per-correct-answer instead of raw latency. What must not happen
+  is silent non-compliance: running the test, seeing the bound fail,
+  and quietly dropping it.
+
+### H5 — Verified-belief memory cuts retrieval without lowering accuracy
+
+- **Claim:** the BeliefMemory (verified beliefs carried across
+  questions in a stream) reduces retrieval calls without hurting
+  accuracy, and wrong memories get overridden. **Criterion:** fewer
+  retrievals, ΔEM no worse than −0.02, wrong memories overridden.
+  Descriptive only (stream N≈30).
+- **Evidence:** the E5 files as stored (`results/stream_mem.jsonl`,
+  `stream_nomem.jsonl`, `stream_planted.jsonl`; 30 questions each).
+  Memory-off vs memory-on identical — EM 0.4000, F1 0.4828, 14.30
+  calls/Q, **0.00 retrievals saved per question**. ΔEM +0.0000 (meets
+  the ≥ −0.02 half trivially). Planted: 1 of 5 false beliefs overridden
+  (Wolfgang Becker, contradicted by fresh evidence and deleted; that
+  question still ended unknown, EM 0.0).
+- **Verdict: NOT SUPPORTED on the retrieval-reduction half.** No calls
+  were saved, so the hypothesis as stated fails even though accuracy
+  did not drop. Two precisions on the override half: among false
+  beliefs actually *retrieved*, the override rate is 1/1 — the
+  mechanism works when it fires; among *planted* beliefs it is 1/5,
+  because the other four never passed the similarity threshold
+  (θ_mem 0.75) for any question and so were never even considered. The
+  test as designed overstates the protection: the denominator that
+  matters is retrieved beliefs, and the four unretrieved beliefs are a
+  coverage gap. The two beliefs memory did use were true stream
+  beliefs (proven by the clean run using memory on the same two
+  questions with nothing planted); their texts are not recoverable
+  from the stored rows — the trace pools record titles only, a
+  provenance gap in E5's logging.
+- **Remains:** the re-test on the tuned system (Phase 1 Step 6). If
+  that is also null, H5 stays unsupported and the paper reports memory
+  as mechanism-verified, effectiveness-not-demonstrated. Note the
+  memory module is implemented and wired but disabled by default
+  (`memory.enabled: false`) — all results so far are memory-off.
+
+### H6 — Gains concentrate where initial retrieval missed a paragraph
+
+- **Claim:** E-RAG's advantage over a fixed multi-hop baseline comes
+  from the cases where the first retrieval was incomplete — the
+  adaptive hops earn their keep precisely when the first retrieval
+  fails. **Criterion:** the gain is larger in the incomplete-retrieval
+  subset than in the complete subset.
+- **Evidence:** hop-0 retrieval completeness per question = gold
+  titles in `trace[0]` pool (hop 0, top-3) vs gold titles from the
+  test manifest's supporting facts. Split: complete (hop-0 recall =
+  1.0, n=208) vs incomplete (recall < 1.0, n=192). Gain =
+  TrueAdaptive minus IRCoT, paired bootstrap CI, McNemar. Complete
+  subset: TA EM 0.5769, IRCoT EM 0.5769, ΔEM 0.0000, 95% CI [−0.0337,
+  0.0337], p=1.0; ΔF1 −0.0169, CI [−0.0467, 0.0129]. Incomplete
+  subset: TA EM 0.3646, IRCoT EM 0.2500, ΔEM **+0.1146**, 95% CI
+  [0.0521, 0.1823], p=0.00094; ΔF1 +0.1261, CI [0.0594, 0.1923].
+- **Verdict: SUPPORTED, strongly.** Literally all of TrueAdaptive's
+  gain over IRCoT is in the hop-0-incomplete subset; where the first
+  retrieval was already complete, the gain is exactly zero on EM (and
+  slightly negative, non-significant, on F1). This corrects an earlier
+  reading that said the evidence "leans against" H6 because TA's wins
+  have high *final* recall — final recall is high in TA's wins
+  *because the hops retrieved the missing gold*, which is exactly H6's
+  mechanism. Hop-0 recall is the correct operationalization, and it
+  reverses the conclusion.
+- **Remains:** nothing to re-run for H6 itself. It is the cleanest
+  result in the set, and it is the mechanism the paper should lead
+  with: adaptive hops help exactly where the first retrieval fails.
+
+### Scoreboard
+
+| ID | Verdict | Headline number |
+|----|---------|-----------------|
+| H1 | SUPPORTED (interim, v1) | ΔEM +0.0725, CI excludes 0; McNemar p=0.00034 |
+| H2 | NOT SUPPORTED (narrow miss) | Macro-F1 0.6825 < 0.70; contradicted recall 0.75 ≥ 0.70 |
+| H3 | SUPPORTED, weaker for TA | AUROC(c0) 0.5915, CI excludes 0.5; below Reference 0.6519 |
+| H4 | NOT TESTED (Test-400) | Dev ΔF1 +0.0304, CI includes 0; 3× bound needs clarification |
+| H5 | NOT SUPPORTED (retrieval half) | E5: identical EM, 0 calls saved; override 1/1 retrieved |
+| H6 | SUPPORTED, strongly | All gain in hop-0-incomplete subset: ΔEM +0.1146, CI excludes 0 |
+
+Three supported, two not supported, one untested. That is a normal,
+honest scoreboard for a research system: the core adaptivity claim
+(H6) and the head-to-head claim (H1) hold, the verifier (H2) and the
+memory (H5) do not do what the report claimed, and the cost claim
+(H4) is still open.
+
+## 2. Where TrueAdaptive is now
+
+**What v1 is.** Built 2026-11-08 on branch `trueadaptive` (off the
+merged upstream Phase 5 commit `9564676`), local only, never pushed.
+Design: `sequential_consistency()` in `src/epistemic/confidence.py`
+(M=1→3, stop on unassailable majority or ΔH < 0.05 after ≥2 samples,
+behind `erag.sc_mode`, default `fixed`); self-consistency gated behind
+the Fast Path (`erag.gate_sc_behind_fast_path` — when skipped,
+c0 = min_eff, recorded as `c0_source: fast_path_min_eff`); direct EIG,
+incremental claims, never resample, saturation precheck, thresholds
+unchanged (0.8/0.6/0.4), `max_claims: 5`. The closed-book /
+entropy-gated retrieval is v2, not v1 — the error analysis says
+retrieval is not the bottleneck, so it stays deferred. Frozen config:
+`configs/erag_trueadaptive.yaml`. Mocked call counts: fast path 2
+calls (was 5 Balanced / 7 Reference), 1-hop 5 calls.
+
+**The Test-400 result (the headline).** BM25, k=3, distractor, N=400,
+both systems fresh, frozen configs, all live (0 cache hits).
+TrueAdaptive: **EM 0.4750, F1 0.6192, 4.78 calls/Q**, coverage 0.8075,
+recall 0.8975, mean wall latency 5.92s. IRCoT: EM 0.4200, F1 0.5674,
+2.55 calls/Q. **McNemar paired: b=38, c=16, p=0.0043 (exact 0.0038) —
+SIGNIFICANT.** TrueAdaptive also beats Balanced BM25 Test-400 (0.4450
+at 8.95 calls) by +3.0 pts EM at −46.6% calls. Fresh IRCoT reproduces
+the old 0.4100 baseline (0.4200). Per the agreed rule, MiniLM Test-400
+is NOT required — the BM25 result is significant and conclusive — but
+the user has not explicitly confirmed this yet. Dev-100 for reference:
+TA BM25 EM 0.56 / F1 0.6495 at 4.58 calls; TA MiniLM EM 0.50 / F1
+0.6018 at 4.91 calls; Balanced Dev-100 EM 0.5100 at 8.92 calls; IRCoT
+Dev-100 EM 0.44 at 2.38 calls.
+
+**What the error analysis said (Test-400, 400 Qs).** Right 190, wrong
+133, system-abstained 37, model-said-unknown 40. Reasoning, not
+retrieval, is the bottleneck: 107/133 wrong answers had recall==1.0.
+Of those 107, 70 had gold in the trace claims (reader/graph
+bottleneck) and 37 never extracted gold as a claim (claim-extraction
+bottleneck). Hops help net +28 (fixed 42, broke 14; hop-0 draft EM
+0.4050 → final 0.4750). The 77 unknowns are two populations: 37
+system abstentions (`answer_conf` median 0.214, 17 with correct
+drafts — `theta_abs` can touch these) vs 40 reader refusals (draft
+literally "unknown", `answer_conf` median 0.875, c0 median 1.000,
+only 3/40 had any hop produce a real answer — `theta_abs` cannot
+touch these). Call tail: 54 rows ≥7 calls consume 22% of calls at EM
+0.333. Fast-path SC gate works (86 skips at 2.00 calls, EM 0.5465).
+
+**Tuning progress (Phase 1, one OpenSpec change per step).**
+- **Step 1 — reader grounding — DONE, gate pass, archived.** Conditional
+  claim-grounded re-read after the hop loop, behind
+  `erag.ground_final_read` (default false). Dev A/B: EM 0.5600 vs
+  0.5600 flat, F1 0.6611 vs 0.6495, calls 4.75 vs 4.58; triggered
+  16/100, fixed 2, broke 1 (net +1) — a wash on dev; mechanism kept,
+  Test-400 confirmation judges it. Confound recorded: cache-key v=2
+  meant the tuned run was effectively all-live, and temp-0.0
+  nondeterminism flipped 8 untouched rows, so the EM tie carries ~±3
+  rows of noise. Lesson: never assume cache replay — verify
+  `cache_hits` before believing a paired comparison.
+- **Step 2 — claim extraction — OpenSpec change drafted, NOT BUILT.**
+  Diagnosis: all 37 never-claimed rows have a wrong draft; no trigger
+  separates them (c0 median 1.000 both groups). Mechanism (Variant A):
+  question-grounded claims in the single extraction call (zero new LLM
+  calls), each claim with a `"source"` field ("draft"/"question"),
+  `max_claims` 5→8 in the A/B. Gate: EM not below 0.56; gold-in-claims
+  rate improves on 0.333; calls +≤0.5/Q; answer-bearing
+  question-sourced ≤10%. Measured on top of the step-1 tuned system.
+- **Steps 3–5 — planned, not designed.** Step 3 `tune-unknown-prompt`
+  (40 reader-refusal rows; prompt-only, 2–3 pre-registered variants
+  max); Step 4 `tune-theta-abs` (decided by the paper's goal — selective
+  answering vs max EM — **user decision still open**; if undecided,
+  skip, `theta_abs` stays 0.4); Step 5 `tune-hop2-sc-cap` (cost lever,
+  ~100 calls/400 saved; gate: EM not below tuned dev by >1 pt).
+- **Step 6 — memory effectiveness — planned.** Component test on the
+  tuned system using the E5 stream instrument (Dev-100 cannot test
+  memory — independent questions), gated before the Test-400 freeze.
+  Memory enters the frozen system ONLY if the stream A/B shows an EM
+  gain or a call reduction with EM not falling, and the override test
+  passes; otherwise memory stays OFF and the paper reports the null.
+
+**State of the repo.** Branch `trueadaptive`, HEAD `348735c`, local
+only. Master is 1 commit ahead of origin (`88f2512`, the `.mailmap`
+fix) and unpushed. Nothing has ever been pushed to
+ManojAdapakala/ERag (fetch-only, push URL `no_push`). No Groq key or
+GitHub token is saved anywhere — every future push or live run needs
+one supplied transiently. One known pre-existing test failure
+(`test_retry_exhaustion_raises_runtime_error` expects "after 4
+attempts", code says 6; fails on base too, left untouched).
+
+## 3. Next steps, in order
+
+1. **Build step 2 (claim extraction).** Tests first (mocked LLM, new
+   `tests/test_claims.py`), then implementation, then the Dev-100 BM25
+   A/B on top of the step-1 tuned system. Needs a Groq key, supplied
+   transiently. This is the highest-value tuning step: the error
+   analysis says 37 of the 133 wrong Test-400 answers never had gold
+   in the claims, and H2's failure analysis says the verifier cannot
+   confirm multi-hop claims — so step 2's claims should be written so
+   a single-window verifier *can* confirm them (one fact per claim,
+   no cross-paragraph synthesis in a single claim).
+2. **Steps 3–5, in order.** Step 3 (unknown prompt) next; step 4 only
+   after the user decides the theta_abs goal (selective answering vs
+   max EM) — if undecided, skip it; step 5 (hop-2 SC cap) is a pure
+   cost lever and goes last among the three.
+3. **Step 6 (memory).** Stream A/B on the tuned system; memory enters
+   the frozen system only if it passes its gate.
+4. **Freeze the tuned config** (`configs/erag_trueadaptive_tuned.yaml`,
+   including the memory on/off decision from step 6). Nothing changes
+   after this point without a dated amendment.
+5. **Phase 2 — Test-400 confirmation.** The pre-registered verdict in
+   the master plan (§4): tuned TrueAdaptive vs fresh IRCoT, BM25 k=3
+   distractor N=400, fresh namespaces, tuned first then IRCoT,
+   detached, checkpoint resume. Primary endpoint EM with paired
+   McNemar exact two-sided, α=0.05. Win: tuned EM > IRCoT EM AND
+   p<0.05. Loss: tuned ≤ IRCoT or p≥0.05 with tuned ≤ IRCoT.
+   Inconclusive: tuned > IRCoT but p≥0.05. Decision table: Win →
+   tuned is the paper's system, proceed to Phase 3; Inconclusive →
+   run MiniLM, if also inconclusive report "no significant gain",
+   Phase 3 still proceeds, no further tuning to chase significance;
+   Loss → stop tuning, revert to v1 for Phase 3, report tuning as a
+   negative result. The H4 Test-400 ablation runs alongside (needs a
+   Groq key), and H1 is re-run on the tuned system for its
+   confirmatory verdict.
+6. **Phase 3 — new dataset.** Choice still open: 2WikiMultiHopQA
+   (structurally closest; safer comparability) vs MuSiQue (harder,
+   more compositional; stronger generalization claim). Deciding
+   question = what the paper claims. No tuning on the new test split;
+   no third dataset.
+7. **Phase 4 — paper.** Venue open. The paper writes what was tested,
+   not what was hoped: H2 and H5 reported as not supported, H4's
+   latency bound as clarified, H6 as the mechanism.
+
+**Blockers / open decisions (master plan §9):** Groq key for steps
+2–6 and Phase 2 (transient, on request); the theta_abs goal decision
+(step 4); the new-dataset choice (Phase 3); when/whether to push
+`trueadaptive` to origin and master `88f2512` (needs a fresh GitHub
+token); FlashRAG + the unsupplied papers (supply or confirm out of
+scope); whether a multi-retriever plan version exists in another file
+(the user's recollection vs the report's text — unresolved).
+
+## 4. How the hypotheses change later — and how they don't
+
+**Short answer: the sequence comes first, and the hypotheses do not
+get rewritten to fit results.** Finish adaptive → tune it → run it
+once on test data → new dataset. The hypotheses change only in the
+ways below, and only *before* the run they affect. That is the whole
+point of writing them down now.
+
+**Rule 1 — never rewrite a hypothesis after seeing the result it
+tests.** That is HARKing (hypothesizing after the results are known):
+it turns a failed test into a passing one by moving the goalposts, and
+it destroys the confirmatory value of H1/H4. H2 and H5 failed; they
+stay failed, and the paper reports them as failed. If a better
+hypothesis occurs to anyone *because* of these results, it goes in a
+new section as a *post-hoc observation to test later*, not as a
+replacement for the tested hypothesis.
+
+**Rule 2 — dated clarifications are allowed, before the affected run,
+where a hypothesis is underspecified.** Three are already known and
+waiting: the H2 0.70 threshold (proposed, never confirmed — confirm it
+or state why 0.70 stands, before the H2 result is judged); the H4 3×
+latency bound (unmeetable as stated and contradicted by the report's
+own numbers — clarify it, e.g. 3× IRCoT or cost-per-correct-answer,
+before the Test-400 ablation); and the H6 comparator (now fixed as
+TrueAdaptive vs IRCoT on hop-0 recall). A clarification is dated, has
+a reason, and is written in the master plan before the run it affects.
+A clarification that changes a threshold *after* the result is known
+is not a clarification — it is Rule 1.
+
+**Rule 3 — confirmatory hypotheses get re-run on the new system, not
+rewritten.** H1 and H4 were written for E-RAG in general, not for v1
+specifically. At Phase 2 they are tested again on the frozen tuned
+system, with the same criteria (plus the H4 clarification from Rule
+2). Same hypothesis, new system version, fresh test — that is a
+legitimate confirmatory re-run. What is not legitimate is re-running
+until one version passes and reporting only that one.
+
+**Rule 4 — new phases get new hypotheses, written before touching the
+data.** Phase 3 (new dataset) is not a re-test of H1–H6; it is a
+generalization test, and it needs its own hypotheses, written before
+the first run on that dataset. The natural ones: (a) the tuned system
+beats IRCoT on the new dataset (same comparison, new data — a
+generalization of H1/H6); (b) the gain again concentrates where the
+first retrieval was incomplete (H6, new data); (c) the call budget
+holds (≤6 calls/Q on the new dataset). Each gets a criterion and a
+pre-registered analysis before any run. If the new dataset uses a
+different retriever, that is a *separate* hypothesis about retriever
+generalization, not something folded into (a) — see the retriever
+question below.
+
+**Rule 5 — the sequence is fixed; the hypotheses follow it, not the
+other way round.** Adaptive first (done), tune the architecture on
+dev (in progress), one confirmation run on test data (Phase 2), new
+dataset last (Phase 3), paper after results (Phase 4). Do not start
+Phase 3 to escape a Phase 2 result, and do not add tuning steps after
+the freeze to chase a p-value. If Phase 2 is a Loss, the plan already
+says what happens: revert to v1 for Phase 3 and report tuning as a
+negative result. That is a better paper than a tuned system that only
+wins on a test set it was selected on.
+
+**The retriever question for the new dataset.** The user asked
+whether Phase 3 uses a different retrieval. The recommendation is:
+**same retriever first (BM25), different retriever only as a second
+check.** The reason is confound control: if both the dataset and the
+retriever change at once, a changed result cannot be attributed to
+either. BM25 first isolates the dataset — the only thing that changes
+is the data, so a win or loss on the new dataset is a statement about
+generalization. Then, if the BM25 result on the new dataset is
+inconclusive, run MiniLM as the second check — the same rule used on
+HotpotQA — and report both, never pick the better one post-hoc. A
+different retriever as the *primary* for Phase 3 would need its own
+justification (e.g. the new dataset's corpus makes BM25 a poor fit)
+and its own pre-registered hypothesis; it is not the default.
+
+**A note on "actual test data".** The repo's Test-400 is a held-out
+slice of HotpotQA *dev* distractor (official HotpotQA test answers
+are not public) — manifest: dev N=100, test N=400, all hard, source
+`hotpot_dev_distractor_v1.json`. It is the closest thing to actual
+test data available for HotpotQA, and it is held out from all tuning,
+which is what matters for the Phase 2 verdict. The new dataset in
+Phase 3 would use its real test split, which is the true
+generalization test.

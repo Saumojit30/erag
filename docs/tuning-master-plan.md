@@ -166,6 +166,13 @@ against.
   dated clarification); H2 NOT SUPPORTED, narrow miss (macro-F1 0.6825
   < 0.70, contradicted recall 0.75 ≥ 0.70; supported recall 0.60 is the
   weakness).
+- **Status doc 2026-11-09:** `docs/hypotheses-current-status.md` — the six
+  hypotheses with evidence and verdicts, where TrueAdaptive is now, the
+  ordered next steps, and the rules for how hypotheses may change later
+  (dated clarifications before the affected run only; never rewrite after
+  seeing a result; new phases get new hypotheses written before touching
+  the data). It also records the recommendation for Phase 3: same
+  retriever first (BM25), different retriever only as a second check.
 - **No manuscript text exists.** The report is a plan + status report with a
   paper blueprint (two working titles, claim-to-evidence map), not a paper
   draft: no abstract/introduction/conclusion text. The Implementation Guide
