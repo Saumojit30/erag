@@ -12,14 +12,15 @@ offer); the build then follows this file.
 - [ ] 0.1 Create `openspec/changes/tune-memory-effectiveness/` with
   `proposal.md`, `design.md`, `tasks.md` (this file),
   `specs/memory-effectiveness/spec.md`.
-- [ ] 0.2 Validate with the local CLI:
+- [x] 0.2 Validate with the local CLI:
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
   and `.../openspec validate tune-memory-effectiveness` — must be 0
-  failed before any code change.
+  failed before any code change. DONE 2026-11-09: `validate --all`
+  8 passed, 0 failed (re-validated after the A.2/B.1 build).
 
 ## A. Tests first (mocked LLM, no production change yet)
 
-- [ ] A.0 **Prerequisite check — raw pool file.** Confirm whether
+- [x] A.0 **Prerequisite check — raw pool file.** Confirm whether
   `data/raw/hotpot_dev_distractor_v1.json` exists in the VM. It was
   ABSENT when this change was drafted (2026-11-09) — the extension
   (B.0) needs it. If absent, fetch it from the official HotpotQA
@@ -29,16 +30,27 @@ offer); the build then follows this file.
   file in the sidecar (B.0). Do NOT commit the raw file. If the raw
   file genuinely cannot be obtained, use the pre-registered fallback
   (B.0 fallback): run N=30 as-is; do NOT invent new questions from
-  the frozen debug/dev/test manifests.
-- [ ] A.1 In `tests/test_erag.py` (mocked LLM), add tests that a
+  the frozen debug/dev/test manifests. OUTCOME 2026-11-09 (third
+  fetch failure overall): both CMU mirror variants returned curl
+  (52) Empty reply; `data/raw/` still does not exist. B.0 NOT run,
+  no Parquet reconstruction attempted, no questions invented. The
+  pre-registered N=30 fallback stands; the 30-row sidecar is
+  `data/manifests/stream_clusters.json` (5 clusters x 6, positions
+  0–5).
+- [x] A.1 In `tests/test_erag.py` (mocked LLM), add tests that a
   `run_erag` row carries `mem_store_size` (int, post-row store size)
   and `mem_texts` (list of texts of the passages memory returned for
   that question; `[]` when memory is off or nothing fired). Mock a
   memory object with a known item list and known `read` return; the
   test asserts the row fields match the mock, and that with
   `memory=None` both fields are `0` / `[]`. No production change yet
-  (B.1 implements the fields).
-- [ ] A.2 Extend `scripts/eval_memory.py` with a `--position` section
+  (B.1 implements the fields). DONE 2026-11-09 by the parent:
+  deferred from the subagent build to avoid a `tests/test_erag.py`
+  collision with the step-5 build in flight; added after the step-5
+  commit 5c01ede. Two tests (`test_run_erag_row_carries_mem_fields`,
+  `test_run_erag_row_mem_fields_off`), proven genuine by stashing
+  B.1 (both fail with KeyError) and restoring it (both pass).
+- [x] A.2 Extend `scripts/eval_memory.py` with a `--position` section
   (new function + CLI flags taking the three run files and the
   sidecar path; keep the existing E5 behavior unchanged when the
   flags are absent). It reports, per arm: EM, F1, mean `llm_calls`/Q,
@@ -67,7 +79,18 @@ offer); the build then follows this file.
   14.20 calls, mid EM 0.4000 / 13.70 calls, late EM 0.3000 /
   15.00 calls; planted override 1 unique belief (Becker) / 5
   planted, 1/1 retrieved. If it does not reproduce these numbers,
-  the section is wrong — fix it before any live run.
+  the section is wrong — fix it before any live run. DONE
+  2026-11-09: `--position` section implemented + 11 tests in
+  `tests/test_eval_memory_position.py` (failed before, pass after);
+  the parent re-ran it on the E5 files and reproduced every number
+  exactly (nomem EM 0.4000, F1 0.4828, 14.30 calls/Q, 2.50
+  retrievals/Q, 0.27 cache_hits/Q; fired idx 20/29; position splits
+  early 0.5000/14.20, mid 0.4000/13.70, late 0.3000/15.00; planted
+  1/5, 1/1 retrieved, 0 violations; tripwire fires correctly on
+  the replayed mem/planted arms). Two bugs fixed during the build
+  (false-claim check excluded target-entity answers; `__main__`
+  guard moved to end of file). `mem_store_size` reports "not
+  recorded" on E5 files, never zero.
 
 ## B. Implementation
 
@@ -97,7 +120,7 @@ offer); the build then follows this file.
   obtained, skip B.0, run N=30 as-is, and record in the commit
   message that the extension was not possible; the fire-rate floor
   (design.md Gate 1) governs interpretation at N=30.
-- [ ] B.1 Add the two measurement-only row fields to `run_erag`'s
+- [x] B.1 Add the two measurement-only row fields to `run_erag`'s
   output dict in `src/systems/erag.py` (near the existing
   `"mem_used"` / `"mem_events"` lines, ~367–368):
   `"mem_store_size": len(memory.items) if memory is not None else 0`
@@ -107,12 +130,17 @@ offer); the build then follows this file.
   memory is off. Covered by the A.1 mocked tests. This closes the E5
   provenance gap (used-belief texts were not recoverable from stored
   rows) and lets the gate distinguish "nothing was written" from
-  "beliefs were written but never matched".
-- [ ] B.2 Fast suite green after B.0/B.1 (the suite as in steps 1–3:
+  "beliefs were written but never matched". DONE 2026-11-09: fields
+  added at `src/systems/erag.py:372–373`; verified before editing
+  that `memory.write` runs before the dict is built and
+  `mem_passages` is in scope.
+- [x] B.2 Fast suite green after B.0/B.1 (the suite as in steps 1–3:
   cache, config, metrics, erag, retrieval, claims, prompts). The
   known pre-existing failure
   (`test_retry_exhaustion_raises_runtime_error`, expects "after 4
-  attempts", code says 6; fails on base too) stays untouched.
+  attempts", code says 6; fails on base too) stays untouched. DONE
+  2026-11-09: full suite 111 passed, 1 failed (only the known
+  pre-existing retry-test mismatch), verified by the parent.
 
 ## C. Stream A/B (live — needs a Groq key, transiently, none saved)
 

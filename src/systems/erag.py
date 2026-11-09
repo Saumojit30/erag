@@ -366,6 +366,11 @@ def run_erag(
         "trace": trace,
         "mem_used": len(mem_passages),
         "mem_events": mem_events,
+        # Tune-memory-effectiveness (step 6, B.1): measurement-only row
+        # fields closing the E5 provenance gap (used-belief texts were
+        # not recoverable from stored rows). No logic change.
+        "mem_store_size": len(memory.items) if memory is not None else 0,
+        "mem_texts": [p["text"] for p in mem_passages],
         "claim_fallbacks": sum(1 for c in claims if c.get("fallback", False)),
     }
     # Tune-reader-grounding (step 1): record the re-read only when the flag

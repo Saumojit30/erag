@@ -491,3 +491,71 @@ def test_build_graph_preserves_claim_source():
     ]
     g = build_graph(claims, [], None, 0.8, {"erag": {}, "nli": {}}, set())
     assert [c["source"] for c in g.to_json()] == ["draft", "question", "draft"]
+
+
+# ---------------------------------------------------------------------------
+# Step 6 (tune-memory-effectiveness, A.1): row carries the memory
+# measurement fields. B.1 adds them to run_erag's output dict; these
+# mocked tests prove the fields match what memory actually returned.
+# Without them, the --position analyzer's store-size measures would read
+# the E5 gap again (used-belief texts unrecoverable from stored rows).
+# ---------------------------------------------------------------------------
+
+def _obs_mem_run(memory):
+    """Observational-mode run with a mocked memory object (or None)."""
+    item = {
+        "_id": "test_mem_1",
+        "question": "What is the capital of France?",
+        "context": [["Paris", ["Paris is the capital of France."]]],
+        "supporting_facts": [["Paris", 0]],
+    }
+    retriever = MagicMock()
+    retriever.search.return_value = [{"title": "Paris", "sentences": ["Paris is the capital of France."], "text": "Paris. Paris is the capital of France."}]
+    llm = MagicMock()
+    llm.chat.side_effect = [
+        "Paris",        # Hop 0 draft
+        "Paris", "Paris", "Paris", "Paris", "Paris",  # 5 self-consistency samples
+        '{"claims": [{"text": "Paris is the capital.", "answer": true, "depends_on": []}]}',  # Claim extraction
+    ]
+    nli = MagicMock()
+    nli.verify.return_value = {"status": "supported", "conflict": False, "sup": [("Paris", 0.9)], "con": []}
+    cfg = {
+        "retrieval": {"k": 3},
+        "nli": {"theta_s": 0.5, "theta_c": 0.5},
+        "erag": {
+            "mode": "observe",
+            "max_hops": 2,
+            "sc_samples": 5,
+            "sc_temperature": 0.7,
+            "theta_fast": 0.8,
+            "theta_gap": 0.6,
+            "theta_abs": 0.4,
+            "max_claims": 5,
+            "pool_cap": 12,
+        },
+    }
+    return run_erag(item, retriever, llm, nli, cfg, Tracker(), memory)
+
+
+def test_run_erag_row_carries_mem_fields():
+    """Step 6 A.1: the row's mem fields match the mocked memory.
+
+    The mock memory holds 2 items and its read returns 1 passage; the
+    row must report store size 2 (post-row; the mock's write is a no-op,
+    so nothing is added) and exactly the returned passage's text.
+    """
+    memory = MagicMock()
+    memory.items = [{"text": "belief one"}, {"text": "belief two"}]
+    memory.read.return_value = ([{"text": "stored belief one"}], [])
+    out = _obs_mem_run(memory)
+    assert out["mem_store_size"] == 2
+    assert out["mem_texts"] == ["stored belief one"]
+    assert out["mem_used"] == 1
+
+
+def test_run_erag_row_mem_fields_off():
+    """Step 6 A.1: with memory=None the fields are 0 / []."""
+    out = _obs_mem_run(None)
+    assert out["mem_store_size"] == 0
+    assert out["mem_texts"] == []
+    assert out["mem_used"] == 0
