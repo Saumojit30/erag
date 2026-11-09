@@ -777,13 +777,21 @@ sections) and the verification script (`scripts/verify_results.py`) must pass
 **Goal:** show the tuned system generalizes beyond HotpotQA — or find out
 honestly that it does not.
 
-- **Candidates (user has not chosen):** 2WikiMultiHopQA or MuSiQue.
-  2WikiMultiHopQA is structurally closest to HotpotQA (multi-hop, distractor
-  setting, comparable size) — the safer comparability choice. MuSiQue is
-  harder and more compositional (multi-hop with disconnected reasoning) —
-  the stronger generalization claim, and the harder test. The choice is the
-  user's (§9); the deciding question is what the paper claims: "works on
-  multi-hop QA" (2Wiki) vs "works on harder multi-hop QA" (MuSiQue).
+- **Datasets (user chose BOTH, 2026-11-09):** 2WikiMultiHopQA AND MuSiQue,
+  in that order — 2Wiki first (structurally closest to HotpotQA: multi-hop,
+  distractor setting, comparable size — the safer comparability choice),
+  then MuSiQue (harder and more compositional, multi-hop with disconnected
+  reasoning — the stronger generalization claim, and the harder test). The
+  paper's claim becomes "works on multi-hop QA" (2Wiki) AND "works on
+  harder multi-hop QA" (MuSiQue). No third dataset beyond these two.
+- **Retriever discipline (the multi-retriever comparison — NOT discarded):**
+  on EACH dataset, BM25 first, then MiniLM as a second check — the
+  generalization check the plan always carried (the user's rigor concern
+  from 2026-11-08: dropping the multi-retriever comparison is a disclosed
+  limitation, so it returns here as a frozen-system check, not as tuning).
+  The HotpotQA MiniLM comparison is governed by the §4.3 MiniLM rule
+  (runs only if the BM25 verdict is inconclusive); whether to run it
+  regardless is an open user decision (§9).
 - **Work items (each an OpenSpec change when the phase starts):**
   1. Dataset prep: manifests (dev/test splits), overlap check against
      HotpotQA test (zero overlap required — the audit's dataset check is the
@@ -793,13 +801,14 @@ honestly that it does not.
   3. Head-to-head: tuned vs IRCoT on the new test split, same pre-registered
      verdict shape as §4.2 (McNemar, α=0.05), with the dataset named up
      front.
-  4. Error analysis on the new dataset, same script pattern.
+  4. Second-retriever check: the same head-to-head on MiniLM, reported
+     alongside BM25 — never pick the better one post-hoc.
+  5. Error analysis on the new dataset, same script pattern.
 - **What does not happen:** no tuning on the new dataset's test split; any
   tuning uses its dev split only, and only if the HotpotQA-tuned system
   underperforms there for a diagnosed, mechanistic reason (a new OpenSpec
   change, not a quiet tweak).
-- **Out of scope for this phase:** a third dataset. Two datasets are enough
-  for the paper's claim.
+- **Out of scope for this phase:** a third dataset beyond 2Wiki + MuSiQue.
 
 ---
 
