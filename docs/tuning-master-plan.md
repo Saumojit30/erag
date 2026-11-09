@@ -772,10 +772,28 @@ sections) and the verification script (`scripts/verify_results.py`) must pass
 
 ---
 
-## 5. Phase 3 — New dataset (generalization)
+## 5. Phase 3 — New datasets (generalization)
 
-**Goal:** show the tuned system generalizes beyond HotpotQA — or find out
-honestly that it does not.
+**Goal:** show the Phase 2 system generalizes beyond HotpotQA — or find
+out honestly that it does not.
+
+**Phase boundary (this is the part that was unclear — fixed 2026-11-09):**
+Phase 2 is HotpotQA ONLY (Test-400 confirmation of the tuned system vs a
+fresh IRCoT, BM25, plus the H4 ablation and H1 re-run). Phase 3 is the
+new datasets ONLY. Nothing from Phase 3 runs before Phase 2's verdict,
+and no Phase 3 result feeds back into tuning the HotpotQA system.
+- **Entry condition:** Phase 2's pre-registered verdict is judged (§4.2
+  decision table). **Win** → the tuned system is Phase 3's system.
+  **Inconclusive** → the tuned system still goes to Phase 3 (a null
+  result is a result). **Loss** → revert to v1 (EM 0.4750, significant
+  vs IRCoT) for Phase 3 and report the tuning as a negative result.
+  The frozen config from the end of Phase 1 is what runs in Phase 3 —
+  no changes after the freeze without a dated amendment.
+- **New hypotheses first:** before touching either new dataset, write
+  the Phase 3 hypotheses (same H1–H6 shape, adapted: the primary claim
+  is that the tuned system beats IRCoT on the new test split; H6's
+  hop-0-incomplete prediction carries over). No new data is opened
+  before the hypotheses exist.
 
 - **Datasets (user chose BOTH, 2026-11-09):** 2WikiMultiHopQA AND MuSiQue,
   in that order — 2Wiki first (structurally closest to HotpotQA: multi-hop,
@@ -792,22 +810,30 @@ honestly that it does not.
   The HotpotQA MiniLM comparison is governed by the §4.3 MiniLM rule
   (runs only if the BM25 verdict is inconclusive); whether to run it
   regardless is an open user decision (§9).
-- **Work items (each an OpenSpec change when the phase starts):**
+- **Run list per dataset (in order, each an OpenSpec change when the phase
+  starts; nothing runs out of order):**
   1. Dataset prep: manifests (dev/test splits), overlap check against
      HotpotQA test (zero overlap required — the audit's dataset check is the
      template), distractor corpus construction, baseline reproduction.
-  2. Frozen baselines on the new dataset: Standard, IRCoT, and tuned
-     TrueAdaptive, same retriever discipline (BM25 first).
-  3. Head-to-head: tuned vs IRCoT on the new test split, same pre-registered
-     verdict shape as §4.2 (McNemar, α=0.05), with the dataset named up
-     front.
-  4. Second-retriever check: the same head-to-head on MiniLM, reported
+  2. Frozen baselines on the new dataset: Standard, IRCoT, and the Phase
+     2 system, BM25 first.
+  3. Head-to-head (BM25): Phase 2 system vs IRCoT on the new test split.
+  4. Head-to-head (MiniLM): the same comparison on MiniLM, reported
      alongside BM25 — never pick the better one post-hoc.
-  5. Error analysis on the new dataset, same script pattern.
-- **What does not happen:** no tuning on the new dataset's test split; any
-  tuning uses its dev split only, and only if the HotpotQA-tuned system
+  5. Error analysis on the new dataset, same script pattern as the
+     Test-400 analysis.
+- **Verdict per dataset (pre-registered, same shape as §4.2):** primary
+  endpoint EM, paired McNemar exact two-sided, α=0.05 — Win: system EM >
+  IRCoT EM AND p<0.05; Loss: system ≤ IRCoT or p≥0.05 with system ≤
+  IRCoT; Inconclusive: system > IRCoT but p≥0.05. Secondaries: F1,
+  calls/Q, coverage, recall, selective EM. A Win on 2Wiki does not
+  predict MuSiQue — each dataset is judged on its own, and the paper
+  reports both, including any split (Win on one, Loss on the other).
+- **What does not happen:** no tuning on the new datasets' test splits;
+  any tuning uses a dev split only, and only if the HotpotQA-tuned system
   underperforms there for a diagnosed, mechanistic reason (a new OpenSpec
-  change, not a quiet tweak).
+  change, not a quiet tweak). No re-running Phase 2 to chase a better
+  Phase 3 number.
 - **Out of scope for this phase:** a third dataset beyond 2Wiki + MuSiQue.
 
 ---
