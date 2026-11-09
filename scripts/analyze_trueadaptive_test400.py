@@ -1,7 +1,7 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH]
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta]
 
 --reread prints section 10, the claim-grounded re-read summary (tuning step 1):
 trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
@@ -18,7 +18,13 @@ EM (recovered-row accuracy, the step-3 gate measure). Without flags the script
 behaves exactly as before; on a v1 file (no `grounded_reread` field) section 10
 reports 0 triggers, and on a v1 file (no `source` on graph claims) section 11
 reports 0 question-sourced claims — v1 predates the source field, so that is
-expected, not a mechanism failure.
+expected, not a mechanism failure. --theta prints section 13, the
+selective-answering summary (tuning step 4): EM, F1, selective EM,
+wrong-answer rate among answered, wrong answers among all rows, coverage,
+mean llm_calls/cache_hits/live calls per question, and the two unknown
+populations (classified by draft text, not by the abstained flag — see
+theta_metrics), plus the counterfactual table at t = 0.40..0.80 for the
+--ta-dev file.
 
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
@@ -42,7 +48,7 @@ import sys
 from statistics import mean
 
 sys.path.insert(0, ".")
-from src.eval.metrics import exact_match
+from src.eval.metrics import exact_match, is_unknown
 
 REPO = "results/trueadaptive/erag_trueadaptive_test_bm25.jsonl"
 IRCO = "results/ircot_test_bm25.jsonl"
@@ -158,6 +164,99 @@ def unknown_section(label, rows, baseline_rows=None):
           f"of those, {rec_ab} were then withheld by abstention")
 
 
+def theta_metrics(rows, t):
+    """Selective-answering metrics at abstention threshold t (counterfactual).
+
+    Computed the same way as section 4, for t >= 0.40: abstained rows stay
+    abstained; model-unknown rows stay unknown; answered rows with
+    answer_conf < t become abstained. (Below the file's stored threshold
+    this does NOT un-abstain rows — abstained rows stay abstained at any
+    t, so for a file run at theta_abs >= 0.40 the t=0.40 row is the file's
+    stored values.)
+
+    The two unknown populations are classified by DRAFT TEXT, not by the
+    abstained flag: model-unknown = the draft is "unknown" or empty
+    (is_unknown from src/eval/metrics.py); system-abstained = the
+    abstained flag is set AND the draft is a real answer. A row whose
+    draft is "unknown" and whose flag is set counts as model-unknown —
+    the reader refused, so there was nothing for the rule to withhold.
+    This keeps the split honest on live A/B files: at higher thresholds
+    a model-unknown row flips abstained=True while its answer stays
+    "unknown", and classifying by the flag would move it into the
+    system-abstained population (design.md reporting artifact).
+
+    Answered rows keep their stored `em` (the runner's repo exact_match);
+    EM is correct / N over all non-failed rows. Selective EM is correct /
+    answered; the wrong-answer rate among answered is its complement
+    (binary EM, "answered" = final answer is not literally unknown).
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    mod_unk = [r for r in ok if is_unknown(r.get("draft", ""))]
+    sys_ab = [r for r in ok
+              if r.get("abstained") and not is_unknown(r.get("draft", ""))]
+    answered = [r for r in ok
+                if not is_unknown(r.get("draft", ""))
+                and not r.get("abstained")
+                and r.get("answer_conf", 0) >= t]
+    correct = sum(1 for r in answered if r["em"] == 1)
+    n = len(ok)
+    sel = correct / len(answered) if answered else 0.0
+    calls = mean(r["llm_calls"] for r in ok) if ok else 0.0
+    hits = mean(r.get("cache_hits", 0) for r in ok) if ok else 0.0
+    return {
+        "n": n,
+        "failed": sum(1 for r in rows if r.get("failed", False)),
+        "em": correct / n if n else 0.0,
+        "f1": mean(r["f1"] for r in ok) if ok else 0.0,
+        "selective_em": sel,
+        "wrong_rate": 1.0 - sel if answered else 0.0,
+        "wrong_all": len(answered) - correct,
+        "wrong_all_rate": (len(answered) - correct) / n if n else 0.0,
+        "coverage": len(answered) / n if n else 0.0,
+        "calls": calls,
+        "cache_hits": hits,
+        "live_calls": calls - hits,
+        "abstained": len(sys_ab),
+        "model_unknown": len(mod_unk),
+        "answered": len(answered),
+        "correct": correct,
+    }
+
+
+def theta_section(label, rows):
+    """Section 13 (tuning step 4): selective-answering metrics at theta_abs.
+
+    Headline is the t=0.40 row — the file's stored values for any file run
+    at theta_abs >= 0.40 (see theta_metrics). The table is the
+    counterfactual at t = 0.40..0.80. Verified against the step-2 tuned
+    dev file before any live run (tasks.md A.1): EM 0.5400, selective EM
+    0.6353, wrong-answer rate 0.3647, coverage 0.850, 4.65 calls/Q,
+    2.53 cache_hits/Q; t=0.50: EM 0.5100, selective EM 0.6456, wrong
+    0.3544, coverage 0.790; t=0.65 identical to 0.50; t=0.75: EM 0.4700,
+    selective EM 0.6351, wrong 0.3649, coverage 0.740.
+    """
+    section(f"13. Theta_abs selective answering ({label})")
+    base = theta_metrics(rows, 0.40)
+    print(f"N={base['n']} deduped, failed={base['failed']}; EM={base['em']:.4f} "
+          f"F1={base['f1']:.4f} selective EM={base['selective_em']:.4f} "
+          f"({base['correct']}/{base['answered']} answered) "
+          f"wrong-answer rate={base['wrong_rate']:.4f} "
+          f"wrong among all rows={base['wrong_all']} ({base['wrong_all_rate']:.4f}) "
+          f"coverage={base['coverage']:.3f}")
+    print(f"mean llm_calls/Q={base['calls']:.2f} "
+          f"mean cache_hits/Q={base['cache_hits']:.2f} "
+          f"mean live calls/Q={base['live_calls']:.2f}")
+    print(f"system-abstained: {base['abstained']} (flag set, draft is a real answer); "
+          f"model-unknown: {base['model_unknown']} (draft text 'unknown' or empty, "
+          f"via is_unknown — NOT by the abstained flag)")
+    print("counterfactual (abstained stay abstained; model-unknown stay unknown; "
+          "answered with answer_conf < t become abstained):")
+    for t in [0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]:
+        m = theta_metrics(rows, t)
+        print(f"  t={t:.2f}: EM={m['em']:.4f} selective EM={m['selective_em']:.4f} "
+              f"wrong={m['wrong_rate']:.4f} coverage={m['coverage']:.3f}")
+
+
 def reread_section(label, rows):
     """Section 10 (tuning step 1): what the claim-grounded re-read did.
 
@@ -201,6 +300,9 @@ def main():
                     help="print section 11, the claim-source summary (tuning step 2)")
     ap.add_argument("--unknown", action="store_true",
                     help="print section 12, the unknown-row summary (tuning step 3)")
+    ap.add_argument("--theta", action="store_true",
+                    help="print section 13, the selective-answering summary "
+                         "(tuning step 4)")
     ap.add_argument("--unknown-baseline", default=None,
                     help="baseline dev file for the recovered-row comparison "
                          "(default: none; step-2 tuned dev file for the step-3 A/Bs)")
@@ -333,6 +435,9 @@ def main():
         baseline = load(args.unknown_baseline) if args.unknown_baseline else None
         unknown_section("TA dev", dev, baseline)
         unknown_section("TA test", ta)
+
+    if args.theta:
+        theta_section("TA dev", dev)
 
 
 if __name__ == "__main__":

@@ -40,7 +40,11 @@ this step; their A/B baselines are this step's, whatever they are.
   coverage 0.850, 4.65 calls/Q, 2.53 cache_hits/Q; counterfactual
   t=0.50: EM 0.5100, selective EM 0.6456, wrong 0.3544, coverage 0.790;
   t=0.65 identical to 0.50; t=0.75: EM 0.4700, selective EM 0.6351,
-  wrong 0.3649, coverage 0.740. If it cannot reproduce these, stop and
+  wrong 0.3649, coverage 0.740. Population counts by DRAFT TEXT are 8
+  model-unknown, 7 system-abstained (flag counts are 7/8 — one row
+  swaps: an abstained row whose draft is literally "unknown",
+  `answer_conf` 0.258; the answered set is the same 85 rows either
+  way, so no gate number depends on the labeling). If it cannot reproduce these, stop and
   fix the measurement — do not run and report zeros. The section reads
   only fields the runner already writes (`answer_conf`, `abstained`,
   `unknown`, `draft`, `em`, `gold`, `llm_calls`, `cache_hits`,
