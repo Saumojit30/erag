@@ -11,7 +11,7 @@ if step 4 is skipped, the baseline is the step-2 tuned dev file.
 
 - [x] 0.1 Create `openspec/changes/tune-hop2-sc-cap/` with `proposal.md`,
   `design.md`, `tasks.md` (this file), `specs/hop2-sc-cap/spec.md`.
-- [ ] 0.2 Validate with the local CLI:
+- [x] 0.2 Validate with the local CLI: DONE — `validate --all` 8 passed, 0 failed (re-validated by the parent after the A-build, 2026-11-09; 6 passed at draft time).
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
   and `.../openspec validate tune-hop2-sc-cap` — must be 0 failed before
   any further work.
