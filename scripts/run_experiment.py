@@ -103,6 +103,9 @@ def dispatch(
     if system == "erag":
         from src.systems.erag import run_erag
         return run_erag(item, retriever, llm, nli, cfg, tr, memory)
+    if system == "adaptive_rag":
+        from src.systems.adaptive_rag import run_adaptive_rag
+        return run_adaptive_rag(item, retriever, llm, cfg, tr)
     raise ValueError(f"Unknown system identifier: {system}")
 
 

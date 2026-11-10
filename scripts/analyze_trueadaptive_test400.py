@@ -1,7 +1,7 @@
 """Error analysis for TrueAdaptive v1 Test-400 BM25 (and Dev-100 BM25 check).
 
 Read-only: recomputes breakdowns from stored result files, no LLM calls.
-Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta] [--hopcap [--hopcap-baseline PATH]] [--policy [--policy-baseline PATH] [--policy-simulation PATH]]
+Usage: .venv/bin/python scripts/analyze_trueadaptive_test400.py [--reread] [--claims] [--unknown [--unknown-baseline PATH]] [--ta-dev PATH] [--theta] [--hopcap [--hopcap-baseline PATH]] [--policy [--policy-baseline PATH] [--policy-simulation PATH]] [--adaptive-rag [--adaptive-rag-file PATH] [--adaptive-rag-baseline PATH] [--adaptive-rag-ircot PATH]]
 
 --reread prints section 10, the claim-grounded re-read summary (tuning step 1):
 trigger rate, re-read EM, and rows fixed/broken by the re-read, for the TA dev
@@ -47,6 +47,17 @@ simulation JSON (Delta EM, Delta calls/Q; the Gate B +/-0.02 / +/-0.2
 check). With --policy-baseline PATH it prints the baseline measures and
 the deltas.
 
+--adaptive-rag prints section 16, the Adaptive-RAG baseline summary
+(change adaptive-rag-baseline, C.2): N, failed, EM, F1, mean
+llm_calls/Q, the route distribution (counts + EM + calls/Q per route,
+from the per-row `route` field; rows without the field are unknown,
+never assumed), and the H8 paired comparison vs the tuned TrueAdaptive
+file and vs IRCoT (McNemar exact two-sided, dEM with 95% paired
+bootstrap CI). --adaptive-rag-file PATH points at the Adaptive-RAG
+run file (default: the Test-400 output); --adaptive-rag-baseline and
+--adaptive-rag-ircot override the comparison files (defaults: the TA
+and IRCoT Test-400 files).
+
 Method notes (read before citing any number here):
 - Rows are deduped by id keeping the LAST row: the resume retried 1 failed
   Test-400 question, leaving a stale failed row in the file (401 lines -> 400).
@@ -64,16 +75,19 @@ Method notes (read before citing any number here):
 
 import argparse
 import json
+import os
 import re
 import sys
 from statistics import mean
 
 sys.path.insert(0, ".")
 from src.eval.metrics import exact_match, is_unknown
+from src.eval.stats import mcnemar_exact, paired_bootstrap
 
 REPO = "results/trueadaptive/erag_trueadaptive_test_bm25.jsonl"
 IRCO = "results/ircot_test_bm25.jsonl"
 DEV = "results/trueadaptive/erag_trueadaptive_bm25_dev.jsonl"
+AR_TEST = "results/adaptive_rag/adaptive_rag_test_bm25.jsonl"
 
 
 def load(path):
@@ -512,6 +526,103 @@ def policy_section(label, rows, baseline_rows=None, simulation=None):
               f"+/-0.2 calls/Q")
 
 
+def adaptive_rag_metrics(rows):
+    """Adaptive-RAG baseline measures (change adaptive-rag-baseline, C.2).
+
+    Same headline measures as policy_metrics, plus the route
+    distribution from the per-row `route` field the router writes in
+    C.1. Rows without the field (every file predating the router) are
+    reported as unknown, never assumed. Failed rows are excluded from
+    every measure except the failed count.
+    """
+    ok = [r for r in rows if not r.get("failed", False)]
+    n = len(ok)
+    em = mean(r["em"] for r in ok) if ok else 0.0
+    f1 = mean(r["f1"] for r in ok) if ok else 0.0
+    calls = mean(r["llm_calls"] for r in ok) if ok else 0.0
+    ans = [r for r in ok if not r.get("unknown", False)]
+    routes = {}
+    for r in ok:
+        key = r.get("route")
+        if key not in ("A", "B", "C"):
+            key = "unknown"
+        routes.setdefault(key, []).append(r)
+    return {
+        "n": n,
+        "failed": sum(1 for r in rows if r.get("failed", False)),
+        "em": em,
+        "f1": f1,
+        "calls": calls,
+        "coverage": len(ans) / n if n else 0.0,
+        "routes": {
+            k: {
+                "n": len(v),
+                "em": mean(r["em"] for r in v),
+                "calls": mean(r["llm_calls"] for r in v),
+            }
+            for k, v in routes.items()
+        },
+    }
+
+
+def adaptive_rag_paired(ar_rows, other_rows):
+    """H8 paired comparison: Adaptive-RAG vs one other system, by id.
+
+    Aligns on the shared ids (failed rows excluded on both sides);
+    dEM is AR minus the other system, with a 95% paired bootstrap CI,
+    and the McNemar exact two-sided p-value on the discordant pairs
+    (ar_only = AR-only correct, other_only = other-only correct).
+    """
+    ar = {r["id"]: r for r in ar_rows if not r.get("failed", False)}
+    other = {r["id"]: r for r in other_rows if not r.get("failed", False)}
+    ids = [i for i in ar if i in other]
+    ar_em = [float(ar[i]["em"]) for i in ids]
+    other_em = [float(other[i]["em"]) for i in ids]
+    d_em, lo, hi = paired_bootstrap(other_em, ar_em)
+    mc = mcnemar_exact(
+        [bool(e) for e in other_em], [bool(e) for e in ar_em]
+    )
+    return {
+        "n": len(ids),
+        "d_em": d_em,
+        "ci_lo": lo,
+        "ci_hi": hi,
+        "mcnemar_p": mc["p"],
+        "ar_only": mc["b_only"],
+        "other_only": mc["a_only"],
+    }
+
+
+def adaptive_rag_section(label, rows, ta_rows=None, ircot_rows=None):
+    """Section 16 (change adaptive-rag-baseline, C.2): Adaptive-RAG summary.
+
+    Verified against the stored IRCoT Test-400 file before any live
+    run (tasks.md C.2): EM 0.4200, 2.545 calls/Q, all 400 rows unknown
+    (no route field predates the router). With the tuned TrueAdaptive
+    and IRCoT files, prints the H8 paired comparison for each
+    (McNemar exact, dEM with 95% paired bootstrap CI).
+    """
+    section(f"16. Adaptive-RAG baseline ({label})")
+    m = adaptive_rag_metrics(rows)
+    print(f"N={m['n']} deduped, failed={m['failed']}; EM={m['em']:.4f} "
+          f"F1={m['f1']:.4f}")
+    print(f"mean llm_calls/Q={m['calls']:.2f} coverage={m['coverage']:.3f}")
+    for route in ("A", "B", "C", "unknown"):
+        if route in m["routes"]:
+            d = m["routes"][route]
+            print(f"route {route}: n={d['n']}, EM={d['em']:.4f}, "
+                  f"mean calls={d['calls']:.2f}")
+    for name, other in [("tuned TrueAdaptive", ta_rows), ("IRCoT", ircot_rows)]:
+        if other is None:
+            continue
+        p = adaptive_rag_paired(rows, other)
+        print(f"H8 vs {name} (n={p['n']} paired): "
+              f"dEM (AR - {name.split()[-1]})={p['d_em']:+.4f} "
+              f"95% CI [{p['ci_lo']:+.4f}, {p['ci_hi']:+.4f}], "
+              f"McNemar AR-only={p['ar_only']} {name.split()[-1]}-only="
+              f"{p['other_only']} p={p['mcnemar_p']:.4g}")
+
+
 def reread_section(label, rows):
     """Section 10 (tuning step 1): what the claim-grounded re-read did.
 
@@ -564,6 +675,17 @@ def main():
     ap.add_argument("--policy", action="store_true",
                     help="print section 15, the learned-continuation-policy "
                          "summary (tuning step 7)")
+    ap.add_argument("--adaptive-rag", action="store_true",
+                    help="print section 16, the Adaptive-RAG baseline "
+                         "summary (change adaptive-rag-baseline)")
+    ap.add_argument("--adaptive-rag-file", default=AR_TEST,
+                    help="Adaptive-RAG results file (default: %(default)s)")
+    ap.add_argument("--adaptive-rag-baseline", default=None,
+                    help="tuned TrueAdaptive file for the H8 comparison "
+                         "(default: the TA Test-400 file)")
+    ap.add_argument("--adaptive-rag-ircot", default=None,
+                    help="IRCoT file for the H8 comparison "
+                         "(default: the IRCoT Test-400 file)")
     ap.add_argument("--policy-baseline", default=None,
                     help="baseline dev file for the policy comparison "
                          "(default: none; post-step-4 tuned dev file for the "
@@ -723,6 +845,19 @@ def main():
             with open(args.policy_simulation) as f:
                 sim = json.load(f)
         policy_section("TA dev", dev, baseline, sim)
+
+    if args.adaptive_rag:
+        if os.path.exists(args.adaptive_rag_file):
+            ar = load(args.adaptive_rag_file)
+            ta_base = load(args.adaptive_rag_baseline) if args.adaptive_rag_baseline else ta
+            ir_base = load(args.adaptive_rag_ircot) if args.adaptive_rag_ircot else ir
+            adaptive_rag_section(
+                os.path.basename(args.adaptive_rag_file), ar,
+                ta_rows=ta_base, ircot_rows=ir_base,
+            )
+        else:
+            print(f"\n=== 16. Adaptive-RAG baseline ===\nno Adaptive-RAG run "
+                  f"file yet at {args.adaptive_rag_file} (run E.1 first)")
 
 
 if __name__ == "__main__":
