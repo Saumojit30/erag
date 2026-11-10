@@ -63,7 +63,7 @@ Branch `trueadaptive`. Nothing is pushed.
 
 ## C. Router wiring + analyzer (only if Gate AR-1 passes)
 
-- [ ] C.1 New module `src/systems/adaptive_rag.py` with
+- [x] C.1 New module `src/systems/adaptive_rag.py` with
   `run_adaptive_rag(item, retriever, llm, cfg, tracker)` (design.md
   §The router): classify, dispatch to the existing strategy
   functions, return their result + `route` + `route_p`. Add the
@@ -76,7 +76,7 @@ Branch `trueadaptive`. Nothing is pushed.
   right strategy (mock the classifier to force A, B, and C in turn),
   that `route`/`route_p` are recorded, and that a missing
   classifier file fails loudly.
-- [ ] C.2 Analyzer section: add a `--adaptive-rag` section to
+- [x] C.2 Analyzer section: add a `--adaptive-rag` section to
   `scripts/analyze_trueadaptive_test400.py` (new section number
   after 15; flags `--adaptive-rag` + `--adaptive-rag-baseline
   <ta_file>` + `--adaptive-rag-ircot <ircot_file>`). It reports, for
@@ -88,7 +88,7 @@ Branch `trueadaptive`. Nothing is pushed.
   `tests/test_analyzer_adaptive_rag.py`; verification: on the
   existing IRCoT Test-400 file it reproduces EM 0.4200, 2.545
   calls/Q. Do NOT break the existing sections.
-- [ ] C.3 Fast suite green after C.1–C.2. The known pre-existing
+- [x] C.3 Fast suite green after C.1–C.2. The known pre-existing
   failure (`test_retry_exhaustion_raises_runtime_error`) stays
   untouched.
 
