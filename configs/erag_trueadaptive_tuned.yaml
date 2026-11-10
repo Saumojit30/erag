@@ -1,0 +1,75 @@
+# E-RAG-TrueAdaptive TUNED (FROZEN 2026-11-10 — end of Phase 1)
+#
+# This is the frozen system for Phase 2 Test-400 confirmation.
+# NOTHING changes after this freeze without a dated amendment in
+# docs/tuning-master-plan.md §4 (pre-registered verdict; see §4.2).
+#
+# Provenance of every value (all gated by their tuning step):
+# - v1 mechanisms (sc_mode sequential, sc_samples 3, gate_sc_behind_
+#   fast_path true, direct EIG, incremental claims, never resample,
+#   saturation precheck): openspec/changes/erag-trueadaptive/ (v1)
+# - ground_final_read true: step 1 (reader grounding; GATE PASS,
+#   commit 303efb5; re-read 16/100, fixed 2, broke 1 — a wash on dev,
+#   mechanism kept, Test-400 judges it)
+# - max_claims 8: step 2 (claim extraction; user decision to keep
+#   despite EM 0.5400 vs 0.5600 — gold-in-claims 0.524 vs 0.333)
+# - unknown_prompt base: step 3 (both variants FAILED the gate;
+#   mechanism dropped, c0b5e67)
+# - theta_abs 0.50: step 4 (selective answering; accepted
+#   counterfactual, coverage 0.790, commit 4701ac3)
+# - max_hops 2 (ceiling): step 5 static cap SUPERSEDED (user chose
+#   the learned policy instead; 7a3598c)
+# - memory.enabled false: step 6 gate (2026-11-10, verdict
+#   "instrument too weak" — mem fired 1/30, floor 5/30; H5 stays
+#   NOT SUPPORTED with a dated note; f4752c2)
+# - continuation_policy configs/continuation_policy_dev.json: step 7
+#   (learned continuation policy; RETRAINED, tau 0.05; Gate B PASS
+#   live Dev-100 EM 0.5000 at 4.07 calls/Q; 4c9576f)
+#
+# Phase 2 usage (fresh namespaces per run; see master plan §4):
+#   python scripts/run_experiment.py --config configs/base.yaml \
+#       configs/erag_trueadaptive_tuned.yaml --set \
+#       retrieval.retriever_type=bm25 data.split=test \
+#       run.cache_namespace=test_tuned_v1_bm25 \
+#       run.name=erag_trueadaptive_tuned_test
+# (Single --set only — repeated --set flags overwrite.)
+#
+# Dev-100 live numbers for this exact configuration (post-step-7,
+# BM25): EM 0.5000, F1 0.6114, 4.07 calls/Q (step 7 Gate B, 4c9576f).
+# Stream numbers (step 6, N=30): nomem EM 0.6000 at 4.73 calls/Q.
+
+erag:
+  mode: active
+  max_hops: 2
+  sc_samples: 3
+  sc_mode: sequential
+  sc_temperature: 0.7
+  gate_sc_behind_fast_path: true
+  post_hop_resample: never
+  claim_strategy: incremental
+  eig_strategy: direct
+  saturation_precheck: true
+  w_s: 1.0
+  w_c: 1.0
+  theta_fast: 0.8
+  theta_gap: 0.6
+  theta_abs: 0.5
+  max_claims: 8
+  pool_cap: 12
+  confidence_def: majority
+  ground_final_read: true
+  unknown_prompt: base
+  continuation_policy: configs/continuation_policy_dev.json
+
+nli:
+  pre_filter: true
+
+memory:
+  enabled: false
+
+run:
+  name: erag_trueadaptive_tuned_test
+  system: erag
+  cache: true
+  cache_namespace: test_tuned_v1_bm25
+  out_dir: results/trueadaptive
