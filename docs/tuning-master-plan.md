@@ -786,6 +786,29 @@ fresh namespaces, config overrides only, no code:
   — fresh, never used before, same frozen configs and `--set` values
   as the BM25 runs except `retrieval.retriever_type=minilm`.
 
+**DATED AMENDMENT 2026-11-10 (Adaptive-RAG Test-400 run, H8 — written
+before any Phase 2 run; no Phase 2 result has been seen):** a third
+system joins Phase 2 — Adaptive-RAG (Jeong et al., NAACL 2024), the
+other-adaptive control (user confirmed 2026-11-10: "yes do adaptive
+rag with ircot also"). It does NOT replace IRCoT: IRCoT stays the
+fixed control; Adaptive-RAG is the second adaptive baseline. Same
+setting (BM25, k=3, distractor, HotpotQA Test-400 N=400), fresh
+namespace `test_adaptive_rag_v1_bm25`, output
+`results/adaptive_rag/adaptive_rag_test_bm25.jsonl`, system
+`adaptive_rag` (`src/systems/adaptive_rag.py`, router → A closed-book
+/ B standard / C IRCoT). Gate AR-1 PASSED 2026-11-10 (held-out
+accuracy 0.9318 vs 0.50 majority-class rate; Dev-100 routes A0/B45/
+C55); a D.1 Dev-100 sanity run (namespace `dev_adaptive_rag_v1_bm25`)
+precedes the Test-400 run. Judged under H8 (exploratory): tuned
+TrueAdaptive beats Adaptive-RAG on Test-400 BM25 EM at equal-or-fewer
+calls/Q; paired McNemar α=0.05; secondaries F1, calls/Q, coverage,
+route distribution, per-route EM. The §4.2 verdict is unchanged: it
+is judged on the tuned-vs-IRCoT BM25 comparison; Adaptive-RAG is
+separately-judged baseline evidence under H8. Caveat, recorded here
+so it reaches the paper: the router never predicts route A on
+HotpotQA (per-class A accuracy 0.0), so the baseline will effectively
+route B/C only.
+
 ### 4.2 The verdict (pre-registered)
 
 **Primary endpoint:** exact match (EM), paired McNemar exact two-sided test
