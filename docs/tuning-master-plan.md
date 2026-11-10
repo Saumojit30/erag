@@ -174,8 +174,11 @@ against.
   reduction (E5 identical EM, 0 calls saved; override 1/1 retrieved,
   1/5 planted) — BUT the E5 test is now known to be cache-confounded
   (mem arm served cache_hits == llm_calls on 30/30 rows), so the
-  verdict rests on an uninformative test, not a real null; H5 is
-  revisited with a dated note after step 6 (§3.6); H4 NOT TESTED on
+  verdict rested on an uninformative test, not a real null. The step-6
+  re-test (2026-11-10, tuned system, all-live) is ALSO under-powered:
+  mem fired on 1/30 (floor 5/30), verdict "instrument too weak" —
+  memory stays OFF, H5 stays NOT SUPPORTED with a dated note (§3.6);
+  H4 NOT TESTED on
   Test-400 (dev interim inconclusive; 3× latency bound unmeetable as
   stated and cache-confounded — needs a dated clarification); H2 NOT
   SUPPORTED, narrow miss (macro-F1 0.6825 < 0.70, contradicted recall
@@ -533,6 +536,29 @@ system.
   Test-400 and the paper reports it as a null: the override mechanism is
   verified, the effectiveness is not demonstrated on the available stream.
   A null here does not block Phase 2; it scopes the paper's claims.
+- **OUTCOME 2026-11-10 — CLOSED, verdict "instrument too weak" (NOT a
+  clean null).** C.1 ran 2026-11-10 on the post-step-7 tuned system
+  (three arms, fresh namespaces, N=30 fallback): nomem EM 0.6000, F1
+  0.6614, 4.73 calls/Q; mem EM 0.6667, F1 0.7354, 4.60 calls/Q;
+  planted EM 0.6333, F1 0.7284, 4.67 calls/Q — all N=30 deduped, 0
+  failed. C.2 tripwire PASSES: live calls/Q ≈ llm_calls/Q per arm
+  (cache_hits/Q 0.07 nomem — 2 hits from the retried rows — 0.00 mem,
+  0.00 planted). **D.1 gate: (1) FAILS — mem fired on 1/30 (floor
+  ≥5/30); (2) would pass (ΔEM +0.0667, Δcalls/Q −0.13, fired-row
+  paired difference 0/0) but cannot be attributed to memory — the
+  single fired row changed nothing, so the +2 EM rows are noise
+  inside the usual ±3-row band; (3) override 1/1 retrieved (Becker
+  purged), but the checker's 2 false-claim flags are substring false
+  positives (gold-correct answers 'German' and 'private' on rows
+  where nothing was retrieved).** Memory stays OFF; H5 stays NOT
+  SUPPORTED, revisited with a dated note (see the status doc). The
+  run itself was interrupted twice: the VM restarted overnight
+  (first launch died at nomem 24/30; transient keys lost, re-sent by
+  the user), and the first resume used a doubled `--set` (which
+  overwrites — ran the DEV split, wrote 2 dev rows into the stream
+  file; killed, rows removed, file restored to 24 stream rows,
+  relaunched with one `--set`). Outputs:
+  `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl`.
 - **Note on the hypothesis (now verified, not inferred).** The hypothesis
   in §3.6's first bullet is the report's own statement (primary RQ + H1–H6,
   see §2.1), verified from the report's text 2026-11-09. One consequence is
@@ -1028,7 +1054,7 @@ TrueAdaptive v1 and for steps 1–2.
 | 1 | New dataset: 2WikiMultiHopQA or MuSiQue | The paper's claim (§5) | Decided 2026-11-09 by the user: BOTH, 2Wiki first then MuSiQue (recorded in §5; this row was stale) |
 | 2 | `theta_abs`: selective answering vs max EM | The paper's goal (§3.4) | Decided 2026-11-09 by the user: selective answering (reduce hallucination first); step 4 done, theta_abs=0.50, coverage 0.790 |
 | 3 | Keep step-1 re-read if Test-400 shows no gain | The pre-registered verdict (§4.2) | Decided by test, not by dev |
-| 3b | Memory in the frozen Test-400 system (on or off) | Step 6 gate (§3.6): stream A/B gain or call reduction, override test passes | Open — decided by step 6, before the §4.1 freeze |
+| 3b | Memory in the frozen Test-400 system (on or off) | Step 6 gate (§3.6): stream A/B gain or call reduction, override test passes | Decided 2026-11-10 by the step-6 gate: OFF — verdict "instrument too weak" (mem fired 1/30, floor 5/30); the frozen config uses memory.enabled: false |
 | 3c | Add the report's confirmatory H1/H4 analyses to Phase 2 (H1: TA vs Standard, paired bootstrap + McNemar; H4: adaptive vs no-adaptive ablation — needs a Test-400 ablation run) | The report (Nov 4) labels E-RAG vs IRCoT exploratory; H1/H4 are confirmatory with Holm correction | Decided 2026-11-10 — YES, both join Phase 2 (under the delegated mandate, proceeding on the recommendation): H1 re-run on the tuned system + H4 Test-400 ablation + Holm across H1/H4 |
 | 4 | When (and whether) to push `trueadaptive` to origin | User, each time | Open — nothing pushed so far |
 | 5 | Push master `.mailmap` commit (`88f2512`) | Needs a fresh GitHub token, transiently | Open — housekeeping, not blocking |
@@ -1431,6 +1457,40 @@ here only if a stored file or a commit backs it.
   The plan lists the ordered work (W0-W5) and the seven asks from
   the user (Groq key, GitHub token, dataset choice, missing papers,
   venue confirmation, hypothesis hygiene, MiniLM confirmation).
+
+### 2026-11-10 — Step 6 stream A/B (C.1–D.1, gate verdict: instrument too weak)
+
+- C.1 ran on the post-step-7 tuned system (three arms, fresh
+  namespaces, N=30 fallback after the raw-file fetch failed a third
+  time): nomem EM 0.6000, F1 0.6614, 4.73 calls/Q; mem EM 0.6667,
+  F1 0.7354, 4.60 calls/Q; planted EM 0.6333, F1 0.7284, 4.67
+  calls/Q — all N=30 deduped, 0 failed. C.2 tripwire PASSES (live
+  calls/Q ≈ llm_calls/Q; cache_hits/Q 0.07 nomem, 0.00 mem, 0.00
+  planted). Outputs:
+  `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl`.
+- D.1 gate: (1) FAILS — mem fired on 1/30 (floor ≥5/30); (2) would
+  pass (ΔEM +0.0667, Δcalls/Q −0.13, fired-row paired difference
+  0/0) but is unattributable — the single fired row (5abbb065, Li
+  Yitong passage) changed nothing, so the +2 EM rows are noise
+  inside the usual ±3-row band; (3) override 1/1 retrieved (Becker
+  purged); the checker's 2 false-claim flags are substring false
+  positives (gold-correct 'German' and 'private' on rows where
+  nothing was retrieved). **Verdict: "instrument too weak" — memory
+  stays OFF, H5 stays NOT SUPPORTED (dated note in the status doc),
+  Phase 1 is now complete (all steps 1–7 closed).**
+- Two interruptions on the way: the VM restarted overnight (first
+  launch died at nomem 24/30; transient keys lost and re-sent by the
+  user), and the first resume used a doubled `--set` (overwrites —
+  ran the DEV split, wrote 2 dev rows into the stream file; killed,
+  rows removed, file restored to 24, relaunched with one `--set`).
+  Lesson recorded in `AGENTS.md`: always check the progress bar's
+  split/count before walking away from a launch.
+- Same day: hypothesis hygiene committed (`10cbfef`); D2 ablations +
+  H7 written (`acb1585`); MiniLM namespaces (`9f5321c`); H8–H11
+  pre-registered (`bdf3e32`); Adaptive-RAG Gate AR-1 PASSED
+  (held-out 0.9318, routes A0/B45/C55) and wiring C.1–C.3 committed
+  (`bae3018`, `b033602`, 15 tests pass). Branch 35 commits ahead of
+  origin, unpushed. Remaining: freeze, push, D.1 sanity run, Phase 2.
 
 ## Appendix — Key numbers (frozen)
 

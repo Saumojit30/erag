@@ -266,6 +266,35 @@ replace them.
 
 ---
 
+### 2026-11-10 — Step 6 live A/B: memory effectiveness on the tuned system
+
+- **Assumed (pre-registered gate, design.md D.1):** the tuned system on
+  the entity-sharing stream would fire memory on ≥5/30 questions (the
+  N=30 fallback floor), and the mem arm would show an EM gain or a
+  call reduction with EM not falling, with the override test passing.
+  The E5 test had fired 2/30 on the Reference system, so ≥5/30 on the
+  tuned system was the working expectation.
+- **Actual:** mem fired on **1/30** — verdict "instrument too weak"
+  (gate criterion 1 fails). nomem EM 0.6000 / 4.73 calls/Q; mem EM
+  0.6667 / 4.60 calls/Q; planted EM 0.6333 / 4.67 calls/Q (all N=30
+  deduped, 0 failed, all-live: cache_hits/Q 0.07/0.00/0.00). The
+  ΔEM +0.0667 / Δcalls −0.13 would have passed criterion 2 but is
+  unattributable — the single fired row changed nothing. Override
+  1/1 retrieved (Becker purged); the checker's 2 false-claim flags
+  are substring false positives (verified by inspecting both rows).
+  Memory stays OFF; H5 stays NOT SUPPORTED with a dated note.
+  Files: `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl`.
+- **Lesson:** the tuned system answers most stream questions at hop 0,
+  so little gets written to memory and less gets read — the stream
+  instrument is weaker for the tuned system than it was for the
+  Reference system. A stronger instrument would need later questions
+  that depend on earlier answers; the gate forbids a re-run to chase a
+  better number. Also: a doubled `--set` silently runs the wrong split
+  (see the step-6 §12 entry) — check the progress bar before walking
+  away.
+
+---
+
 ## Going forward (from 2026-11-10)
 
 - Every experiment from here — step 6, Phase 2, Phase 3, the ablations,

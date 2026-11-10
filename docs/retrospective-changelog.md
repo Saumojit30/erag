@@ -1169,6 +1169,39 @@ Entries are chronological. "Evidence" records only what was verified for this dr
 #### Evidence status
 - Implemented (measurement), tested; live A/B pending
 
+### 2026-11-10 — Tuning step 6: memory effectiveness (live A/B run; gate verdict: instrument too weak; change CLOSED)
+
+**Commit:** (this commit — D.2)
+**Scope:** Tuning — memory module effectiveness (component test)
+**Type:** measurement + live A/B on the tuned system; verdict, no behavior change (memory stays OFF)
+**Prediction-changing:** no — the tuned system is unchanged (memory was already OFF); the verdict scopes the paper's claims (H5 stays NOT SUPPORTED with a dated note)
+
+#### What changed
+- C.1 stream A/B ran 2026-11-10 on the post-step-7 tuned system (three arms, fresh namespaces, N=30 fallback): nomem EM 0.6000, F1 0.6614, 4.73 calls/Q; mem EM 0.6667, F1 0.7354, 4.60 calls/Q; planted EM 0.6333, F1 0.7284, 4.67 calls/Q — all N=30 deduped, 0 failed. C.2 tripwire PASSES (live calls/Q ≈ llm_calls/Q; cache_hits/Q 0.07 nomem — 2 hits from the retried rows — 0.00 mem, 0.00 planted). Outputs: `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl`.
+- D.1 gate (pre-registered): (1) FAILS — mem fired on 1/30 (floor ≥5/30); (2) would pass (ΔEM +0.0667, Δcalls/Q −0.13, fired-row paired difference 0/0) but is unattributable — the single fired row (5abbb065, Li Yitong passage) changed nothing (EM 1.0, 4 calls in both arms), so the +2 EM rows are noise inside the usual ±3-row band; (3) override 1/1 retrieved (Becker purged); the checker's 2 false-claim flags are substring false positives (gold-correct 'German' and 'private' on rows where nothing was retrieved — verified by inspecting both rows). **Verdict: "instrument too weak" — memory stays OFF, H5 stays NOT SUPPORTED (dated note in the status doc, not a rewrite).** Phase 1 is now complete (all steps 1–7 closed).
+- Two interruptions on the way: the VM restarted overnight (first launch died at nomem 24/30; transient keys lost, re-sent by the user 2026-11-10 evening), and the first resume used a doubled `--set` (overwrites — ran the DEV split, wrote 2 dev rows into the stream file; killed, rows removed, file restored to 24, relaunched with one `--set`). Lesson recorded in `AGENTS.md`.
+
+#### Why it changed
+- The gate is pre-registered in the change (design.md D.1): fire-rate floor first — below it the test cannot say whether memory helps, so the verdict is under-powered, not a null. A second under-powered test (after the E5 cache replay) means the paper must report memory as mechanism-verified, effectiveness-not-demonstrated, and must not claim a null.
+
+#### Files changed
+- `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl`, `openspec/changes/tune-memory-effectiveness/tasks.md` (C.1–E.2 checked off), `docs/tuning-master-plan.md` (§3.6 outcome, §2.1, §9 row 3b, §12), `docs/hypotheses-current-status.md` (H5 dated note), `docs/assumptions-vs-outcomes.md`, `AGENTS.md` (the `--set` lesson)
+
+#### Tests added or updated
+- None (measurement already built in `e5da900`; no code changed in this commit).
+
+#### Evidence
+- `--position` output (recomputed by the parent from the stored files): nomem n=30 EM 0.6000 F1 0.6614 calls/Q 4.73 live 4.67 cache_hits/Q 0.07 retrievals/Q 1.37 fired 0; mem n=30 EM 0.6667 F1 0.7354 calls/Q 4.60 live 4.60 cache_hits/Q 0.00 retrievals/Q 1.33 fired 1 (3.3%) store_size 12.37; planted n=30 EM 0.6333 F1 0.7284 calls/Q 4.67 live 4.67 fired 1 overrides 1. Position splits: early dEM +0.2000 dCalls −0.30, mid 0.0000/0.00, late 0.0000/−0.10. Fired-row paired difference 0/0. Planted override 1/5 planted, 1/1 retrieved.
+
+#### Prediction impact
+- None on the system (memory stays OFF, as it was). On the paper: H5's verdict is now final for this stream — mechanism-verified, effectiveness-not-demonstrated — and the frozen Test-400 system runs memory-off.
+
+#### Limitations
+- The instrument fired once in 30 questions: the stream's entity-sharing clusters produced almost no cross-question reuse for the tuned system (the tuned system answers most stream questions at hop 0, so little gets written and less gets read). A stronger instrument would need a stream designed so later questions depend on earlier answers — not built here; the gate forbids a re-run to chase a better number.
+
+#### Evidence status
+- Complete (live A/B run, gate judged, change archived)
+
 ### 2026-11-09 — Tuning step 7: learned continuation policy (change drafted; Phase A; Gate A PASS marginal, then RETRAINED — Gate A re-check PASS with margin; B.1 wired; C.1 live A/B — Gate B PASS, change CLOSED)
 
 **Commit(s):** `7a3598c` (change drafted + step-5 close-out), `fc1a428` (Phase A build + Gate A verdict), `d0fb457` (final model trained, τ = 0.30 — SUPERSEDED), `7872b24` (retrain with the hop-0 definition; Gate A re-check PASS with margin), `a0eb216` (B.1 wiring), `4c9576f` (C.1 live A/B + Gate B PASS)
@@ -1335,7 +1368,7 @@ Only components with completed, saved experiment artifacts are listed.
 - Missing-dependency fast path: no commit, file, or test in this repository refers to a mechanism by that name (commit history searched for related terms; nothing found). Status `not recoverable from repository`.
 - Adaptive retrieval: **no longer deferred** — implemented and evaluated as TrueAdaptive v1 (§2). (Listed as deferred in the supplied template; corrected here.)
 - Expected-information-gain query selection: implemented as direct EIG in TrueAdaptive v1 (`eig_strategy: direct` in `configs/erag_trueadaptive.yaml`); RIND/QFS-style token-level information-need detection is not implemented and is impossible via the black-box Groq API (no logits/attention), per the project record.
-- Memory-enabled execution: implemented (`src/systems/memory.py`) but disabled by default (`memory.enabled: false`); its benefit is unevaluated (E5 test cache-confounded); the clean re-test is designed as Step 6 — measurement built (`e5da900`), live A/B pending the step-7 outcome + a Groq key.
+- Memory-enabled execution: implemented (`src/systems/memory.py`) but disabled by default (`memory.enabled: false`); its benefit is unevaluated (E5 test cache-confounded); the clean re-test ran as Step 6 (2026-11-10) — verdict "instrument too weak" (fired 1/30), memory stays OFF for Test-400.
 - Learned continuation policy (step 7): final model trained, artifact RETRAINED (`configs/continuation_policy_dev.json`, τ = 0.05); wiring into `run_erag` (B.1) DONE and committed (`a0eb216`); live Dev-100 A/B (C.1) DONE and Gate B PASSED, committed (`4c9576f`); change archived.
 - Memory restoration and compatibility: `not recoverable from repository` — no evidence found.
 - Full NLI reliability evaluation: only the 60-pair H2 set (macro-F1 0.6825); a larger evaluation has not been run.
@@ -1380,7 +1413,7 @@ Only components with completed, saved experiment artifacts are listed.
 | Unknown-prompt variants (step 3) | `src/llm/prompts.py`, `src/systems/erag.py` | `tests/test_prompts.py` | `tune-unknown-prompt` (archived `2026-11-09-tune-unknown-prompt`) | `c0b5e67`, `afc10f1` | `results/trueadaptive/erag_trueadaptive_bm25_dev_unknown_a.jsonl`, `..._unknown_b.jsonl` | Implemented and tested; evaluated on Dev-100 — negative result, mechanism dropped |
 | Selective answering, `theta_abs = 0.50` (step 4) | `src/systems/erag.py:346` (config value only; no `src/` change) | `tests/test_analyzer_theta.py` | `tune-theta-abs` (archived `2026-11-09-tune-theta-abs`) | `5738181`, `4701ac3`, `78df3cd` | `results/trueadaptive/erag_trueadaptive_bm25_dev_theta_a.jsonl`, `..._theta_b.jsonl` (discarded as live evidence — cache replays) | Implemented; evaluated on Dev-100 via the accepted pre-registered counterfactual (smoke test) |
 | Hop-2 SC cap (step 5) | `src/systems/erag.py:240` (`max_hops` read; config only, zero code) | `tests/test_analyzer_hopcap.py`, `tests/test_erag.py` (mocked cap tests) | `tune-hop2-sc-cap` (archived `2026-11-09-tune-hop2-sc-cap`) | `5c01ede`, `7a3598c` | `results/trueadaptive/erag_trueadaptive_bm25_dev_hopcap.jsonl` | Measured; A/B EM 0.5100 unchanged, calls/Q 4.49 vs 4.65; gate failed on live calls only; verdict SUPERSEDED, cap NOT adopted |
-| Memory effectiveness measurement (step 6) | `scripts/eval_memory.py` (`--position` section), `src/systems/erag.py:372-373` (`mem_store_size` / `mem_texts` row fields) | `tests/test_eval_memory_position.py`, `tests/test_erag.py` (mocked mem-field tests) | `tune-memory-effectiveness` (active, not archived) | `e5da900` | `data/manifests/stream_clusters.json` (30-row sidecar); E5 files `results/stream_mem.jsonl`, `results/stream_nomem.jsonl`, `results/stream_planted.jsonl` | Measurement built and tested; live A/B pending; E5 cache finding: the H5 null is a replay, uninformative, not a real null |
+| Memory effectiveness measurement (step 6) | `scripts/eval_memory.py` (`--position` section), `src/systems/erag.py:372-373` (`mem_store_size` / `mem_texts` row fields) | `tests/test_eval_memory_position.py`, `tests/test_erag.py` (mocked mem-field tests) | `tune-memory-effectiveness` (archived 2026-11-10) | `e5da900`, (this commit — D.2) | `data/manifests/stream_clusters.json` (30-row sidecar); E5 files `results/stream_mem.jsonl`, `results/stream_nomem.jsonl`, `results/stream_planted.jsonl`; tuned-system files `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl` | Live A/B run 2026-11-10: nomem EM 0.6000, mem EM 0.6667, planted EM 0.6333 (all N=30, 0 failed, all-live); gate verdict "instrument too weak" (fired 1/30 < 5/30); memory stays OFF, H5 stays NOT SUPPORTED |
 | Learned continuation policy (step 7, Phase A + retrain + B.1 + C.1) | `scripts/train_continuation_policy.py`, `scripts/extract_continuation_training.py` (offline); `src/epistemic/continuation_policy.py`, `src/systems/erag.py` (wired) | `tests/test_continuation_policy.py`, `tests/test_analyzer_policy.py`, `tests/test_erag.py` (12 new policy tests) | `learned-continuation-policy` (archived 2026-11-09) | `7a3598c`, `fc1a428`, `d0fb457`, `7872b24`, `a0eb216`, `4c9576f` | `data/continuation_training_dev.jsonl`, `data/continuation_simulation_dev.json`, `configs/continuation_policy_dev.json`, `results/trueadaptive/erag_trueadaptive_bm25_dev_policy.jsonl` | Retrained simulation: EM 0.5152, calls/Q 3.92; Gate A re-check PASS with margin; wiring DONE and verified; live Dev-100: EM 0.5000, calls/Q 4.07; Gate B PASS — policy enters the frozen Test-400 system |
 | TrueAdaptive v1 vs IRCoT, Test-400 BM25 | `src/systems/erag.py`, `src/systems/ircot.py` | N/A (benchmark) | `erag-trueadaptive` | `d69490f` | `results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`, `results/ircot_test_bm25.jsonl` | Evaluated: TA EM 0.4750 vs IRCoT EM 0.4200, McNemar p=0.0043 |
 | H1 (E-RAG beats Standard) | N/A (analysis) | N/A (analysis of stored rows) | N/A | `3468d08` | `results/hypotheses_h1_h6.json`, `docs/hypotheses-h1-h6-assessment.md` | Supported interim (v1 system; confirmatory re-run owed) |

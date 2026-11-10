@@ -146,7 +146,7 @@ offer); the build then follows this file.
 
 ## C. Stream A/B (live — needs a Groq key, transiently, none saved)
 
-- [ ] C.1 Three runs on the tuned system (post-steps-4/5), in order
+- [x] C.1 Three runs on the tuned system (post-steps-4/5), in order
   nomem → mem → planted, sequential, detached. The `--set` for each
   MUST be verified against the step-4/5 changes before running
   (carry ALL tuned values forward: `theta_abs` from step 4,
@@ -168,7 +168,16 @@ offer); the build then follows this file.
   - mem: same, with `run.cache_namespace=stream_tuned_mem_v1 run.name=stream_tuned_mem_v1 memory.enabled=true`
   - planted: same as mem, with `run.cache_namespace=stream_tuned_planted_v1 run.name=stream_tuned_planted_v1 memory.enabled=true memory.plant=data/manifests/planted.json`
   Then analyze with: `.venv/bin/python scripts/eval_memory.py --position --nomem results/stream_tuned_nomem_v1.jsonl --mem results/stream_tuned_mem_v1.jsonl --planted results/stream_tuned_planted_v1.jsonl --clusters data/manifests/stream_clusters.json` (flag names per the A.2 implementation; adjust the command to match what A.2 actually built).
-- [ ] C.2 Check the tripwire FIRST, before reading any EM number:
+  DONE 2026-11-10: all three arms ran on the post-step-7 tuned
+  system (single `--set` each, fresh namespaces). nomem EM 0.6000 /
+  4.73 calls/Q, mem EM 0.6667 / 4.60, planted EM 0.6333 / 4.67 —
+  all N=30 deduped, 0 failed. Two interruptions: the VM restarted
+  overnight (first launch died at nomem 24/30; keys re-sent by the
+  user), and the first resume used a doubled `--set` (ran the DEV
+  split, wrote 2 dev rows into the stream file; killed, rows
+  removed, file restored to 24, relaunched with one `--set`).
+  Outputs: `results/trueadaptive/stream_tuned_{nomem,mem,planted}_v1.jsonl`.
+- [x] C.2 Check the tripwire FIRST, before reading any EM number:
   mean live calls/Q (`llm_calls − cache_hits`) per arm must be
   close to mean `llm_calls`/Q (i.e. `cache_hits`/Q near 0). If any
   arm's live calls/Q is ~0, that arm replayed and its results are
@@ -179,10 +188,13 @@ offer); the build then follows this file.
   paired difference, store growth, and override rate. Deduplicate
   rows by id keeping the LAST row; expect N=60 (or N=30 on the B.0
   fallback), 0 failed rows per arm.
+  DONE 2026-11-10: tripwire PASSES — live calls/Q ≈ llm_calls/Q
+  per arm (cache_hits/Q 0.07 nomem, 0.00 mem, 0.00 planted). All
+  three arms N=30 deduped, 0 failed.
 
 ## D. Gate (pre-registered, design.md)
 
-- [ ] D.1 Memory enters the frozen Test-400 system ONLY if ALL of:
+- [x] D.1 Memory enters the frozen Test-400 system ONLY if ALL of:
   (1) the mem arm fires on ≥5 of 60 questions (≥5 of 30 on the B.0
   fallback); (2) ΔEM (mem − nomem) > 0, OR Δcalls/Q < 0 with
   ΔEM ≥ −0.02 — AND the fired-row paired difference does not
@@ -198,6 +210,14 @@ offer); the build then follows this file.
   `memory.enabled: true` (thresholds unchanged) in the frozen-config
   note (the tuned config file itself is written at the end of Phase
   1, not here). Do NOT run Test-400 for this step.
+  DONE 2026-11-10: (1) FAILS — mem fired 1/30 (floor 5/30);
+  (2) would pass (ΔEM +0.0667, Δcalls/Q −0.13, fired-row paired
+  difference 0/0) but is unattributable — the single fired row
+  changed nothing; (3) override 1/1 retrieved (Becker purged), the
+  2 false-claim flags are substring false positives (verified by
+  inspecting both rows: gold-correct answers, nothing retrieved).
+  VERDICT: "instrument too weak" — memory stays OFF, H5 stays NOT
+  SUPPORTED with a dated note. No re-run.
 - [ ] D.2 Commit the change (tests + analyzer + extension script +
   sidecar + extended manifest + three stream result files) on
   `trueadaptive`, with the gate verdict and per-arm numbers

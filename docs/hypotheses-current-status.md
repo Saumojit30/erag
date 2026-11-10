@@ -201,10 +201,19 @@ at a reasonable computational cost?"
   questions with nothing planted); their texts are not recoverable
   from the stored rows — the trace pools record titles only, a
   provenance gap in E5's logging.
-- **Remains:** the re-test on the tuned system (Phase 1 Step 6). If
-  that is also null, H5 stays unsupported and the paper reports memory
-  as mechanism-verified, effectiveness-not-demonstrated. Note the
-  memory module is implemented and wired but disabled by default
+- **Remains:** the re-test is DONE (2026-11-10, step 6, tuned system,
+  all-live arms): mem fired on 1/30 (floor 5/30) — verdict
+  "instrument too weak", NOT a clean null. ΔEM +0.0667 and Δcalls/Q
+  −0.13 both favor memory but cannot be attributed to it (the single
+  fired row changed nothing; the +2 EM rows are noise). Override
+  1/1 retrieved (Becker purged); the checker's 2 false-claim flags
+  are substring false positives (gold-correct answers, nothing
+  retrieved). **H5 stays NOT SUPPORTED, with this dated note: two
+  under-powered tests (E5 cache-confounded, step 6 fired 1/30) —
+  the paper reports memory as mechanism-verified,
+  effectiveness-not-demonstrated, and does not claim a null.**
+  Memory stays OFF for Test-400. Note the memory module is
+  implemented and wired but disabled by default
   (`memory.enabled: false`) — all results so far are memory-off.
 
 ### H6 — Gains concentrate where initial retrieval missed a paragraph
