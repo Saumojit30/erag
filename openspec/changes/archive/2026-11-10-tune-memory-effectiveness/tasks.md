@@ -227,15 +227,19 @@ offer); the build then follows this file.
 
 ## E. Archive + next step
 
-- [ ] E.1 Archive the change with `openspec archive
+- [x] E.1 Archive the change with `openspec archive
   tune-memory-effectiveness -y` (always `-y` in this environment —
   without it the command blocks on an interactive prompt with no
   TTY). Verify the archived change is under
   `openspec/changes/archive/2026-11-09-tune-memory-effectiveness/`
   and the spec merged to `openspec/specs/memory-effectiveness/`.
-- [ ] E.2 Re-validate: `openspec validate --all` must be 0 failed.
+- [x] E.2 Re-validate: `openspec validate --all` must be 0 failed.
   Update the master plan (§3.6 outcome + §2.1 status + §9 decision
   3b) and `docs/hypotheses-current-status.md` (H5 verdict) with the
   result. After step 6 closes: freeze
   `configs/erag_trueadaptive_tuned.yaml` (incl. the memory on/off
   decision from this step), then Phase 2 Test-400 confirmation.
+  DONE 2026-11-10: validate --all 10 passed, 0 failed; master plan
+  (§3.6 outcome, §2.1, §9 row 3b, §12), status doc (H5 dated note),
+  changelog (§2 entry + §4.4/§5 updates), assumptions-vs-outcomes
+  (step-6 A/B entry) all updated in f4752c2.
