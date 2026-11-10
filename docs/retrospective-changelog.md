@@ -1276,6 +1276,41 @@ The following four entries were supplied with the template for §3. Each was che
 - **Claimed evidence:** "Full suite: 88 passed, 1 strict xfailed" — cannot be verified; marked `not recoverable from repository`. (For reference, the full suite measured for this draft at HEAD is 87 passed, 1 failed, 0 xfailed — a different count, a different tree, and not the claimed run.)
 - **Evidence status:** `not recoverable from repository`
 
+### 2026-11-10 — Adaptive-RAG baseline (training set + router + wiring + Gate AR-1 PASS + D.1 sanity run; Test-400 pending)
+
+**Commit(s):** `094188b` (training set), `c6b52e1` (change drafted), `bae3018` (C.1 router + C.2 analyzer), `b033602` (C.3 tasks), (this commit — D.1)
+**Scope:** Phase 2 baseline — Adaptive-RAG (Jeong et al., NAACL 2024) as the second adaptive baseline (user confirmed 2026-11-10; IRCoT stays the fixed control)
+**Type:** baseline (trained classifier + dispatch to existing strategies; no ERag code changed)
+**Prediction-changing:** no (not yet run on Test-400) — D.1 is a sanity check only
+
+#### What changed
+- A.1 training set: `scripts/build_adaptive_rag_training.py` → `data/adaptive_rag_training.jsonl`, N=1,100 (A=19, B=532, C=549): 100 HotpotQA dev questions outcome-labelled from stored runs (closed-book correct → A, Standard correct → B, else C) + SQuAD v1.1 train 500 → B + 2Wiki TRAIN 500 → C (seed 42; zero Test-400 overlap verified). A is thin (19) — recorded as expected.
+- Training: `scripts/train_adaptive_rag_router.py` (DistilBERT fine-tune, stratified 80/20 seed 42, inverse-frequency class weights) + 4 tests. Artifact `configs/adaptive_rag_classifier/` (268MB `model.safetensors` gitignored — a fresh clone must re-run training; metadata.json/tokenizer uncommitted by choice, pending the user's decision).
+- Gate AR-1 PASSED 2026-11-10 (independently re-verified): held-out accuracy 0.9318 vs 0.50 majority-class rate; per-class A 0.0 / B 0.9623 / C 0.9364; Dev-100 routes A0/B45/C55 (max share 0.55 < 0.90). Caveat: the router NEVER predicts route A, so the baseline will route B/C only on HotpotQA.
+- C.1 wiring: `src/systems/adaptive_rag.py` (`run_adaptive_rag` classifies then dispatches to exactly one existing strategy; missing classifier raises loudly) + `dispatch()` branch. C.2 analyzer section 16 `--adaptive-rag`. C.3: 15 new tests, all pass; full suite 159 passed, 1 failed (known pre-existing retry mismatch).
+- D.1 sanity run 2026-11-10: 100/100, 0 failed, 1:52 wall, all-live (cache_hits/Q 0.00). Routes A0/B45/C55 — EXACTLY the offline distribution. EM 0.5000, F1 0.6018, 1.78 calls/Q, coverage 0.780. Route B (n=45): EM 0.6667, 1.00 calls/Q. Route C (n=55): EM 0.3636, 2.42 calls/Q. Section 16: vs tuned TA (dev) dEM +0.0000 (McNemar 3/3, p=1); vs IRCoT (dev) dEM +0.0600 (p=0.3075). Sanity PASSES.
+
+#### Why it changed
+- The publication-ready plan (D3) requires a stronger baseline than IRCoT alone: Adaptive-RAG is the other published adaptive system, and its adaptivity is decided once, up front, from the question text — a different mechanism from TrueAdaptive's per-hop gap-driven adaptivity. The paper needs to show TrueAdaptive against both a fixed baseline (IRCoT) and an adaptive one.
+
+#### Files changed
+- `scripts/build_adaptive_rag_training.py`, `scripts/train_adaptive_rag_router.py`, `data/adaptive_rag_training.jsonl`, `src/systems/adaptive_rag.py`, `scripts/run_experiment.py` (dispatch branch), `scripts/analyze_trueadaptive_test400.py` (section 16), `tests/test_adaptive_rag.py`, `tests/test_analyzer_adaptive_rag.py`, `results/adaptive_rag/adaptive_rag_dev_bm25.jsonl`, `openspec/changes/adaptive-rag-baseline/*` (active, not archived)
+
+#### Tests added or updated
+- 15 new tests (`tests/test_adaptive_rag.py`, `tests/test_analyzer_adaptive_rag.py`) + 4 router-training tests; all pass. Full suite 159 passed, 1 failed (known retry mismatch).
+
+#### Evidence
+- Held-out accuracy re-run on the deterministic split (seed 42, n=220): 0.9318, exactly matching `configs/adaptive_rag_classifier/metadata.json`. Offline Dev-100 route distribution saved to `results/adaptive_rag/dev100_route_distribution.json` (untracked). End-to-end D.1 run reproduces the distribution exactly (B45/C55).
+
+#### Prediction impact
+- None yet (Test-400 run E.1 pending — it runs after the Phase 2 tuned file exists, and H8 is judged then).
+
+#### Limitations
+- The router never predicts route A on HotpotQA (per-class A accuracy 0.0; only 19 A examples in training). The baseline is effectively B/C-only on this dataset; the gate as written does not fail on this, and the paper must disclose it. The classifier weights are not in the repo (gitignored 268MB) — reproducibility depends on re-running training.
+
+#### Evidence status
+- Implemented, tested, sanity-run; Test-400 pending
+
 ## 3. Recent repair sequence
 
 Baseline:

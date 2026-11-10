@@ -295,6 +295,27 @@ replace them.
 
 ---
 
+### 2026-11-10 — Adaptive-RAG Gate AR-1 + D.1 sanity run
+
+- **Assumed (pre-registered, design.md):** a DistilBERT router trained
+  on 1,100 outcome-labelled questions would beat the 0.50
+  majority-class rate on held-out data and produce a non-degenerate
+  Dev-100 route distribution (no single route > 90%); the live D.1
+  run would reproduce the offline distribution.
+- **Actual:** held-out accuracy 0.9318 vs 0.50 (per-class A 0.0 / B
+  0.9623 / C 0.9364); Dev-100 routes A0/B45/C55 offline AND live
+  (exact match). D.1: EM 0.5000, F1 0.6018, 1.78 calls/Q, 0 failed,
+  all-live. Sanity PASSES. Two caveats recorded for the paper: the
+  router never predicts route A (only 19 A examples in training), and
+  the 268MB weights are gitignored, so a fresh clone must re-run
+  training.
+- **Lesson:** outcome-based labelling makes route B's dev EM look good
+  by construction (B routes are questions Standard already got
+  right) — D.1 numbers are a wiring check, not a verdict; H8 is
+  judged on Test-400 only.
+
+---
+
 ## Going forward (from 2026-11-10)
 
 - Every experiment from here — step 6, Phase 2, Phase 3, the ablations,

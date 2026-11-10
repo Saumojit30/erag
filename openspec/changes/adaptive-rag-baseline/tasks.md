@@ -94,7 +94,7 @@ Branch `trueadaptive`. Nothing is pushed.
 
 ## D. Dev-100 sanity run (only if Gate AR-1 passed; needs a Groq key, transiently, none saved)
 
-- [ ] D.1 One run: system `adaptive_rag`, Dev-100 BM25, fresh
+- [x] D.1 One run: system `adaptive_rag`, Dev-100 BM25, fresh
   namespace `dev_adaptive_rag_v1_bm25`, output
   `results/adaptive_rag/adaptive_rag_dev_bm25.jsonl`. Single
   `--set` with `retrieval.retriever_type=bm25`. Then analyze with
@@ -102,6 +102,15 @@ Branch `trueadaptive`. Nothing is pushed.
   is a sanity check only (the dev questions are class-C training
   rows, so the distribution is expected to skew to C) — it is not
   a gate and its numbers are not the verdict.
+  DONE 2026-11-10: 100/100, 0 failed, 1:52 wall, all-live
+  (cache_hits/Q 0.00). Routes A0/B45/C55 — EXACTLY the offline
+  distribution. EM 0.5000, F1 0.6018, 1.78 calls/Q, coverage 0.780.
+  Route B (n=45): EM 0.6667, 1.00 calls/Q. Route C (n=55): EM
+  0.3636, 2.42 calls/Q. Section 16: vs tuned TA (dev) dEM +0.0000
+  (McNemar 3/3, p=1); vs IRCoT (dev) dEM +0.0600 (p=0.3075).
+  Sanity PASSES — the router works end-to-end. The change stays
+  ACTIVE: E.1 (Test-400) runs after the Phase 2 tuned file exists,
+  then F.1/F.2/F.3 close it.
 
 ## E. Test-400 run + Gate AR-2 (needs a Groq key, transiently, none saved)
 
