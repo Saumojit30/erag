@@ -7,7 +7,12 @@ from src.epistemic.confidence import self_consistency, sequential_consistency
 from src.epistemic.continuation_policy import decide_policy, hop0_features, load_policy
 from src.eval.metrics import normalize_answer
 from src.llm.client import Tracker
-from src.llm.prompts import answer_messages, contested_answer_messages, grounded_answer_messages
+from src.llm.prompts import (
+    answer_messages,
+    contested_answer_messages,
+    grounded_answer_messages,
+    support_ranked_answer_messages,
+)
 
 QUERY_SYSTEM = (
     "Write {n} short, different search queries that would find evidence confirming or "
@@ -134,6 +139,31 @@ def find_contested(claims: List[Dict[str, Any]], draft: str):
     agreeing = sorted(agreeing, key=lambda c: -float(c.get("eff", 0.0)))
     disagreeing = sorted(disagreeing, key=lambda c: -float(c.get("eff", 0.0)))
     return agreeing, disagreeing
+
+
+def find_top_supported_rival(claims: List[Dict[str, Any]], draft: str, k: int = 3):
+    """Detect a draft unbacked by the strongest verified claims (Phase 2.6 H15, pure function).
+
+    `claims` are belief-graph claim dicts (the trace JSON shape: `text`,
+    `status`, `eff`). Returns the top-`k` supported claims by `eff`
+    descending iff the normalized draft answer appears in none of them
+    and at least one supported claim exists, else `None`. The stable
+    sort keeps graph insertion order on eff ties. Draft "unknown"/empty
+    is never triggered (the unknown re-read handles those rows).
+    """
+    draft_norm = normalize_answer(draft)
+    if draft_norm in ("unknown", ""):
+        return None
+    supported = sorted(
+        (c for c in claims if c.get("status") == "supported"),
+        key=lambda c: -float(c.get("eff", 0.0)),
+    )
+    if not supported:
+        return None
+    top = supported[: max(1, int(k))]
+    if any(draft_norm in normalize_answer(c.get("text", "")) for c in top):
+        return None
+    return top
 
 
 def targeted_retrieve(
@@ -409,6 +439,7 @@ def run_erag(
     reread_trigger = None
     reread_answer = None
     contested = False
+    support_ranked = False
     if e.get("ground_final_read", False):
         answer_claim = graph.answer_claim() if graph.claims else None
         supported = [c for c in graph.claims if c.status == "supported"]
@@ -442,6 +473,22 @@ def run_erag(
                     msgs = contested_answer_messages(
                         q, agreeing, disagreeing, pool
                     )
+            # Phase 2.6 H15: an independent check, NOT an elif on the
+            # contested branch — the contested elif takes its branch
+            # whenever its flag is on (even when the graph is not
+            # contested), which would make this trigger unreachable in
+            # the H15 A/B arm where both flags are on. It runs only when
+            # no earlier trigger fired.
+            if reread_trigger is None and e.get("support_ranked_reread", False):
+                # The draft is not backed by the strongest verified
+                # claims — re-read grounded only on the top-k.
+                top = find_top_supported_rival(
+                    graph.to_json(), draft, k=int(e.get("support_ranked_top_k", 3))
+                )
+                if top is not None:
+                    reread_trigger = "support_ranked"
+                    support_ranked = True
+                    msgs = support_ranked_answer_messages(q, top, pool)
             if reread_trigger is not None:
                 reread = llm.chat(msgs, tracker, temperature=0.0)
                 grounded_reread = True
@@ -510,6 +557,10 @@ def run_erag(
     # the flag is on (flag-off runs stay byte-identical to the tuned system).
     if e.get("contested_resolution", False):
         out["contested"] = contested
+    # Phase 2.6 H15: record whether the support-ranked re-read fired, only
+    # when the flag is on.
+    if e.get("support_ranked_reread", False):
+        out["support_ranked"] = support_ranked
     # Phase 2.5 H13: record the second pass, only when the flag is on.
     if e.get("second_extraction", False):
         out["second_pass_added"] = second_pass_added

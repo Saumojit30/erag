@@ -129,6 +129,39 @@ def contested_answer_messages(question: str, agreeing: list, disagreeing: list,
     ]
 
 
+SUPPORT_RANKED_SYSTEM = (
+    "Answer only from the verified claims below — they are the strongest "
+    "verified evidence. Reply with only the short answer, no "
+    "explanation. If none of the claims supports an answer, reply "
+    "exactly: unknown"
+)
+
+
+def support_ranked_answer_messages(question: str, top_claims: list,
+                                   paras: list) -> list:
+    """Messages for a support-ranked re-read (Phase 2.6 H15).
+
+    `top_claims` are the top-k supported claims by `eff`. Only these
+    claims are listed, so the reader chooses by the strongest verified
+    evidence rather than repeating the draft. Items are Claim objects
+    (or dicts) with a `text` field.
+    """
+    claims_block = "\n".join(
+        f"[{i + 1}] {c.text if hasattr(c, 'text') else c.get('text', '')}"
+        for i, c in enumerate(top_claims)
+    )
+    return [
+        {"role": "system", "content": SUPPORT_RANKED_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Strongest verified claims:\n{claims_block}\n\n"
+                f"Context:\n{context_block(paras)}\n\nQuestion: {question}\nAnswer:"
+            ),
+        },
+    ]
+
+
 CLOSED_BOOK_SYSTEM = (
     "Answer the question with only a short answer, no explanation. If you do not know, reply exactly: unknown"
 )

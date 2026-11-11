@@ -928,6 +928,27 @@ result, not used to pick the system post-hoc.
 
 ---
 
+## 4.6 Phase 2.6 — Beat-IRCoT round (user direction 2026-11-11)
+
+The user asked for a model that reduces hallucination and beats IRCoT
+first, then Adaptive-RAG, with the approach choice left to the
+assistant. Full pre-registration: `docs/phase26-beat-ircot-plan.md`
+(written 2026-11-11, before any new run). Order: (0) the Phase 2.5
+confirmation above (improved vs fresh IRCoT) is the baseline this round
+must beat; (1) H15 support-ranked final re-read; (2) H16 verifier
+threshold sweep; (3) ONE Test-400 confirmation of the final system vs
+fresh IRCoT. Win (pre-registered): EM > IRCoT AND paired McNemar
+p < 0.05 AND wrong-answer rate down vs IRCoT (roughly 0.475+ against
+IRCoT's 0.4225). H17 (calibrated abstention) is a candidate only, not
+pre-registered. Rules as in §4.5, plus: if the confirmation is still
+inconclusive, the paper reports it straight — no new mechanism is
+bolted on to escape the verdict without a new pre-registered round.
+Phase 3 entry moves to the end of this round (it was the Phase 2.5
+confirmation; the system that enters Phase 3 is the one this round's
+confirmation judges).
+
+---
+
 ## 5. Phase 3 — New datasets (generalization)
 
 **Goal:** show the Phase 2 system generalizes beyond HotpotQA — or find
