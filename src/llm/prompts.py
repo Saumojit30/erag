@@ -89,6 +89,46 @@ def grounded_answer_messages(question: str, claims: list, paras: list) -> list:
     ]
 
 
+CONTESTED_ANSWER_SYSTEM = (
+    "Some verified claims support the current answer and others support a "
+    "different answer — the claims disagree. Decide which answer is best "
+    "supported by the context. Reply with only the short answer, no "
+    "explanation. If neither side is supported by the context, reply "
+    "exactly: unknown"
+)
+
+
+def contested_answer_messages(question: str, agreeing: list, disagreeing: list,
+                              paras: list) -> list:
+    """Messages for a contested-claim re-read (Phase 2.5 H12).
+
+    `agreeing` are supported draft-sourced claims containing the draft;
+    `disagreeing` are supported question-sourced claims that do not. Both
+    are Claim objects (or dicts) with a `text` field. The two sides are
+    listed under separate headings so the reader decides by the evidence
+    rather than repeating the draft.
+    """
+    agree_block = "\n".join(
+        f"[{i + 1}] {c.text if hasattr(c, 'text') else c.get('text', '')}"
+        for i, c in enumerate(agreeing)
+    )
+    disagree_block = "\n".join(
+        f"[{i + 1}] {c.text if hasattr(c, 'text') else c.get('text', '')}"
+        for i, c in enumerate(disagreeing)
+    )
+    return [
+        {"role": "system", "content": CONTESTED_ANSWER_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Claims supporting the current answer:\n{agree_block}\n\n"
+                f"Claims supporting a different answer:\n{disagree_block}\n\n"
+                f"Context:\n{context_block(paras)}\n\nQuestion: {question}\nAnswer:"
+            ),
+        },
+    ]
+
+
 CLOSED_BOOK_SYSTEM = (
     "Answer the question with only a short answer, no explanation. If you do not know, reply exactly: unknown"
 )

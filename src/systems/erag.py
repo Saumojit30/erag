@@ -7,7 +7,7 @@ from src.epistemic.confidence import self_consistency, sequential_consistency
 from src.epistemic.continuation_policy import decide_policy, hop0_features, load_policy
 from src.eval.metrics import normalize_answer
 from src.llm.client import Tracker
-from src.llm.prompts import answer_messages, grounded_answer_messages
+from src.llm.prompts import answer_messages, contested_answer_messages, grounded_answer_messages
 
 QUERY_SYSTEM = (
     "Write {n} short, different search queries that would find evidence confirming or "
@@ -100,6 +100,40 @@ def build_graph(
             ev = nli.verify(c["text"], passages, theta_s=theta_s, theta_c=theta_c, pre_filter=pre_filter)
         g.add(c["text"], c["answer_bearing"], c["depends_on"], c0, ev, source=c.get("source", "draft"))
     return g.update()
+
+
+def find_contested(claims: List[Dict[str, Any]], draft: str):
+    """Detect a contested final graph (Phase 2.5 H12, pure function).
+
+    `claims` are belief-graph claim dicts (the trace JSON shape: `text`,
+    `status`, `source`, `eff`). Contested iff a supported draft-sourced
+    claim contains the normalized draft answer AND a supported
+    question-sourced claim does not. Returns `(agreeing, disagreeing)`,
+    each sorted by `eff` descending, or `None` when not contested.
+
+    Normalization is the repo `normalize_answer` (lowercase, punctuation
+    and article removal); the stored-data check used the analyzer's
+    `[^a-z0-9 ]` collapse, which agrees on this comparison up to article
+    handling. Draft "unknown"/empty is never contested.
+    """
+    draft_norm = normalize_answer(draft)
+    if draft_norm in ("unknown", ""):
+        return None
+    agreeing = [
+        c for c in claims
+        if c.get("status") == "supported" and c.get("source", "draft") == "draft"
+        and draft_norm in normalize_answer(c.get("text", ""))
+    ]
+    disagreeing = [
+        c for c in claims
+        if c.get("status") == "supported" and c.get("source") == "question"
+        and draft_norm not in normalize_answer(c.get("text", ""))
+    ]
+    if not agreeing or not disagreeing:
+        return None
+    agreeing = sorted(agreeing, key=lambda c: -float(c.get("eff", 0.0)))
+    disagreeing = sorted(disagreeing, key=lambda c: -float(c.get("eff", 0.0)))
+    return agreeing, disagreeing
 
 
 def targeted_retrieve(
@@ -354,12 +388,14 @@ def run_erag(
     grounded_reread = False
     reread_trigger = None
     reread_answer = None
+    contested = False
     if e.get("ground_final_read", False):
         answer_claim = graph.answer_claim() if graph.claims else None
         supported = [c for c in graph.claims if c.status == "supported"]
         if answer_claim is not None and supported:
             draft_norm = normalize_answer(draft)
             claim_norm = normalize_answer(answer_claim.text)
+            msgs = None
             if draft_norm in ("unknown", ""):
                 reread_trigger = "unknown"
             elif draft_norm not in claim_norm:
@@ -368,13 +404,26 @@ def run_erag(
                 grounded = sorted(
                     supported, key=lambda c: (not c.answer_bearing, -c.eff)
                 )
-                reread = llm.chat(
-                    grounded_answer_messages(
-                        q, grounded[: e.get("max_claims", 5)], pool
-                    ),
-                    tracker,
-                    temperature=0.0,
+                msgs = grounded_answer_messages(
+                    q, grounded[: e.get("max_claims", 5)], pool
                 )
+            elif e.get("contested_resolution", False):
+                # Phase 2.5 H12: the draft agrees with its own claims but
+                # the context offers a competing answer — resolve the
+                # contest with a re-read that states the disagreement.
+                found = find_contested(graph.to_json(), draft)
+                if found is not None:
+                    agreeing, disagreeing = found
+                    cap = int(e.get("max_claims", 5))
+                    agreeing = agreeing[:cap]
+                    disagreeing = disagreeing[: max(0, cap - len(agreeing))]
+                    reread_trigger = "contested"
+                    contested = True
+                    msgs = contested_answer_messages(
+                        q, agreeing, disagreeing, pool
+                    )
+            if reread_trigger is not None:
+                reread = llm.chat(msgs, tracker, temperature=0.0)
                 grounded_reread = True
                 reread_answer = reread
                 if normalize_answer(reread) not in ("unknown", ""):
@@ -437,5 +486,9 @@ def run_erag(
         out["grounded_reread"] = grounded_reread
         out["reread_trigger"] = reread_trigger
         out["reread_answer"] = reread_answer
+    # Phase 2.5 H12: record whether the graph was contested, only when
+    # the flag is on (flag-off runs stay byte-identical to the tuned system).
+    if e.get("contested_resolution", False):
+        out["contested"] = contested
     return out
 
