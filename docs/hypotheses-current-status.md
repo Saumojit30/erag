@@ -655,8 +655,8 @@ touch these). Call tail: 54 rows ≥7 calls consume 22% of calls at EM
   tests; feature agreement 1e-9 on all 100 dev rows; suite 139 passed.
   C.1 live Dev-100 A/B awaits a Groq key, then Gate B.
 
-**State of the repo.** Branch `trueadaptive`, HEAD `dfafe58`, local
-only, 10 commits ahead of origin, unpushed. Master `88f2512` (the
+**State of the repo.** Branch `trueadaptive`, HEAD `e0441be`, local
+only, 12 commits ahead of origin, unpushed. Master `88f2512` (the
 `.mailmap` fix) is in sync with `origin/master` (pushed 2026-11-10). Nothing has ever been pushed to
 ManojAdapakala/ERag (fetch-only, push URL `no_push`). No Groq key or
 GitHub token is saved anywhere — every future push or live run needs
