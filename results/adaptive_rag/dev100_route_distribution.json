@@ -1,0 +1,34 @@
+{
+  "gate": "AR-1 part 2 (Dev-100 route distribution, offline, no LLM calls)",
+  "date_checked": "2026-11-10T01:50:00Z",
+  "classifier": "configs/adaptive_rag_classifier (distilbert-base-uncased, trained 2026-11-09, metadata held-out acc 0.9318)",
+  "label_map": {
+    "0": "A",
+    "1": "B",
+    "2": "C"
+  },
+  "n_dev": 100,
+  "route_counts": {
+    "A": 0,
+    "B": 45,
+    "C": 55
+  },
+  "max_route_share": 0.55,
+  "gate_threshold": "no single route above 0.90",
+  "mean_max_prob": 0.83,
+  "verdict": "PASS",
+  "held_out_reverification": {
+    "date_checked": "2026-11-10T01:55:00Z",
+    "method": "re-ran saved classifier on the deterministic held-out split (seed 42, stratified 80/20, n=220) from data/adaptive_rag_training.jsonl",
+    "accuracy": 0.9318,
+    "majority_class_rate": 0.5,
+    "per_class_accuracy": {
+      "A": 0.0,
+      "B": 0.9623,
+      "C": 0.9364
+    },
+    "matches_metadata_json": true
+  },
+  "gate_ar1_verdict": "PASS (both parts: held-out 0.9318 > 0.50; Dev-100 max route share 0.55 < 0.90)",
+  "caveat": "Router never predicts route A (per-class A accuracy 0.0; Dev-100 A=0). Baseline will effectively route B/C only on HotpotQA; gate as written does not fail on this."
+}

@@ -1311,6 +1311,43 @@ The following four entries were supplied with the template for §3. Each was che
 #### Evidence status
 - Implemented, tested, sanity-run; Test-400 pending
 
+### 2026-11-11 — Phase 2 verdict: INCONCLUSIVE (tuned vs fresh IRCoT) + rest-of-Phase-2 chain complete
+
+**Commit(s):** (this commit — close-out; verdict script `scripts/phase2_verdict.py`, analyzer flags `--ta-file`/`--ircot-file`)
+**Scope:** Phase 2 confirmation — the frozen tuned system vs fresh IRCoT on HotpotQA Test-400 BM25, plus the H4 ablation, D2 component ablations, MiniLM second check, and Adaptive-RAG E.1
+**Type:** confirmation (pre-registered §4.2 verdict + H1/H4 confirmatory re-runs with Holm)
+**Prediction-changing:** yes — the headline Phase 2 verdict and four hypothesis verdicts
+
+#### What changed
+- **§4.2 verdict: INCONCLUSIVE.** Tuned EM 0.4500, F1 0.5905, 4.13 calls/Q vs fresh IRCoT v2 EM 0.4225, F1 0.5643, 2.48 calls/Q; dEM +0.0275, 95% CI [−0.0075, +0.0625], McNemar b=31, c=20, p=0.1608 (N=400 deduped, 0 failed, cache_hits/Q 0.020 tuned / 0.000 IRCoT). Per the decision table: "no significant gain", Phase 3 proceeds with the TUNED system, no further tuning. Tuned vs v1 (reported, not gated): 0.4500 vs 0.4750, p=0.2678 — tuning cut calls, not accuracy.
+- **H1 confirmatory re-run: SUPPORTED.** Tuned vs Standard-BM25 dEM +0.0475, p=0.0094; Holm adjusted p 0.0188.
+- **H4 (Test-400 ablation): NOT SUPPORTED.** No-adaptive EM 0.4350, F1 0.5781, 2.28 calls/Q; dEM +0.0150, p=0.4050; dF1 CI includes 0; cost/correct 9.18 vs 5.25. Holm adjusted p 0.405.
+- **H10: NOT SUPPORTED on the IRCoT leg** (calls/correct 9.18 vs 5.88; Balanced 20.11). **H11: tie** (wrong rate 0.4495 vs 0.4566 at better coverage; 0.7pts, inside noise).
+- **D2 (a) SC-off: cost win only** (6.00 vs 4.13 calls/Q, same accuracy, p=0.6072). **D2 (b) Fast-Path pair: directional only** (control 0.4675 vs off 0.4500, p=0.2100, same cost). **H7 NOT SUPPORTED.** Post-hoc observation: eager SC (FP-control) is +1.75pts over tuned at +0.70 calls, p=0.2810.
+- **MiniLM second check:** tuned 0.4450 vs IRCoT 0.4250, dEM +0.0200, p=0.2559 — same direction as BM25, also inconclusive. BM25 verdict stands.
+- **E.1 Adaptive-RAG Test-400 (Gate AR-2 PASS):** EM 0.4275, F1 0.5572, 1.68 calls/Q, coverage 0.760; routes B 210 / C 190 (A 0); route B EM 0.3714, route C EM 0.4895. **H8 NOT SUPPORTED** (EM edge n.s., p=0.2327, and tuned uses 2.5× the calls). AR ties IRCoT (p=0.8238) at fewer calls.
+
+#### Why it changed
+- Phase 2 was the pre-registered confirmation of the frozen tuned system. The verdict follows the §4.2 decision table exactly; H1/H4 follow the Holm rule agreed 2026-11-10. No hypothesis was rewritten after seeing a result (Rule 1); H11 is reported as a tie because its criterion carries no significance test and the gap is ~2 questions.
+
+#### Files changed
+- `results/trueadaptive/erag_trueadaptive_tuned_test.jsonl`, `results/ircot_test_v2_bm25.jsonl`, `results/trueadaptive/erag_ablate_no_adaptive_test.jsonl`, `results/trueadaptive/erag_trueadaptive_tuned_sc_fixed_test.jsonl`, `results/trueadaptive/erag_fp_control_test.jsonl`, `results/trueadaptive/erag_fp_off_test.jsonl`, `results/trueadaptive/erag_trueadaptive_tuned_test_minilm.jsonl`, `results/ircot_test_v2_minilm.jsonl`, `results/adaptive_rag/adaptive_rag_test_bm25.jsonl`, `scripts/phase2_verdict.py` (new), `scripts/analyze_trueadaptive_test400.py` (`--ta-file`/`--ircot-file` flags), `docs/tuning-master-plan.md` (§12), `docs/hypotheses-current-status.md` (H1/H4/H7/H8/H10/H11, scoreboard, §3), `docs/assumptions-vs-outcomes.md`, `docs/verification-report.md` (regenerated: 30,869 cache rows, 0 empty), this changelog
+
+#### Tests added or updated
+- No new tests. Full suite re-run 2026-11-11: 159 passed, 1 failed (known pre-existing retry mismatch) — see §4.5.
+
+#### Evidence
+- All nine result files N=400 deduped, 0 failed, cache_hits/Q ≤ 0.020 (tuned BM25's 0.020 is the resume-retry row, verified). Paired stats recomputed independently with `src/eval/stats.py` (bootstrap CIs, exact McNemar, Holm) and cross-checked against analyzer section 16 for H8 — identical numbers.
+
+#### Prediction impact
+- The paper's claim structure changes: H1 (confirmatory) stands; H4 (confirmatory) falls; H7/H8/H10 fall; H11 is a tie. The tuning phase is reported as a cost win, not an accuracy win. Phase 3 proceeds with the tuned system on new datasets (2Wiki, then MuSiQue).
+
+#### Limitations
+- All Phase 2 comparisons are HotpotQA Test-400 only (a held-out dev slice, not the official test set). The tuned-vs-v1 and FP-control-vs-tuned comparisons are cross-run and carry Groq model-drift risk across days; the gated verdicts (tuned vs IRCoT, H4, D2, MiniLM, H8) are same-window paired comparisons and are protected. Groq ran slow in the recovery window (~10s/it vs ~2s/it); the chain took ~7h wall with two relaunches after VM restarts — no rows lost.
+
+#### Evidence status
+- Implemented, run, verified; Phase 2 closed. Push to origin pending (needs a fresh GitHub PAT).
+
 ## 3. Recent repair sequence
 
 Baseline:
@@ -1381,7 +1418,7 @@ What does exist instead (the actual repair in this repository): row-level retrie
 ### 4.2 Tested offline
 
 - Test files on disk: `tests/test_analyzer_hopcap.py`, `tests/test_analyzer_policy.py`, `tests/test_analyzer_theta.py`, `tests/test_cache.py`, `tests/test_claims.py`, `tests/test_config.py`, `tests/test_continuation_policy.py`, `tests/test_erag.py`, `tests/test_eval_memory_position.py`, `tests/test_graph.py`, `tests/test_ircot.py`, `tests/test_memory.py`, `tests/test_metrics.py`, `tests/test_nli.py`, `tests/test_prompts.py`, `tests/test_retrieval.py`, `tests/test_retry_and_tracker.py`, `tests/test_standard.py`
-- Full suite measured for this update (HEAD `4c9576f`, after the C.1 analyzer casing fix): 140 passed, 1 failed, 0 xfailed — see §4.5. The 1 failure is the known pre-existing retry-test mismatch (see §4.5).
+- Full suite measured for this update (HEAD `91a0f29`, after the Adaptive-RAG D.1 commit): 159 passed, 1 failed, 0 xfailed — see §4.5. The 1 failure is the known pre-existing retry-test mismatch (see §4.5).
 - Mocked-LLM call-count tests for TrueAdaptive v1 (`tests/test_erag.py`, added in `d5c820f`): fast path 2 calls, 1-hop 5 calls. Mocked cap tests for step 5 (`tests/test_erag.py`, added in `5c01ede`): max_hops=1 binds at 5 calls, control reaches hop 2 at 6 calls.
 
 ### 4.3 Evaluated on saved benchmark data
@@ -1396,6 +1433,7 @@ Only components with completed, saved experiment artifacts are listed.
 - Tuning step 5: Dev-100 BM25 A/B (EM 0.5100 unchanged, calls/Q 4.49 vs 4.65; gate failed on live calls only; verdict SUPERSEDED — see §2)
 - Tuning step 7 (wired in and live-evaluated on Dev-100): counterfactual simulation on Dev-100 traces (LR, τ = 0.05, OOF, RETRAINED with the hop-0 `draft_unknown` definition): simulated EM 0.5152, F1 0.6238, calls/Q 3.92, STOP 81 / CONTINUE 18, excluded 1/100; Gate A re-check PASS with margin — see §2 (the original τ = 0.30 pass, EM 0.5000, is superseded). Live Dev-100 A/B (C.1, commit `4c9576f`): EM 0.5000, F1 0.6114, calls/Q 4.07 (live 0.11), STOP 81 (EM 0.5679) / CONTINUE 19 (EM 0.2105); Gate B PASS — the policy enters the frozen Test-400 system.
 - H1 (interim, v1 system), H3, H6 analyses from stored Test-400 rows; H2 NLI evaluation on a 60-pair labelled set
+- Phase 2 (2026-11-11): tuned system Test-400 BM25 (EM 0.4500, 4.13 calls/Q) vs fresh IRCoT (EM 0.4225, 2.48 calls/Q), verdict INCONCLUSIVE (p=0.1608); H4 ablation (NOT SUPPORTED), D2 SC-off + Fast-Path pair (H7 NOT SUPPORTED), MiniLM head-to-head (same direction, inconclusive), Adaptive-RAG E.1 (Gate AR-2 PASS; H8 NOT SUPPORTED) — see §2
 - E5 memory stream: evaluated on saved data (N=30) but uninformative — cache replay, not a null (see §1.4 and the step-6 §2 entry). Memory benefit is therefore NOT in this list.
 
 ### 4.4 Deferred or unimplemented
@@ -1407,26 +1445,26 @@ Only components with completed, saved experiment artifacts are listed.
 - Learned continuation policy (step 7): final model trained, artifact RETRAINED (`configs/continuation_policy_dev.json`, τ = 0.05); wiring into `run_erag` (B.1) DONE and committed (`a0eb216`); live Dev-100 A/B (C.1) DONE and Gate B PASSED, committed (`4c9576f`); change archived.
 - Memory restoration and compatibility: `not recoverable from repository` — no evidence found.
 - Full NLI reliability evaluation: only the 60-pair H2 set (macro-F1 0.6825); a larger evaluation has not been run.
-- H4 Test-400 ablation (adaptive vs no-adaptive on Test-400): not run; the run spec is prepared (needs a Groq key).
-- Tuned-system Test-400 confirmation (Phase 2, pre-registered verdict): not run; pending the end of tuning.
-- Phase 3 new dataset (2WikiMultiHopQA vs MuSiQue, undecided): not started; no tuning on its test split is permitted by the plan.
+- H4 Test-400 ablation (adaptive vs no-adaptive on Test-400): DONE 2026-11-11 — NOT SUPPORTED (dEM +0.0150, p=0.4050; cost/correct 9.18 vs 5.25).
+- Tuned-system Test-400 confirmation (Phase 2, pre-registered verdict): DONE 2026-11-11 — INCONCLUSIVE (tuned 0.4500 vs IRCoT 0.4225, p=0.1608).
+- Phase 3 new dataset: DECIDED — 2WikiMultiHopQA first, then MuSiQue, both on the full official dev sets; not started; no tuning on its test split is permitted by the plan.
 - TrueAdaptive v2 (closed-book gate, entropy-gated retrieval): specified in `openspec/changes/erag-trueadaptive/`, not built.
 - Provenance coverage for deferred runners: no provenance module exists in this repository; the substitute provenance (row-level retriever field, `results/README.md`, manifest SHAs) covers `scripts/run_experiment.py` outputs only.
-- MiniLM Test-400 for the tuned system: only if the BM25 Test-400 result is inconclusive (agreed rule); not required after the significant v1 BM25 result.
+- MiniLM Test-400 for the tuned system: DONE 2026-11-11 (the BM25 result was inconclusive, so the agreed rule triggered it): tuned 0.4450 vs IRCoT 0.4250, p=0.2559 — same direction, also inconclusive.
 
 ### 4.5 Current test status
 
 - Command (re-run for this update): `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`
 - Completed exit code: 1
-- Passed / failed / xfailed counts: **140 passed, 1 failed, 0 xfailed in 23.88s** (HEAD `4c9576f`, after the C.1 analyzer casing fix)
+- Passed / failed / xfailed counts: **159 passed, 1 failed, 0 xfailed in 28:47** (HEAD `91a0f29`, after the Adaptive-RAG D.1 commit; wall time far above the 23.88s at HEAD `4c9576f` — the count is what matters here, and the slowdown is consistent with HF Hub retry delays during model loads)
 - Remaining failure: `tests/test_retry_and_tracker.py::test_retry_exhaustion_raises_runtime_error` — the test expects the message "LLM call failed after 4 attempts"; the code retries 6 times (`src/llm/client.py:130`: "1 try + 5 retries = 6 attempts"; line 163 raises "LLM call failed after 6 attempts"). This is a test/code mismatch, not a system regression: the retry count in the code is 6 and the test was written for 4. The project record states it fails on base too; that was not independently re-verified in this draft (it would require checking out the base commit).
 - Remaining strict xfails: none observed in this run (0 xfailed).
 - Earlier counts for reference: 87 passed, 1 failed at HEAD `0ac6d99` (this draft's original measurement); 111 passed, 1 failed after the step-6 measurement build (`e5da900`). The growth is new tests (hopcap 9, memory-position 11, continuation-policy 8, analyzer-policy 7, plus mocked cap/mem tests), not behavior changes.
 
 ### 4.6 Current repository state
 
-- HEAD: `4c9576f` ("Step 7 Gate B PASS: learned continuation policy enters the frozen system", 2026-11-09, branch `trueadaptive`), 21 commits ahead of `origin/trueadaptive`, unpushed (needs a fresh token). Master `88f2512` (.mailmap) is 1 commit ahead of `origin/master`, unpushed.
-- Uncommitted changes (as found at the time of this update): modified `openspec/changes/learned-continuation-policy/design.md`, `openspec/changes/learned-continuation-policy/tasks.md`, `scripts/train_continuation_policy.py` (the `--write-artifact` flag, exercised by running the training script), `results/cache.sqlite`, `results/nli_memo.pkl` (both run artifacts, deliberately uncommitted); untracked `configs/continuation_policy_dev.json` (final-model artifact, verified — see the step-7 §2 entry), `configs/erag_adaptive.yaml` (old untested draft), `docs/audit-cache-dataset-integrity.md`, `docs/openspec-setup.md`, `openspec/changes/archive/2026-11-09-tune-hop2-sc-cap/`, `openspec/specs/hop2-sc-cap/`. This document was committed as `3da932b` and is updated here in the same working tree; the B.1 wiring subagent is running concurrently and has not yet written files.
+- HEAD: `2964fb6` ("Phase 2 close-out: INCONCLUSIVE verdict + H1/H4 Holm + D2 + MiniLM + E.1 (H8)", 2026-11-11, branch `trueadaptive`), 2 commits ahead of `origin/trueadaptive`, unpushed (needs a fresh token). Master `88f2512` (.mailmap) is in sync with `origin/master` (pushed 2026-11-10).
+- Uncommitted changes (as found at the time of this update): modified `results/cache.sqlite`, `results/nli_memo.pkl` (both run artifacts, deliberately uncommitted); untracked `configs/adaptive_rag_classifier/` (router weights gitignored; metadata/tokenizer uncommitted by choice), `configs/erag_adaptive.yaml` (old untested draft), `docs/audit-cache-dataset-integrity.md`, `docs/openspec-setup.md`.
 - Checkpoint tag target: the tag `checkpoint-pre-audit3` does not exist in this repository; the commit it is said to point at, `6aced98810227ce3404152799a426a97ca6d62a1`, exists (`6aced98`, 2026-11-08).
 - Historical result/cache changes: `results/cache.sqlite` was purged of 55 empty rows in `3064740` (backup recorded outside the repo, not verified in this draft) and has since grown with runs (26,488 rows at the last committed verification report, 27,617 rows when the verify script was re-run for this draft, 0 empty-text rows both times). No result JSONL was modified by the preparation of this document; the verify script's re-run rewrote `docs/verification-report.md` (timestamp and cache-row count only) and the file was restored with `git checkout` afterward.
 
@@ -1462,6 +1500,14 @@ Only components with completed, saved experiment artifacts are listed.
 | E5 / BGE retriever wrappers | `src/retrieval/index.py` | `tests/test_retrieval.py` | `retrieval` (spec) | `24dec3d` | `results/enriched/*_e5_test.jsonl`, `results/enriched/*_bge_test.jsonl` | Implemented, tested, evaluated (Phase 5 matrix) |
 | Test-400 error analysis | `scripts/analyze_trueadaptive_test400.py` | N/A (analysis) | N/A | `ed154d7` | `docs/trueadaptive-test400-error-analysis.md` | Implemented (as analysis); descriptive, from saved data |
 | Memory module (implementation) | `src/systems/memory.py` | `tests/test_memory.py` | `tune-memory-effectiveness` (active; measurement built `e5da900`) | `18b051f`, `e5da900` | `data/manifests/stream.jsonl`, `data/manifests/planted.json`, `data/manifests/stream_clusters.json` | Implemented and tested; benefit not evaluated |
+| Phase 2 tuned vs fresh IRCoT, Test-400 BM25 | `src/systems/erag.py`, `src/systems/ircot.py` | N/A (benchmark) | N/A (master plan §4.2) | `2964fb6` | `results/trueadaptive/erag_trueadaptive_tuned_test.jsonl`, `results/ircot_test_v2_bm25.jsonl` | Evaluated: tuned EM 0.4500 vs IRCoT 0.4225, dEM +0.0275, p=0.1608 — INCONCLUSIVE |
+| H4 Test-400 ablation | `src/systems/erag.py` (`erag.ablate=[no_adaptive]`) | N/A (benchmark) | N/A (master plan §4.1) | `2964fb6` | `results/trueadaptive/erag_ablate_no_adaptive_test.jsonl` | Evaluated: no-adaptive EM 0.4350 at 2.28 calls/Q; dEM +0.0150, p=0.4050; cost/correct 9.18 vs 5.25 — NOT SUPPORTED |
+| D2 SC-off ablation | `src/systems/erag.py` (`sc_mode=fixed`, `sc_samples=5`) | N/A (benchmark) | N/A (master plan §4.1) | `2964fb6` | `results/trueadaptive/erag_trueadaptive_tuned_sc_fixed_test.jsonl` | Evaluated: SC-fixed EM 0.4425 at 6.00 calls/Q vs tuned 0.4500 at 4.13; p=0.6072 — cost win only |
+| D2 Fast-Path pair | `src/systems/erag.py` (`gate_sc_behind_fast_path=false`, `ablate=[no_fast]`) | N/A (benchmark) | N/A (master plan §4.1) | `2964fb6` | `results/trueadaptive/erag_fp_control_test.jsonl`, `results/trueadaptive/erag_fp_off_test.jsonl` | Evaluated: control 0.4675 vs off 0.4500, p=0.2100, same cost — directional only |
+| MiniLM head-to-head, Test-400 | `src/systems/erag.py`, `src/systems/ircot.py` | N/A (benchmark) | N/A (master plan §4) | `2964fb6` | `results/trueadaptive/erag_trueadaptive_tuned_test_minilm.jsonl`, `results/ircot_test_v2_minilm.jsonl` | Evaluated: tuned 0.4450 vs IRCoT 0.4250, dEM +0.0200, p=0.2559 — same direction as BM25, also inconclusive |
+| Adaptive-RAG E.1, Test-400 BM25 | `src/systems/adaptive_rag.py` | `tests/test_adaptive_rag.py` | `adaptive-rag-baseline` (archived 2026-11-11) | `2964fb6` | `results/adaptive_rag/adaptive_rag_test_bm25.jsonl` | Evaluated: EM 0.4275 at 1.68 calls/Q; routes B 210 / C 190; H8 NOT SUPPORTED; Gate AR-2 PASS |
+| H1 confirmatory re-run (tuned) | N/A (analysis) | N/A (analysis of stored rows) | N/A | `2964fb6` | `results/trueadaptive/erag_trueadaptive_tuned_test.jsonl` | SUPPORTED: dEM +0.0475, p=0.0094; Holm adj p 0.0188 |
+| H10 / H11 (Phase 2) | N/A (analysis) | N/A (analysis of stored rows) | N/A | `2964fb6` | stored Phase 2 rows | H10 NOT SUPPORTED on IRCoT leg (9.18 vs 5.88); H11 tie (0.4495 vs 0.4566) |
 
 ## 6. Claims discipline
 
@@ -1514,11 +1560,12 @@ Controlled comparisons against one-shot RAG, fixed-budget E-RAG, IRCoT, and comp
 
 The current repository establishes mechanisms and offline tests, and — beyond that — one completed, saved benchmark demonstration and several analyses, all scoped to their benchmarks:
 
-- **TrueAdaptive v1 beats IRCoT on Test-400 BM25** (HotpotQA dev-distractor slice, N=400, BM25, k=3, frozen systems, 0 cache hits): EM 0.4750 vs 0.4200, F1 0.6192 vs 0.5674, 4.78 vs 2.545 calls/Q; McNemar b=38, c=16, p=0.0043. Artifacts: `results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`, `results/ircot_test_bm25.jsonl`, commit `d69490f`. TrueAdaptive also beats Balanced BM25 (EM 0.4450 at 8.95 calls/Q) by +3.0 pts at −46.6% calls. This is a demonstration on one retriever (BM25) and one held-out dev slice, not a generalization claim: MiniLM Test-400 for v1 was not required under the agreed rule, and the tuned system has not yet been tested on Test-400.
-- **H1 supported interim** (v1 system vs Standard-BM25: ΔEM +0.0725, 95% CI [0.0350, 0.1125], p=0.00034); the confirmatory re-run on the tuned system is owed at Phase 2, and Holm correction is pending H4's Test-400 p-value.
+- **TrueAdaptive v1 beats IRCoT on Test-400 BM25** (HotpotQA dev-distractor slice, N=400, BM25, k=3, frozen systems, 0 cache hits): EM 0.4750 vs 0.4200, F1 0.6192 vs 0.5674, 4.78 vs 2.545 calls/Q; McNemar b=38, c=16, p=0.0043. Artifacts: `results/trueadaptive/erag_trueadaptive_test_bm25.jsonl`, `results/ircot_test_bm25.jsonl`, commit `d69490f`. TrueAdaptive also beats Balanced BM25 (EM 0.4450 at 8.95 calls/Q) by +3.0 pts at −46.6% calls. This is a demonstration on one retriever (BM25) and one held-out dev slice, not a generalization claim: MiniLM Test-400 for v1 was not required under the agreed rule. The tuned system has since been tested on Test-400 (Phase 2, 2026-11-11): EM 0.4500 vs fresh IRCoT 0.4225, p=0.1608 — INCONCLUSIVE; see the Phase 2 bullet below.
+- **H1 supported (confirmatory, tuned system)** (ΔEM +0.0475, 95% CI [+0.0150, +0.0800], p=0.0094; Holm adjusted p 0.0188). The v1 interim result (ΔEM +0.0725, p=0.00034) is superseded as the confirmatory evidence.
 - **H6 supported strongly**: all of TrueAdaptive's gain over IRCoT concentrates where hop-0 retrieval was incomplete (n=192, ΔEM +0.1146, CI [0.0521, 0.1823], p=0.00094); zero gain where retrieval was complete (n=208, ΔEM 0.0000). This is the mechanism result, and it is scoped to the same Test-400 BM25 comparison.
-- **H2 not supported** (NLI verifier, 60-pair set: macro-F1 0.6825 < 0.70; contradicted recall 0.75 passed). **H5 not supported on a cache-confounded test** (the E5 memory run is a replay, not a null; memory benefit is unevaluated). **H4 Test-400 ablation not yet run** (dev interim inconclusive; the latency bound as written is unmeetable and needs a dated clarification).
-- **Tuned system (theta_abs = 0.50, max_claims = 8, reader grounding on, unknown prompt base) judged on dev only so far**: Dev-100 BM25 EM 0.5100, selective EM 0.6456, wrong-answer rate 0.3544, coverage 0.790 — via the accepted pre-registered counterfactual (the live runs were cache replays and were discarded as evidence). The step-5 static hop cap was measured and NOT adopted (EM unchanged, calls/Q 4.49 vs 4.65; verdict SUPERSEDED). Step 7's learned continuation policy passed its offline gate on re-check with margin (counterfactual simulation after the hop-0 retrain: EM 0.5152, 3.92 calls/Q; final model retrained, τ = 0.05 — the original marginal pass, EM 0.5000, is superseded), was wired in (B.1, `a0eb216`), and passed its live Dev-100 gate (C.1, `4c9576f`: live EM 0.5000 at 4.07 calls/Q vs static baseline 0.5100 at 4.65; STOP 81 / CONTINUE 19). The tuned system's live numbers are now EM 0.5000, F1 0.6114, 4.07 calls/Q on Dev-100. Test-400 confirmation is pending (Phase 2, pre-registered verdict).
+- **H2 not supported** (NLI verifier, 60-pair set: macro-F1 0.6825 < 0.70; contradicted recall 0.75 passed). **H5 not supported on a cache-confounded test** (the E5 memory run is a replay, not a null; memory benefit is unevaluated; the step-6 live re-test was "instrument too weak"). **H4 not supported (confirmatory)** (Test-400 ablation: dEM +0.0150, p=0.4050; cost/correct 9.18 vs 5.25; Holm adjusted p 0.405). **H7/H8/H10 not supported; H11 a tie** (see §2, 2026-11-11 entry).
+- **Tuned system (theta_abs = 0.50, max_claims = 8, reader grounding on, unknown prompt base) judged on dev only so far**: Dev-100 BM25 EM 0.5100, selective EM 0.6456, wrong-answer rate 0.3544, coverage 0.790 — via the accepted pre-registered counterfactual (the live runs were cache replays and were discarded as evidence). The step-5 static hop cap was measured and NOT adopted (EM unchanged, calls/Q 4.49 vs 4.65; verdict SUPERSEDED). Step 7's learned continuation policy passed its offline gate on re-check with margin (counterfactual simulation after the hop-0 retrain: EM 0.5152, 3.92 calls/Q; final model retrained, τ = 0.05 — the original marginal pass, EM 0.5000, is superseded), was wired in (B.1, `a0eb216`), and passed its live Dev-100 gate (C.1, `4c9576f`: live EM 0.5000 at 4.07 calls/Q vs static baseline 0.5100 at 4.65; STOP 81 / CONTINUE 19). The tuned system's live numbers are now EM 0.5000, F1 0.6114, 4.07 calls/Q on Dev-100. Test-400 confirmation is DONE (Phase 2, 2026-11-11): tuned EM 0.4500, F1 0.5905, 4.13 calls/Q; verdict INCONCLUSIVE vs fresh IRCoT (0.4225, p=0.1608). MiniLM second check: tuned 0.4450 vs IRCoT 0.4250, p=0.2559 — same direction, also inconclusive.
+- **Phase 2 verdict (2026-11-11): INCONCLUSIVE.** The tuned system does not significantly beat fresh IRCoT on Test-400 BM25. The tuning phase bought cost (4.13 vs 4.78 calls/Q vs v1), not accuracy (0.4500 vs 0.4750). H1 confirmatory stands; H4 confirmatory falls; H7/H8/H10 fall; H11 is a tie. Phase 3 proceeds with the tuned system on 2Wiki, then MuSiQue.
 - **Cost**: TrueAdaptive v1 uses 4.78 calls/Q on Test-400 BM25 vs 8.95 for Balanced and 2.545 for IRCoT; the Reference→Balanced call reduction is −39.8% (14.22 → 8.56 calls/Q, Test-400 MiniLM), not the "45.4%" figure that circulated earlier. Cost claims are scoped to these measured runs; token and latency figures are reported in `research/cost/` and were not independently recomputed for this draft.
 
 What the evidence does **not** establish: benchmark superiority on any dataset other than the HotpotQA dev-distractor slice; superiority on any retriever other than BM25 for the adaptive system; memory benefits; NLI verifier reliability beyond a 60-pair set; or robustness. The mechanisms are implemented and covered by offline tests (140 passed, 1 failed — the known pre-existing retry-test mismatch — measured 2026-11-09 at HEAD `4c9576f`); the benchmark claims above are the only ones a completed, saved experiment demonstrates.

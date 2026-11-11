@@ -35,12 +35,15 @@ at a reasonable computational cost?"
   CI [0.0351, 0.1114]; McNemar p=0.00034. (For context, the older
   Balanced system clears H1 on EM but not on F1 — its ΔF1 CI includes
   0. TrueAdaptive clears both.)
-- **Verdict: SUPPORTED (interim).** Two qualifications: this is the v1
-  system, not the final tuned system, so the confirmatory H1 must be
-  re-run on the frozen tuned system at Phase 2; and the Holm correction
-  is pending H4's Test-400 p-value.
-- **Remains:** the Phase 2 re-run on the tuned system; Holm once H4's
-  Test-400 p-value exists.
+- **Verdict: SUPPORTED (confirmatory re-run, 2026-11-11).** Tuned
+  system vs Standard-BM25, Test-400 (N=400, paired): tuned EM
+  0.4500 vs Standard 0.4025; ΔEM +0.0475, 95% CI [+0.0150,
+  +0.0800]; McNemar b=34, c=15, p=0.0094. Holm across H1/H4:
+  adjusted p 0.0188 < 0.05 — H1 survives the correction. The v1
+  interim result (ΔEM +0.0725, p=0.00034) is superseded by this
+  re-run as the confirmatory evidence; both point the same way.
+- **Remains:** nothing for H1 on HotpotQA. Phase 3 tests the
+  generalization of the same claim on new datasets (H9).
 
 ### H2 — The NLI verifier separates supported / contradicted / unresolved
 
@@ -146,17 +149,22 @@ at a reasonable computational cost?"
   The 3× latency bound is retired because, as written, no multi-hop
   system can meet it (see the problem stated below) — and a bound no
   honest system can meet is not a bound, it is a trap.
-- **Evidence (dev interim only):** full E-RAG Active vs no-adaptive
-  ablation (hop limit 0) on Dev-100, paired. Full EM 0.3900 / F1 0.4800
-  at 14.72 calls; no-adaptive EM 0.3700 / F1 0.4496 at 7.00 calls.
-  ΔF1 +0.0304, 95% CI [−0.0607, 0.1211]; ΔEM +0.0200, CI [−0.0700,
-  0.1100]; McNemar p=0.8318. On Dev-100 the difference is inside
-  noise, as expected at N=100.
-- **Verdict: NOT TESTED (confirmatory).** The Test-400 ablation has
-  not run. Prepared run (needs a Groq key, ~20–30 min, ~1,500–2,000
-  calls, fresh namespace so it is all-live): the frozen TrueAdaptive
-  config plus `erag.ablate=[no_adaptive]`, BM25, Test-400, namespace
-  `test_noadaptive_v1_bm25`.
+- **Evidence (Test-400, 2026-11-11):** tuned vs no-adaptive ablation,
+  paired (N=400): tuned EM 0.4500 / F1 0.5905 at 4.13 calls/Q;
+  no-adaptive EM 0.4350 / F1 0.5781 at 2.28 calls/Q. ΔEM +0.0150,
+  95% CI [-0.0150, +0.0450]; ΔF1 +0.0124, CI [-0.0190, +0.0439];
+  McNemar b=21, c=15, p=0.4050. Cost per correct answer: tuned
+  9.18 vs no-adaptive 5.25. File:
+  `results/trueadaptive/erag_ablate_no_adaptive_test.jsonl`
+  (N=400, 0 failed, cache_hits/Q 0.000). (Dev interim, for
+  reference: ΔF1 +0.0304, CI [-0.0607, 0.1211], p=0.8318 — same
+  direction, also inside noise.)
+- **Verdict: NOT SUPPORTED (confirmatory).** Both criterion legs
+  fail: the ΔF1 CI includes 0, and the adaptive system costs MORE
+  per correct answer than the ablation. Holm across H1/H4: adjusted
+  p 0.405. The paper reports tuning's adaptivity as a negative
+  result on this leg; the H1 claim (E-RAG beats Standard) is
+  unaffected.
 - **The 3× latency bound is a problem, stated plainly.** As literally
   written it is not met by any multi-hop system in the stored data:
   TrueAdaptive mean wall latency 5.92s vs Standard-BM25 0.28s (21×);
@@ -168,9 +176,10 @@ at a reasonable computational cost?"
   E-RAG vs 1 for Standard, and any system making >3 calls/Q exceeds
   3× a 1-call baseline on calls alone (TA 4.78×, Balanced 8.95×).
   The bound was a proposed limit, never confirmed.
-- **Remains:** the Test-400 ablation run (the bound is now clarified
-  above, before the run, as required). What must not happen is silent
-  non-compliance: running the test, seeing the bound fail, and quietly
+- **Remains:** nothing for H4 on HotpotQA. The bound was clarified
+  before the run (2026-11-10) and the result was reported against
+  it, not dropped — the silent non-compliance the note warned
+  about did not happen.
   dropping it.
 
 ### H5 — Verified-belief memory cuts retrieval without lowering accuracy
@@ -255,9 +264,20 @@ at a reasonable computational cost?"
   Test-400 BM25): EM lower or calls/Q higher. H7 is exploratory (it
   compares system variants, like the ERag-vs-IRCoT comparison); the
   confirmatory claims remain H1 and H4.
-- **Evidence:** none yet — the D2 ablation runs in Phase 2 are the
-  evidence (master plan §4.1, dated amendment 2026-11-10).
-- **Verdict: NOT TESTED.**
+- **Evidence (Test-400, 2026-11-11):** SC-off (fixed SC, 5 samples)
+  EM 0.4425, F1 0.5748, 6.00 calls/Q vs tuned 0.4500, 4.13 calls/Q;
+  dEM +0.0075, CI [-0.0125, +0.0275], p=0.6072 — sequential SC is a
+  cost win (~31% fewer calls), not an accuracy win. Fast-Path pair
+  (SC eager in both arms): control EM 0.4675, F1 0.5939, 4.83
+  calls/Q vs off EM 0.4500, F1 0.5802, 4.86 calls/Q; dEM +0.0175,
+  CI [-0.0050, +0.0425], p=0.2100 — directional only. Files:
+  `results/trueadaptive/erag_trueadaptive_tuned_sc_fixed_test.jsonl`,
+  `results/trueadaptive/erag_fp_control_test.jsonl`,
+  `results/trueadaptive/erag_fp_off_test.jsonl` (all N=400, 0
+  failed, cache_hits/Q 0.000).
+- **Verdict: NOT SUPPORTED.** Neither component shows a significant
+  accuracy contribution; SC's contribution is cost, the fast path's
+  is directional.
 - **Why the Fast-Path-off needs a pair (code reading, 2026-11-10):**
   the publication plan assumed Fast-Path-off is one config flag
   (`erag.ablate=[no_fast]`). Reading `src/systems/erag.py` shows it
@@ -287,10 +307,20 @@ at a reasonable computational cost?"
   per-route EM. H8 is exploratory (it compares two adaptive systems,
   like the ERag-vs-IRCoT comparison); the confirmatory claims remain
   H1 and H4.
-- **Evidence:** none yet — the Adaptive-RAG Test-400 run in Phase 2
-  is the evidence (OpenSpec change `adaptive-rag-baseline`, Gate
-  AR-2). The change's proposal/design/spec pre-register H8 in full.
-- **Verdict: NOT TESTED.**
+- **Evidence (Test-400, 2026-11-11; Gate AR-2 PASS):** Adaptive-RAG
+  EM 0.4275, F1 0.5572, 1.68 calls/Q, coverage 0.760 (N=400,
+  0 failed, fresh namespace `test_adaptive_rag_v1_bm25`); routes B
+  210 / C 190 (A 0, as predicted); route B EM 0.3714 at 1.00 call/Q,
+  route C EM 0.4895 at 2.44 calls/Q. Tuned vs AR: dEM +0.0225,
+  CI [-0.0100, +0.0550], McNemar b=27, c=18, p=0.2327. AR vs IRCoT:
+  0.4275 vs 0.4225, p=0.8238. File:
+  `results/adaptive_rag/adaptive_rag_test_bm25.jsonl`; analyzer
+  section 16.
+- **Verdict: NOT SUPPORTED.** The EM edge is not significant, and
+  the tuned system uses 2.5x the calls (4.13 vs 1.68), so the
+  equal-or-fewer-calls leg fails outright. Adaptive-RAG ties IRCoT
+  at fewer calls — it is the cheapest system per question, not the
+  most accurate.
 
 ### H9 — The tuned system generalizes to new multi-hop datasets
 
@@ -314,9 +344,11 @@ at a reasonable computational cost?"
   comparators on Test-400 BM25. The dollar conversion (Groq
   per-token pricing, verified at manuscript time) is a reporting
   step, not a second bound. H10 is exploratory.
-- **Evidence:** none yet — a recomputation from the stored Phase 2
-  rows (publication plan D6), no new runs.
-- **Verdict: NOT TESTED.**
+- **Evidence (Test-400, 2026-11-11):** calls per correct answer from
+  the stored rows: tuned 9.18, IRCoT v2 5.88, Balanced 20.11.
+  The tuned system beats Balanced hugely but loses to IRCoT.
+- **Verdict: NOT SUPPORTED on the IRCoT leg.** The claim as written
+  needs both comparators; IRCoT's frugality wins the ratio.
 
 ### H11 — The tuned system hallucinates less than IRCoT
 
@@ -327,31 +359,40 @@ at a reasonable computational cost?"
   **Criterion:** wrong-answer rate (wrong / answered) lower than
   IRCoT's, with coverage (answered / total) no lower than IRCoT's.
   H11 is exploratory.
-- **Evidence:** none yet — the Phase 2 selective-answering numbers
-  (tuned vs fresh IRCoT, same run as the §4.2 verdict), no new runs.
-- **Verdict: NOT TESTED.**
+- **Evidence (Test-400, 2026-11-11):** wrong-answer rate tuned
+  0.4495 (147/327 answered) vs IRCoT 0.4566 (142/311) at better
+  coverage (0.818 vs 0.777).
+- **Verdict: TIE — not a demonstrated reduction.** The criterion's
+  two legs are technically met (lower wrong rate, no-lower coverage)
+  but the gap is 0.7pts (~2 questions), inside noise, and the
+  criterion carries no significance test — so the paper reports a
+  tie, not a win. The hallucination-reduction claim rests on H6
+  and the abstention mechanism, not on this comparison.
 
 ### Scoreboard
 
 | ID | Verdict | Headline number |
 |----|---------|-----------------|
-| H1 | SUPPORTED (interim, v1) | ΔEM +0.0725, CI excludes 0; McNemar p=0.00034 |
+| H1 | SUPPORTED (confirmatory, tuned) | dEM +0.0475, CI excludes 0; McNemar p=0.0094; Holm adj p 0.0188 |
 | H2 | NOT SUPPORTED (narrow miss) | Macro-F1 0.6825 < 0.70; contradicted recall 0.75 ≥ 0.70 |
 | H3 | SUPPORTED, weaker for TA | AUROC(c0) 0.5915, CI excludes 0.5; below Reference 0.6519 |
-| H4 | NOT TESTED (Test-400) | Dev ΔF1 +0.0304, CI includes 0; cost-per-correct-answer bound (clarified 2026-11-10) |
+| H4 | NOT SUPPORTED (confirmatory) | dEM +0.0150, p=0.4050; cost/correct 9.18 vs 5.25; Holm adj p 0.405 |
 | H5 | NOT SUPPORTED (retrieval half) | E5: identical EM, 0 calls saved; override 1/1 retrieved |
 | H6 | SUPPORTED, strongly | All gain in hop-0-incomplete subset: ΔEM +0.1146, CI excludes 0 |
-| H7 | NOT TESTED | D2 ablations in Phase 2 are the evidence |
-| H8 | NOT TESTED | Adaptive-RAG Test-400 run in Phase 2 (Gate AR-2) |
+| H7 | NOT SUPPORTED | SC = cost win only (p=0.6072); fast path directional (p=0.2100) |
+| H8 | NOT SUPPORTED | Tuned EM edge n.s. (p=0.2327) and 2.5x the calls; AR ties IRCoT |
 | H9 | NOT TESTED | Phase 3 (2Wiki, then MuSiQue) |
-| H10 | NOT TESTED | D6 cost recomputation from Phase 2 rows |
-| H11 | NOT TESTED | Phase 2 selective-answering numbers |
+| H10 | NOT SUPPORTED (IRCoT leg) | Calls/correct tuned 9.18 vs IRCoT 5.88 vs Balanced 20.11 |
+| H11 | TIE (not a demonstrated reduction) | Wrong rate 0.4495 vs 0.4566 (0.7pts, inside noise); coverage better |
 
-Three supported, two not supported, five untested. That is a normal,
-honest scoreboard for a research system: the core adaptivity claim
-(H6) and the head-to-head claim (H1) hold, the verifier (H2) and the
-memory (H5) do not do what the report claimed, and the cost claim
-(H4) is still open.
+Three supported, six not supported, one tie, one untested. That is
+an honest scoreboard for a research system: the core mechanism claim
+(H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
+(H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
+the component claims (H7, H8, H10) do not do what was hoped, and the
+hallucination claim (H11) is a tie. The tuning phase bought cost,
+not accuracy — and Phase 3 is where the generalization claim gets
+tested.
 
 ## 2. Where TrueAdaptive is now
 
@@ -475,55 +516,35 @@ attempts", code says 6; fails on base too, left untouched).
 
 ## 3. Next steps, in order
 
-1. **Step 7 C.1 — live Dev-100 A/B + Gate B.** Needs a Groq key,
-   supplied transiently. Prepared command in the step-7 change
-   (tasks.md C.1): tuned system + policy, Dev-100 BM25, reused dev
-   namespace. Gate B: live EM ≥ 0.5000, live calls/Q < 4.65, live
-   numbers within ±0.02 EM / ±0.2 calls/Q of the simulation.
-2. **Step 6 — stream A/B.** Three arms, fresh namespaces, N=30
-   fallback; runs on the post-step-7 tuned system if the policy
-   passes Gate B, else post-step-4. Needs a Groq key. Then the gate,
-   commit, archive, and the H5 revisit with a dated note.
-3. **Hypothesis hygiene before Phase 2.** Dated confirmation of the
-   H2 0.70 threshold; dated clarification of the H4 3× latency bound
-   (unmeetable as written); decision 3c — whether the confirmatory
-   H1/H4 analyses join Phase 2 (H4 needs its own Test-400 ablation
-   run).
-4. **Freeze the tuned config** (`configs/erag_trueadaptive_tuned.yaml`,
-   including the memory on/off decision from step 6). Nothing changes
-   after this point without a dated amendment.
-5. **Phase 2 — Test-400 confirmation.** The pre-registered verdict in
-   the master plan (§4): tuned TrueAdaptive vs fresh IRCoT, BM25 k=3
-   distractor N=400, fresh namespaces, tuned first then IRCoT,
-   detached, checkpoint resume. Primary endpoint EM with paired
-   McNemar exact two-sided, α=0.05. Win: tuned EM > IRCoT EM AND
-   p<0.05. Loss: tuned ≤ IRCoT or p≥0.05 with tuned ≤ IRCoT.
-   Inconclusive: tuned > IRCoT but p≥0.05. Decision table: Win →
-   tuned is the paper's system, proceed to Phase 3; Inconclusive →
-   run MiniLM, if also inconclusive report "no significant gain",
-   Phase 3 still proceeds, no further tuning to chase significance;
-   Loss → stop tuning, revert to v1 for Phase 3, report tuning as a
-   negative result. The H4 Test-400 ablation runs alongside (needs a
-   Groq key), and H1 is re-run on the tuned system for its
-   confirmatory verdict.
-6. **Phase 3 — new dataset.** Choice still open: 2WikiMultiHopQA
-   (structurally closest; safer comparability) vs MuSiQue (harder,
-   more compositional; stronger generalization claim). Deciding
-   question = what the paper claims. No tuning on the new test split;
-   no third dataset.
-7. **Phase 4 — paper.** Venue open. The paper writes what was tested,
-   not what was hoped: H2 and H5 reported as not supported, H4's
-   latency bound as clarified, H6 as the mechanism.
+Phase 2 is complete (verdict INCONCLUSIVE, 2026-11-11). What was
+"next" in the old version of this section — steps 6/7, hypothesis
+hygiene, the freeze, the Phase 2 runs — is all done.
+
+1. **Phase 2 close-out.** Records (this update, master plan §12,
+   changelog §2, assumptions entries), the Adaptive-RAG change
+   archived, everything committed on `trueadaptive`, then push to
+   origin (needs a fresh GitHub PAT, re-sent by the user). Refresh
+   the short-point project report.
+2. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
+   on the FULL official dev sets, BM25 first then MiniLM as the
+   second check, frozen tuned system (the Inconclusive rule). New
+   hypotheses written BEFORE touching either dataset (H9 already
+   written); each dataset judged on its own. No tuning on the new
+   test splits; no re-running Phase 2 to chase a Phase 3 number.
+3. **Phase 4 — paper.** Per the publication-ready plan: D6 cost
+   upgrade (incl. H10), D8 qualitative error taxonomy, regenerated
+   tables/figures from the FINAL results, LNCS manuscript with the
+   D4 disclosures. H6 leads; H1 confirmatory stands; H2/H4/H5/H7/
+   H8/H10 reported honestly; H11 reported as a tie. Venue: target
+   February 2027 deadlines (ICAIIT 2027 first).
 
 **Blockers / open decisions (master plan §9; see also
-`docs/paper-readiness-plan.md` §4):** Groq key for the step-7 live
-A/B, the step-6 stream A/B, and Phase 2 (transient, on request); the
-hypothesis-hygiene items (H2 threshold, H4 bound, decision 3c); the
-new-dataset choice (Phase 3); when/whether to push `trueadaptive`
-to origin and master `88f2512` (needs a fresh GitHub token);
-FlashRAG + the unsupplied papers (supply or confirm out of scope);
-whether a multi-retriever plan version exists in another file
-(the user's recollection vs the report's text — unresolved).
+`docs/paper-readiness-plan.md` §4):** fresh GitHub PAT for the push
+(transient, on request); FlashRAG + the unsupplied papers (supply or
+confirm out of scope); whether a multi-retriever plan version exists
+in another file (the user's recollection vs the report's text —
+unresolved); the formal paper-goal statement (objective stated:
+reduce hallucination first, reduced LLM cost second).
 
 ## 4. How the hypotheses change later — and how they don't
 

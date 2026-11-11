@@ -703,10 +703,17 @@ def main():
                          "(default: none; step-2 tuned dev file for the step-3 A/Bs)")
     ap.add_argument("--ta-dev", default=DEV,
                     help="dev results file (default: %(default)s)")
+    ap.add_argument("--ta-file", default=REPO,
+                    help="TrueAdaptive Test-400 file (default: %(default)s); "
+                         "Phase 2 uses the tuned file "
+                         "results/trueadaptive/erag_trueadaptive_tuned_test.jsonl")
+    ap.add_argument("--ircot-file", default=IRCO,
+                    help="IRCoT Test-400 file (default: %(default)s); "
+                         "Phase 2 uses results/ircot_test_v2_bm25.jsonl")
     args = ap.parse_args()
 
-    ta = load(REPO)
-    ir = load(IRCO)
+    ta = load(args.ta_file)
+    ir = load(args.ircot_file)
     dev = load(args.ta_dev)
     ir_by_id = {r["id"]: r for r in ir}
     print(f"TA Test-400 N={len(ta)}  IRCoT N={len(ir)}  TA Dev-100 N={len(dev)}")
@@ -813,7 +820,7 @@ def main():
           f"{sum(1 for r in ta if r.get('unknown'))}")
 
     section("9. Failed rows")
-    raw = [json.loads(line) for line in open(REPO) if line.strip()]
+    raw = [json.loads(line) for line in open(args.ta_file) if line.strip()]
     for r in raw:
         if r.get("failed", False):
             print(f"  id={r['id']} error={str(r.get('error'))[:200]}")

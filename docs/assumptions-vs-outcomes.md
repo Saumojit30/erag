@@ -314,6 +314,45 @@ replace them.
   right) — D.1 numbers are a wiring check, not a verdict; H8 is
   judged on Test-400 only.
 
+- **Phase 2 verdict (2026-11-11, pre-registered): INCONCLUSIVE.**
+  Assumed: the tuned system would beat fresh IRCoT on Test-400 BM25
+  EM with p<0.05 (Win), or at least clearly. Actual: tuned EM 0.4500
+  vs IRCoT v2 0.4225, dEM +0.0275, p=0.1608 — the gain is real in
+  direction and inside noise. Tuning cut calls vs v1 (4.13 vs 4.78)
+  but did not improve accuracy (0.4500 vs 0.4750, p=0.2678). Per the
+  decision table: "no significant gain", Phase 3 proceeds with the
+  tuned system, no further tuning.
+- **H4 (2026-11-11):** assumed adaptivity would beat the no-adaptive
+  ablation on F1 at acceptable cost. Actual: dEM +0.0150, p=0.4050;
+  dF1 CI includes 0; cost/correct 9.18 vs 5.25 (nearly double) —
+  NOT SUPPORTED on both legs. Holm: H1 adjusted p 0.0188
+  (SUPPORTED), H4 adjusted p 0.405.
+- **D2 ablations (2026-11-11):** assumed each adaptive component
+  carries part of the gain. Actual: sequential SC is a cost win only
+  (4.13 vs 6.00 calls/Q at the same accuracy, p=0.6072); the fast
+  path is directional only (+1.75pts, p=0.2100, same cost). H7 NOT
+  SUPPORTED. Post-hoc observation (not a verdict): eager SC
+  (FP-control) is +1.75pts over the tuned system at +0.70 calls/Q,
+  p=0.2810 — the deferred-SC gate may cost a little accuracy, but
+  the data cannot say so.
+- **MiniLM second check (2026-11-11):** assumed the BM25 verdict
+  would stand with MiniLM as a check. Actual: tuned 0.4450 vs IRCoT
+  0.4250, dEM +0.0200, p=0.2559 — same direction as BM25, also
+  inconclusive. BM25 verdict stands; both reported.
+- **E.1 / H8 (2026-11-11):** assumed the tuned system beats
+  Adaptive-RAG on EM at equal-or-fewer calls/Q. Actual: EM edge
+  +0.0225, p=0.2327 (not significant) AND tuned uses 2.5× the calls
+  (4.13 vs 1.68) — NOT SUPPORTED. Adaptive-RAG ties IRCoT
+  (0.4275 vs 0.4225, p=0.8238) at fewer calls. Route B is the weak
+  route (n=210, EM 0.3714 at 1.00 call/Q) vs route C (n=190,
+  EM 0.4895 at 2.44) — the up-front router sends most questions to
+  the single-step path, which is the weaker one.
+- **Recovery (2026-11-11):** assumed the rest-chain would run ~2h.
+  Actual: repeated VM restarts + slow Groq (~10s/it vs ~2s/it)
+  stretched it to ~7h wall with two relaunches; HF_HUB_OFFLINE=1 +
+  skip-if-complete worked (FP-control + FP-off finished, MINILM-TUNED
+  resumed at 202/400 after a restart at 201/400). No rows lost.
+
 ---
 
 ## Going forward (from 2026-11-10)

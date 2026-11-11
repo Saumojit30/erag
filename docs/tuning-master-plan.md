@@ -1515,6 +1515,83 @@ here only if a stored file or a commit backs it.
   (`bae3018`, `b033602`, 15 tests pass). Branch 35 commits ahead of
   origin, unpushed. Remaining: freeze, push, D.1 sanity run, Phase 2.
 
+### 2026-11-11 — Phase 2 verdict: INCONCLUSIVE + rest-of-Phase-2 chain complete
+
+**§4.2 verdict (pre-registered): INCONCLUSIVE.** Tuned TrueAdaptive
+(frozen `configs/erag_trueadaptive_tuned.yaml`, namespace
+`test_tuned_v1_bm25`) EM 0.4500, F1 0.5905, 4.13 calls/Q vs fresh
+IRCoT v2 (namespace `test_ircot_v2_bm25`) EM 0.4225, F1 0.5643,
+2.48 calls/Q; dEM +0.0275, 95% CI [−0.0075, +0.0625], McNemar b=31,
+c=20, p=0.1608 (N=400 deduped, 0 failed, cache_hits/Q 0.020 tuned /
+0.000 IRCoT). Per the decision table: report "no significant gain",
+Phase 3 proceeds with the TUNED system, no further tuning. Tuned vs
+v1 (reported, not gated): EM 0.4500 vs 0.4750, dEM −0.0250, p=0.2678
+— tuning cut calls (4.13 vs 4.78) but did not improve Test-400
+accuracy. Files:
+`results/trueadaptive/erag_trueadaptive_tuned_test.jsonl` (401 lines,
+1 resume-retry duplicate),
+`results/ircot_test_v2_bm25.jsonl`; verdict script
+`scripts/phase2_verdict.py`; analyzer sections 1–9;
+`verify_results.py` 10/10.
+- **H1 confirmatory re-run: SUPPORTED.** Tuned vs Standard-BM25 dEM
+  +0.0475, CI [+0.0150, +0.0800], McNemar b=34, c=15, p=0.0094.
+  Holm across H1/H4: adjusted p 0.0188 — H1 survives.
+- **H4 (Test-400 ablation): NOT SUPPORTED.** No-adaptive ablation EM
+  0.4350, F1 0.5781, 2.28 calls/Q (N=400, 0 failed, cache_hits/Q
+  0.000;
+  `results/trueadaptive/erag_ablate_no_adaptive_test.jsonl`). dEM
+  +0.0150, CI [−0.0150, +0.0450], McNemar b=21, c=15, p=0.4050;
+  dF1 +0.0124, CI [−0.0190, +0.0439] (includes 0); cost/correct
+  9.18 vs 5.25 — both legs fail. Holm: H4 adjusted p 0.405. The
+  paper drops adaptive-beats-no-adaptive; keeps E-RAG-beats-Standard.
+- **H10: NOT SUPPORTED on the IRCoT leg.** Calls/correct: tuned
+  9.18, IRCoT v2 5.88, Balanced 20.11.
+- **H11: tie (directional).** Wrong-answer rate tuned 0.4495
+  (147/327) vs IRCoT 0.4566 (142/311) at better coverage (0.818 vs
+  0.777). The criterion's two legs are technically met but the gap
+  (0.7pts, ~2 questions) is inside noise and the criterion carries
+  no significance test — reported as a tie, not a win.
+- **D2 (a) SC-off: cost win, not accuracy win.** SC-fixed-5 EM
+  0.4425, F1 0.5748, 6.00 calls/Q vs tuned 0.4500, 4.13 calls/Q;
+  dEM +0.0075, CI [−0.0125, +0.0275], p=0.6072. Sequential SC saves
+  ~31% of calls at the same accuracy.
+- **D2 (b) Fast-Path pair (SC eager in both arms):** control (fast
+  path on) EM 0.4675, F1 0.5939, 4.83 calls/Q vs off EM 0.4500,
+  F1 0.5802, 4.86 calls/Q; dEM +0.0175, CI [−0.0050, +0.0425],
+  p=0.2100 — directional only, inside noise. **H7 NOT SUPPORTED:**
+  neither component shows a significant accuracy contribution (SC's
+  is cost, FP's is directional).
+- **Observation (not pre-registered):** FP-control vs tuned (the
+  SC-deferral gate): EM 0.4675 vs 0.4500, dEM +0.0175, CI [−0.0100,
+  +0.0450], p=0.2810, at 4.83 vs 4.13 calls/Q — eager SC is +1.75pts
+  at +0.70 calls, also inside noise. Recorded as a post-hoc
+  observation to test later, not a verdict.
+- **MiniLM second check (BM25 verdict stands):** tuned EM 0.4450,
+  F1 0.5750, 4.08 calls/Q vs IRCoT EM 0.4250, F1 0.5597, 2.54
+  calls/Q; dEM +0.0200, CI [−0.0100, +0.0500], p=0.2559 — same
+  direction as BM25, also inconclusive. Files:
+  `results/trueadaptive/erag_trueadaptive_tuned_test_minilm.jsonl`,
+  `results/ircot_test_v2_minilm.jsonl`.
+- **E.1 Adaptive-RAG Test-400 (Gate AR-2 PASS: N=400, 0 failed,
+  fresh namespace):** EM 0.4275, F1 0.5572, 1.68 calls/Q, coverage
+  0.760; routes B 210 / C 190 (A 0, as predicted); route B EM 0.3714
+  at 1.00 call/Q, route C EM 0.4895 at 2.44 calls/Q. **H8 NOT
+  SUPPORTED:** tuned beats AR on EM (0.4500 vs 0.4275, dEM +0.0225,
+  CI [−0.0100, +0.0550], p=0.2327 — not significant) AND uses more
+  calls (4.13 vs 1.68), so the equal-or-fewer-calls leg fails
+  outright. AR vs IRCoT: 0.4275 vs 0.4225, p=0.8238 — a tie at fewer
+  calls. File: `results/adaptive_rag/adaptive_rag_test_bm25.jsonl`;
+  analyzer section 16.
+- **Interruptions:** the rest-chain was killed by repeated VM
+  restarts (H4 + SC-off finished; FP-control failed at startup on an
+  HF Hub outage, FP-off wrote 0 rows, MiniLM + E.1 unstarted).
+  Recovery chain (`~/workspace/phase2_recovery_chain.sh`,
+  HF_HUB_OFFLINE=1 + skip-if-complete) finished all 5 remaining
+  runs; a further restart killed MINILM-TUNED at 201/400 and the
+  relaunch resumed at 202/400. Groq ran slow in the recovery window
+  (~10s/it vs ~2s/it). No rows lost; all namespaces fresh;
+  cache_hits/Q ≈ 0 throughout.
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**
