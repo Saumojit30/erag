@@ -8,16 +8,19 @@
   `docs/phase25-improvement-diagnosis.md` and the Test-400 D2 FP-leg
   numbers (FP-control 0.4675 vs tuned 0.4500, dEM +0.0175, p=0.2810,
   +0.70 calls/Q; circularity noted — dev is a replication check).
-- [ ] 0.2 Validate with the local CLI:
+- [x] 0.2 Validate with the local CLI:
   `~/workspace/tools/openspec/node_modules/.bin/openspec validate --all`
-  — must pass before the A/B.
+  — must pass before the A/B. Passed 13/13 at draft time (2026-11-11)
+  and re-checked 13/13 on 2026-11-11 while the H14 A/B awaits a key.
 
 ## A. Tests
 
-- [ ] A.1 No new tests: the flag already exists and is exercised by
-  the existing suite (D2 FP-leg runs used it). Confirm the suite
-  still passes before the A/B (176 passed / 1 known pre-existing
-  failure is the current baseline).
+- [x] A.1 No new tests: the flag already exists and is exercised by
+  the existing suite (D2 FP-leg runs used it). Confirmed before the
+  A/B: targeted subset `test_erag.py` + `test_contested_resolution.py`
+  + `test_extraction_recall.py` — 51 passed, 2026-11-11. Full suite
+  baseline remains 176 passed / 1 known pre-existing failure
+  (measured at 8f215e0; no `src/` change since).
 
 ## B. Implementation
 
@@ -26,8 +29,9 @@
 ## C. Dev-100 A/B (gate = smoke test)
 
 - [ ] C.1 Baseline: post-H13 improved system (tuned +
-  `erag.contested_resolution=true`, plus `erag.second_extraction=true`
-  only if H13 passed), Dev-100 BM25, fresh namespace
+  `erag.contested_resolution=true`; `erag.second_extraction=true`
+  only if H13 passed — H13 FAILED 2026-11-11, so the baseline has NO
+  second extraction), Dev-100 BM25, fresh namespace
   `dev_p25_h14_base_bm25`, output
   `results/trueadaptive/erag_p25_h14_base_dev.jsonl`.
 - [ ] C.2 H14 arm: same + `erag.gate_sc_behind_fast_path=false`,
