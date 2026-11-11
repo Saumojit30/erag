@@ -645,7 +645,14 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    **Phase 2.5 is closed** — the improved system (tuned + contested +
    eager SC; second extraction OFF) is frozen in
    `configs/erag_trueadaptive_improved.yaml`. Next: one Test-400
-   confirmation of the improved system vs fresh IRCoT, then Phase 3.
+   confirmation of the improved system vs fresh IRCoT (running).
+   **Phase 2.6 — beat-IRCoT round (user direction 2026-11-11) sits
+   between the confirmation and Phase 3:** H15 support-ranked final
+   re-read (implemented, Dev-100 A/B running), H16 verifier threshold
+   sweep NOT SUPPORTED on the eval leg 2026-11-11 (thresholds stay
+   0.5/0.5, no A/B), then one final Test-400 confirmation vs fresh
+   IRCoT, judged on EM up AND wrong-answer rate down with p < 0.05.
+   Phase 3 enters with the system that confirmation judges.
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
    second check, improved system (the Phase 2.5 freeze). New
