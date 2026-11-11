@@ -490,6 +490,19 @@ at a reasonable computational cost?"
   the Test-400 headroom analysis predicted (9/100 vs 24/53). The
   Test-400 confirmation judges whether the small dev gain is real.
 
+### H18 — Evidence-first answering (new, 2026-11-11, Phase 2.7)
+
+- **Claim:** inverting the pipeline — claims extracted from the
+  passages (no draft), verified, answer composed only from supported
+  claims — raises Dev-100 BM25 EM ≥ +0.02 vs the improved-system
+  baseline at ≤ +0.5 calls/Q without raising the wrong-answer rate.
+- **Evidence:** none yet. Pre-registered 2026-11-11, before any new
+  run (master plan §4.7 + `openspec/changes/evidence-first-answering/`
+  + `scripts/phase26_h18_verdict.py`, dry-run verified on the H12
+  pair; chain `~/workspace/phase26_h18_chain.sh`). A/B not yet run —
+  needs a Groq key (the send-9 key died with the H15 chain).
+- **Verdict: NOT TESTED.**
+
 ### H19 — Extractive final read (new, 2026-11-11, Phase 2.7)
 
 - **Claim:** the final answer must come from verified claims only —
@@ -534,8 +547,9 @@ at a reasonable computational cost?"
 | H15 | GATE PASS (dev smoke test) | EM +0.0200 at +0.19 calls/Q; fixed 3 > broke 0 on triggered rows (9/100); p=0.77 on N=100 |
 | H16 | NOT SUPPORTED (eval leg) | No threshold clears macro-F1 ≥ 0.70 AND supRec ≥ 0.70 on held-out claims; surface flat; thresholds stay 0.5/0.5 |
 | H19 | NOT SUPPORTED | Claims-only re-read churns: dEM −0.0100, dcalls +0.60, fixed 3 broke 5 on triggered rows; wrong rate barely down |
+| H18 | NOT TESTED | Pre-registered 2026-11-11; Dev-100 A/B vs improved system awaits a Groq key |
 
-Three supported, nine not supported, one tie, three gate-pass, one untested. That is
+Three supported, nine not supported, one tie, three gate-pass, two untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
@@ -709,7 +723,8 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    fixed 3 broke 0 on triggered rows; support_ranked enters the
    system; the final frozen config is written after H18's verdict).
    Phase 3 enters with the system the final confirmation judges.
-   Next: H18 (pre-register, implement, A/B), then the ONE Test-400
+   Next: H18 (pre-registered 2026-11-11, OpenSpec change + verdict
+   script + chain ready; implement + A/B), then the ONE Test-400
    final confirmation — both need a Groq key re-sent (the send-9 key
    died with the H15 chain).
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,

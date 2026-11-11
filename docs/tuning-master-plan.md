@@ -982,7 +982,18 @@ bought by answering more):
 
 - H18 — evidence-first answering (invert the pipeline: claims from
   passages, answer only from verified claims). Highest value, highest
-  cost. Not yet built.
+  cost. **Pre-registered 2026-11-11 (this section +
+  `openspec/changes/evidence-first-answering/` +
+  `scripts/phase26_h18_verdict.py` + `~/workspace/phase26_h18_chain.sh`):
+  on Dev-100 BM25, the evidence-first arm raises EM ≥ +0.02 vs the
+  improved-system baseline at ≤ +0.5 calls/Q AND does not raise the
+  wrong-answer rate. Exploratory. Per hop the draft call + claims
+  call are replaced 1:1 by a passage-claims call + a compose call,
+  so any dcalls comes from continuation decisions, not the mechanism.
+  H15 support-ranked stays OFF in both arms (not in the frozen
+  improved config); the final combination is judged at confirmation.
+  A/B not yet run — needs a Groq key (the send-9 key died with the
+  H15 chain).
 - **H19 — extractive answering (FIRST, user direction 2026-11-11):**
   the final answer must come from supported claims only — a claims-only
   final re-read with NO context block, always on (not trigger-gated),
