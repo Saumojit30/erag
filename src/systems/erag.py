@@ -10,6 +10,7 @@ from src.llm.client import Tracker
 from src.llm.prompts import (
     answer_messages,
     contested_answer_messages,
+    extractive_answer_messages,
     grounded_answer_messages,
     support_ranked_answer_messages,
 )
@@ -440,6 +441,7 @@ def run_erag(
     reread_answer = None
     contested = False
     support_ranked = False
+    extractive = False
     if e.get("ground_final_read", False):
         answer_claim = graph.answer_claim() if graph.claims else None
         supported = [c for c in graph.claims if c.status == "supported"]
@@ -447,18 +449,30 @@ def run_erag(
             draft_norm = normalize_answer(draft)
             claim_norm = normalize_answer(answer_claim.text)
             msgs = None
-            if draft_norm in ("unknown", ""):
+            if e.get("extractive_final_read", False):
+                # Phase 2.7 H19: the claims-only re-read replaces the
+                # other triggers. It is always on when supported claims
+                # exist — unlike H15 it does not wait for the draft to
+                # be unbacked — and its message carries NO context
+                # block, so the answer must come from a verified claim.
+                reread_trigger = "extractive"
+                extractive = True
+                top_supported = sorted(
+                    supported, key=lambda c: -c.eff
+                )[: e.get("max_claims", 5)]
+                msgs = extractive_answer_messages(q, top_supported)
+            elif draft_norm in ("unknown", ""):
                 reread_trigger = "unknown"
             elif draft_norm not in claim_norm:
                 reread_trigger = "disagree"
-            if reread_trigger is not None:
+            if reread_trigger is not None and msgs is None:
                 grounded = sorted(
                     supported, key=lambda c: (not c.answer_bearing, -c.eff)
                 )
                 msgs = grounded_answer_messages(
                     q, grounded[: e.get("max_claims", 5)], pool
                 )
-            elif e.get("contested_resolution", False):
+            elif reread_trigger is None and e.get("contested_resolution", False):
                 # Phase 2.5 H12: the draft agrees with its own claims but
                 # the context offers a competing answer — resolve the
                 # contest with a re-read that states the disagreement.
@@ -561,6 +575,10 @@ def run_erag(
     # when the flag is on.
     if e.get("support_ranked_reread", False):
         out["support_ranked"] = support_ranked
+    # Phase 2.7 H19: record whether the extractive re-read fired, only
+    # when the flag is on.
+    if e.get("extractive_final_read", False):
+        out["extractive"] = extractive
     # Phase 2.5 H13: record the second pass, only when the flag is on.
     if e.get("second_extraction", False):
         out["second_pass_added"] = second_pass_added

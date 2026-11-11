@@ -162,6 +162,38 @@ def support_ranked_answer_messages(question: str, top_claims: list,
     ]
 
 
+EXTRACTIVE_SYSTEM = (
+    "Answer only from the verified claims below. Reply with only the "
+    "short answer, no explanation. If none of the claims supports an "
+    "answer, reply exactly: unknown"
+)
+
+
+def extractive_answer_messages(question: str, claims: list) -> list:
+    """Messages for an extractive final read (Phase 2.7 H19).
+
+    `claims` are supported claims (Claim objects or dicts) with a `text`
+    field. The user message carries ONLY the claims block — deliberately
+    NO context block, unlike `support_ranked_answer_messages()`. The
+    restriction is the mechanism: the reader cannot fall back to raw
+    context, so the answer must come from a verified claim.
+    """
+    claims_block = "\n".join(
+        f"[{i + 1}] {c.text if hasattr(c, 'text') else c.get('text', '')}"
+        for i, c in enumerate(claims)
+    )
+    return [
+        {"role": "system", "content": EXTRACTIVE_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Verified claims:\n{claims_block}\n\n"
+                f"Question: {question}\nAnswer:"
+            ),
+        },
+    ]
+
+
 CLOSED_BOOK_SYSTEM = (
     "Answer the question with only a short answer, no explanation. If you do not know, reply exactly: unknown"
 )

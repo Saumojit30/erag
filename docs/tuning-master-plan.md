@@ -949,6 +949,61 @@ confirmation judges).
 
 ---
 
+## 4.7 Phase 2.7 — Architecture round (user direction 2026-11-11)
+
+The user asked for architecture change, not parameter tuning: the
+codebase is only ~4 days old, the tuning phase treated the pipeline
+shape as fixed, and the measurements say the shape is the ceiling
+(tuned EM 0.4500 < v1 0.4750; H11 tie; H16 flat; H13 fail).
+Full analysis (code-read, no code changed):
+`docs/architecture-analysis-hallucination.md` (written 2026-11-11,
+committed `db0b46f`). Central diagnosis: the pipeline is draft-first
+— the draft is written before any verification exists, claims are
+extracted FROM the draft, and verification is advisory (it can veto
+or trigger a narrow re-read, never construct the answer). Design
+principle for the round: the answer must be entailed by the evidence,
+and the system must be unable to output an answer it cannot derive.
+The LLM is a black-box API, so all changes are pipeline-level
+(prompts, verification, retrieval, answer space), not model-level.
+
+Program (each item = one OpenSpec change, one Dev-100 BM25 A/B vs the
+improved system, fresh namespaces, both arms re-run fresh, paired;
+gate = dEM >= +0.02 AND wrong-answer rate not up AND dcalls <= +0.5/Q
+— the hallucination leg is part of every gate, since EM alone can be
+bought by answering more):
+
+- H18 — evidence-first answering (invert the pipeline: claims from
+  passages, answer only from verified claims). Highest value, highest
+  cost. Not yet built.
+- **H19 — extractive answering (FIRST, user direction 2026-11-11):**
+  the final answer must come from supported claims only — a claims-only
+  final re-read with NO context block, always on (not trigger-gated),
+  replacing the other re-read triggers. Pre-registered 2026-11-11
+  (this section + `openspec/changes/extractive-final-read/`): on
+  Dev-100 BM25, the extractive arm raises EM >= +0.02 vs the
+  improved-system baseline at <= +0.5 calls/Q AND does not raise the
+  wrong-answer rate. Exploratory. A/B running (see §12).
+- H20 — compositional verification (verify the answer claim against
+  the joint evidence of its supporting claims, not per-window).
+- H21 — cross-encoder reranking of the pool before the reader.
+- H22 — generate–critique–revise loop (critic verdict feeds back into
+  generation; subsumes the re-read patches).
+- H17 — calibrated abstention (candidate only, not pre-registered;
+  write fully before any run touching it; only if H18–H22 leave H11
+  a tie).
+
+Order: H19 first (cheapest strong signal), then H18 (the full
+inversion), then the winner combined with H20/H21. The final system
+for the Phase 2.6 confirmation is whichever combination passes its
+gates; the confirmation is still ONE Test-400 run vs fresh IRCoT,
+judged on EM up AND wrong-answer rate down with p < 0.05. If the
+architecture round fails its gates, the paper reports that straight
+and leads with H6 + honest negatives. Old verdicts stay frozen
+(HARKing rule); new mechanisms get new hypotheses written before the
+runs. Phase 3 entry moves to the end of this round.
+
+---
+
 ## 5. Phase 3 — New datasets (generalization)
 
 **Goal:** show the Phase 2 system generalizes beyond HotpotQA — or find
