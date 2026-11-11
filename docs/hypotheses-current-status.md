@@ -395,10 +395,26 @@ at a reasonable computational cost?"
 - **Claim:** a second extraction pass over the hop-0 pool raises the
   gold-in-claims rate among full-recall wrong rows on Dev-100 BM25 vs the
   tuned baseline, without lowering EM. Exploratory.
-- **Evidence:** none yet. Diagnosis: 33 never-claimed rows, hop-0 recall
-  1.0 on 27/33 — evidence retrieved, never extracted. Pre-registered
-  before any new run.
-- **Verdict: NOT TESTED.**
+- **Evidence:** Dev-100 BM25 A/B, fresh namespaces, both arms re-run
+  fresh on the H12-improved system (chain
+  `~/workspace/phase25_h13_chain.sh`, both arms rc=0): baseline
+  (tuned + contested) EM 0.5400 / F1 0.6400 at 4.35 calls/Q vs
+  second-pass EM 0.5600 / F1 0.6656 at 5.95 calls/Q — dEM +0.0200,
+  95% CI [−0.03, +0.08], McNemar b=3, c=5, p=0.7266; dF1 +0.0256;
+  dcalls +1.60, 95% CI [+1.33, +1.88]. Gold-in-claims rate among
+  full-recall wrong rows FELL: 0.625 (10/16) → 0.533 (8/15),
+  independently re-checked with the repo `normalize_answer`, same
+  counts. The pass fires heavily (second_pass_added median 4.0, mean
+  3.88, only 10/100 added 0) but adds the wrong claims — it does not
+  surface the gold sentence. 4 of the 5 gained rows were base-'unknown'
+  → answered correctly (un-blocks reader refusals), but 3 correct rows
+  flipped to 'unknown', so net +2 EM is churn inside noise.
+  Cache_hits/Q 0.00 both arms (all live). Verdict script
+  `scripts/phase25_h13_verdict.py`; files
+  `results/trueadaptive/erag_p25_h13_{base,second}_dev.jsonl`.
+- **Verdict: NOT SUPPORTED.** Rate did not rise and calls rose +1.60,
+  above the +1.0 guardrail (whole CI above 1.0). Mechanism DROPPED,
+  stays OFF; improved system remains tuned + contested (H12 only).
 
 ### H14 — Eager SC replicates the FP-control direction on dev (new, 2026-11-11, Phase 2.5)
 
@@ -429,10 +445,10 @@ at a reasonable computational cost?"
 | H10 | NOT SUPPORTED (IRCoT leg) | Calls/correct tuned 9.18 vs IRCoT 5.88 vs Balanced 20.11 |
 | H11 | TIE (not a demonstrated reduction) | Wrong rate 0.4495 vs 0.4566 (0.7pts, inside noise); coverage better |
 | H12 | GATE PASS (dev smoke test) | EM +0.0300 at +0.39 calls/Q; fixed 3 > broke 1 on triggered rows; p=0.45 on N=100 |
-| H13 | NOT TESTED | Phase 2.5 — extraction recall, second pass |
+| H13 | NOT SUPPORTED | Rate 0.625 → 0.533 (fell); dcalls +1.60 > +1.0 guardrail; EM +0.02 n.s. |
 | H14 | NOT TESTED | Phase 2.5 — eager SC, dev replication of FP-control direction |
 
-Three supported, six not supported, one tie, one gate-pass, three untested. That is
+Three supported, seven not supported, one tie, one gate-pass, two untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
@@ -574,13 +590,16 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    the short-point project report.
 2. **Phase 2.5 — improvement round (user decision 2026-11-11).**
    Diagnose-first: contested-claim resolution (H12), extraction
-   recall (H13), eager SC dev replication (H14) — each one OpenSpec
-   change, Dev-100 BM25 A/B, gate as smoke test; hypotheses
+   recall (H13), eager SC dev replication (H14) — one OpenSpec
+   change each, Dev-100 BM25 A/B, gate as smoke test; hypotheses
    pre-registered 2026-11-11 in `docs/phase25-improvement-diagnosis.md`
    before any new run. **H12 GATE PASS 2026-11-11** (EM +0.0300 at
    +0.39 calls/Q, fixed 3 > broke 1 on triggered rows; enters the
-   improved system). Next: H13, then H14. One Test-400 confirmation
-   of the improved system at the end.
+   improved system). **H13 GATE FAIL 2026-11-11** (gold-in-claims
+   rate 0.625 → 0.533; dcalls +1.60 > +1.0 guardrail; mechanism
+   DROPPED, stays OFF). Next: H14, on the post-H13 improved system
+   (tuned + contested). One Test-400 confirmation of the improved
+   system at the end.
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
    second check, frozen tuned system (the Inconclusive rule). New

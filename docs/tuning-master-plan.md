@@ -1677,6 +1677,38 @@ above the step-7 Gate B file (0.5200 vs 0.5000) — noise/drift,
 controlled by the paired fresh baseline. Files:
 `results/trueadaptive/erag_p25_h12_{base,contested}_dev.jsonl`.
 
+### 2026-11-11 — Phase 2.5 H13 A/B: GATE FAIL, MECHANISM DROPPED (dev smoke test)
+
+OpenSpec change `improve-extraction-recall` (validate 12/12);
+implementation behind `erag.second_extraction` (default false):
+unconditional second extraction pass over the hop-0 pool, merged
+claims, 8 new tests, full suite 176 passed / 1 known pre-existing
+failure. Committed 8f215e0. Dev-100 BM25 A/B, fresh namespaces, both
+arms re-run fresh on the H12-improved system (chain
+`~/workspace/phase25_h13_chain.sh`, ~25 min, both arms rc=0):
+baseline (tuned + contested) EM 0.5400 / F1 0.6400 at 4.35 calls/Q
+vs second-pass EM 0.5600 / F1 0.6656 at 5.95 calls/Q — dEM +0.0200,
+95% CI [−0.03, +0.08], McNemar b=3, c=5, p=0.7266 (not significant
+on N=100, expected); dF1 +0.0256; dcalls +1.60, 95% CI [+1.33,
++1.88]. Gold-in-claims rate among full-recall wrong rows FELL:
+0.625 (10/16) → 0.533 (8/15) — independently re-checked with the
+repo `normalize_answer`, same counts. Gate FAILS on two of three
+legs: rate did not rise, and calls rose +1.60, above the +1.0
+guardrail (whole CI above 1.0). EM did not fall, but that leg alone
+does not pass the gate. The pass fires heavily (second_pass_added
+median 4.0, mean 3.88, only 10/100 rows added 0) yet adds the wrong
+claims: it does not surface the gold sentence the first pass
+skipped. Finding worth recording: of the 5 gained rows, 4 were
+base-'unknown' → answered correctly — the pass un-blocks reader
+refusals more than it fixes claim selection — but it also flipped 3
+previously-correct rows to 'unknown', so net +2 EM is churn inside
+noise. Cache_hits/Q 0.00 both arms (all live). H13 is NOT
+SUPPORTED; the mechanism is DROPPED and stays OFF; the improved
+system remains tuned + contested (H12 only). No further tuning on
+dev for this mechanism. Files:
+`results/trueadaptive/erag_p25_h13_{base,second}_dev.jsonl`;
+verdict `scripts/phase25_h13_verdict.py`.
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**

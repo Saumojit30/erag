@@ -35,29 +35,31 @@
   `src/systems/erag.py` behind `erag.second_extraction` (default
   False); record `second_pass_added` / `second_extraction` on the
   row when the flag is on.
-- [x] B.3 Full suite: `tests/` must stay 168 passed / 1 known
-  pre-existing failure (`test_retry_exhaustion_raises_runtime_error`).
+- [x] B.3 Full suite: `tests/` must stay 176 passed / 1 known
+  pre-existing failure (`test_retry_exhaustion_raises_runtime_error`)
+  — measured 176/1 at commit 8f215e0 (+8 H13 tests on the 168/1
+  H12 count).
 
 ## C. Dev-100 A/B (gate = smoke test)
 
-- [ ] C.1 Baseline: frozen tuned config +
+- [x] C.1 Baseline: frozen tuned config +
   `erag.contested_resolution=true`, Dev-100 BM25, fresh namespace
   `dev_p25_h13_base_bm25`, output
   `results/trueadaptive/erag_p25_h13_base_dev.jsonl`.
-- [ ] C.2 H13 arm: same + `erag.second_extraction=true`, fresh
+- [x] C.2 H13 arm: same + `erag.second_extraction=true`, fresh
   namespace `dev_p25_h13_second_bm25`, output
   `results/trueadaptive/erag_p25_h13_second_dev.jsonl`. One
   `--set` per invocation (repeated `--set` overwrites).
-- [ ] C.3 Verify `cache_hits` on both files; compute EM/F1/calls-Q
+- [x] C.3 Verify `cache_hits` on both files; compute EM/F1/calls-Q
   paired (McNemar) + gold-in-claims rate among full-recall wrong
   rows + median `second_pass_added`. Gate: rate rises, EM does not
   fall, calls/Q rise ≤ +1.0.
-- [ ] C.4 Record in master plan §12 + assumptions-vs-outcomes +
+- [x] C.4 Record in master plan §12 + assumptions-vs-outcomes +
   hypotheses status (H13 verdict). If the gate fails, the mechanism
   is dropped — no further tuning on dev.
 
 ## D. Close-out
 
-- [ ] D.1 Commit on `trueadaptive` (proper message, author
+- [x] D.1 Commit on `trueadaptive` (proper message, author
   Saumojit30). Do not push (PAT pending — separate blocked item).
-- [ ] D.2 Archive the change (`openspec archive -y`) and re-validate.
+- [x] D.2 Archive the change (`openspec archive -y`) and re-validate.

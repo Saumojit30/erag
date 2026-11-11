@@ -1348,6 +1348,31 @@ The following four entries were supplied with the template for §3. Each was che
 #### Evidence status
 - Implemented, run, verified; Phase 2 closed. Push to origin pending (needs a fresh GitHub PAT).
 
+### 2026-11-11 — Phase 2.5 decided + H12 GATE PASS + H13 GATE FAIL (dev smoke tests)
+
+**Commit(s):** `ad97293` (Phase 2.5 pre-registration), `b1c30e4` (H12 implementation), `89db362` (H12 verdict + archive), `8f215e0` (H13 implementation); this commit (H13 verdict + close-out)
+**Scope:** Phase 2.5 improvement round — user decision 2026-11-11 ("improve first, then Phase 3"), diagnose from stored Test-400 rows only, pre-register H12–H14, Dev-100 BM25 A/Bs, then one Test-400 confirmation of the improved system
+**Type:** improvement round (pre-registered hypotheses, dev smoke-test gates)
+**Prediction-changing:** yes — H12 enters the improved system, H13 is dropped
+
+#### What changed
+- **Phase 2.5 decided (user, 2026-11-11 11:59 IST).** The user challenged running the unimproved system on new datasets ("if nothing is improving then why just go for running on different dataset?"). The pre-registered Phase 2 branch (Inconclusive → Phase 3 with the tuned system) is superseded by this decision. Diagnosis from stored Test-400 rows only (`scripts/diagnose_phase25.py`, `docs/phase25-improvement-diagnosis.md`): (1) 53 gold-in-claims wrong rows — 34/53 final answer inside a WRONG supported claim, re-read never fired on 41/53; (2) 33 never-claimed rows — hop-0 recall 1.0 on 27/33, extraction failed not retrieval; (3) FP-control 19 gains / 12 losses, net +7, p=0.28 — weak evidence. Pre-registered BEFORE any new run: H12 contested-claim resolution, H13 second extraction pass, H14 eager SC dev replication. Theta_abs explicitly NOT a lever (would raise the wrong-answer rate, against the paper's first objective). No v1 substitution.
+- **H12 — GATE PASS (dev smoke test).** OpenSpec change `improve-contested-claims` (validate 11/11), implementation behind `erag.contested_resolution` (default false), 9 new tests. Dev-100 BM25 A/B, fresh namespaces, both arms re-run fresh: baseline EM 0.5200 / F1 0.6430 at 3.99 calls/Q vs contested EM 0.5500 / F1 0.6397 at 4.38 calls/Q — dEM +0.0300, 95% CI [−0.02, +0.08], McNemar b=5, c=2, p=0.4531 (not significant on N=100, expected); dF1 −0.0033; +0.39 calls/Q (inside the +0.5 budget). Trigger fired 25/100; fixed 3, broke 1, net +2 on triggered rows. Cache_hits/Q 0.00 both arms. Gate PASSES on all three legs; H12 enters the improved system. Change archived as `2026-11-11-improve-contested-claims`.
+- **H13 — GATE FAIL (dev smoke test), MECHANISM DROPPED.** OpenSpec change `improve-extraction-recall` (validate 12/12), implementation behind `erag.second_extraction` (default false): unconditional second extraction pass over the hop-0 pool, 8 new tests. Dev-100 BM25 A/B, fresh namespaces, both arms re-run fresh on the H12-improved system (chain `~/workspace/phase25_h13_chain.sh`, both arms rc=0): baseline (tuned + contested) EM 0.5400 / F1 0.6400 at 4.35 calls/Q vs second-pass EM 0.5600 / F1 0.6656 at 5.95 calls/Q — dEM +0.0200, 95% CI [−0.03, +0.08], McNemar b=3, c=5, p=0.7266; dF1 +0.0256; dcalls +1.60, 95% CI [+1.33, +1.88]. Gold-in-claims rate among full-recall wrong rows FELL: 0.625 (10/16) → 0.533 (8/15), independently re-checked with the repo `normalize_answer`, same counts. Gate FAILS on two of three legs: rate did not rise, calls rose +1.60 above the +1.0 guardrail (whole CI above 1.0). The pass fires heavily (second_pass_added median 4.0, mean 3.88, only 10/100 added 0) but adds the wrong claims — it does not surface the gold sentence the first pass skipped. Recorded finding: 4 of the 5 gained rows were base-'unknown' → answered correctly (the pass un-blocks reader refusals more than it fixes claim selection), but 3 correct rows flipped to 'unknown', so net +2 EM is churn inside noise. Cache_hits/Q 0.00 both arms (all live). **H13 NOT SUPPORTED; mechanism DROPPED, stays OFF; improved system remains tuned + contested (H12 only).** No further tuning on dev for this mechanism. Verdict script `scripts/phase25_h13_verdict.py` (new). Change to be archived as `2026-11-11-improve-extraction-recall` with this commit.
+- **Scoreboard after H13:** 3 supported (H1, H3, H6), 7 not supported (H2, H4, H5, H7, H8, H10, H13), 1 tie (H11), 1 gate-pass (H12), 2 untested (H9, H14).
+
+#### Why it changed
+- Phase 2 was INCONCLUSIVE and tuning had cost accuracy (tuned 0.4500 vs v1 0.4750 on Test-400); the user chose improvement before generalization. H12–H14 were written before any new run (HARKing rule); old verdicts stay frozen. H13's gate was pre-registered with a cost guardrail precisely so a mechanism that buys +2 noisy EM rows at +1.6 calls/Q would be dropped, not kept — the gate did its job.
+
+#### Files changed
+- `src/systems/erag.py` (`find_contested` + contested re-read wiring; second-extraction wiring), `src/llm/prompts.py` (`CONTESTED_ANSWER_SYSTEM`, `contested_answer_messages`), `src/epistemic/claims.py` (`SECOND_PASS_SYSTEM`, `second_pass_messages`, `extract_claims_second_pass`, `merge_claims`), `tests/test_contested_resolution.py` (9 new), `tests/test_extraction_recall.py` (8 new), `scripts/diagnose_phase25.py` (new), `scripts/phase25_h13_verdict.py` (new), `docs/phase25-improvement-diagnosis.md` (new), `docs/adaptive-erag-architecture-diagram.md` (new), `results/trueadaptive/erag_p25_h12_{base,contested}_dev.jsonl`, `results/trueadaptive/erag_p25_h13_{base,second}_dev.jsonl`, `docs/tuning-master-plan.md` (§4.5, §12), `docs/hypotheses-current-status.md` (H12–H14, scoreboard, §3), `docs/assumptions-vs-outcomes.md`, this changelog
+
+#### Tests added or updated
+- 9 H12 tests + 8 H13 tests, all pass. Full suite at the H13 implementation commit (`8f215e0`): 176 passed, 1 failed (known pre-existing retry mismatch) — see §4.5. No code in `src/` changed after that commit before this close-out (docs, result files, and the verdict script only), so the count stands without a re-run.
+
+#### Evidence
+- Both A/B pairs N=100 deduped, 0 failed, cache_hits/Q 0.00 on all four files (all live, fresh namespaces). H12 paired stats from the chain output; H13 paired stats from `scripts/phase25_h13_verdict.py`, with EM/F1/calls and the gold-in-claims rate independently recomputed (repo `normalize_answer`, different normalizer from the script's regex) — identical numbers.
+
 ## 3. Recent repair sequence
 
 Baseline:
@@ -1434,6 +1459,8 @@ Only components with completed, saved experiment artifacts are listed.
 - Tuning step 7 (wired in and live-evaluated on Dev-100): counterfactual simulation on Dev-100 traces (LR, τ = 0.05, OOF, RETRAINED with the hop-0 `draft_unknown` definition): simulated EM 0.5152, F1 0.6238, calls/Q 3.92, STOP 81 / CONTINUE 18, excluded 1/100; Gate A re-check PASS with margin — see §2 (the original τ = 0.30 pass, EM 0.5000, is superseded). Live Dev-100 A/B (C.1, commit `4c9576f`): EM 0.5000, F1 0.6114, calls/Q 4.07 (live 0.11), STOP 81 (EM 0.5679) / CONTINUE 19 (EM 0.2105); Gate B PASS — the policy enters the frozen Test-400 system.
 - H1 (interim, v1 system), H3, H6 analyses from stored Test-400 rows; H2 NLI evaluation on a 60-pair labelled set
 - Phase 2 (2026-11-11): tuned system Test-400 BM25 (EM 0.4500, 4.13 calls/Q) vs fresh IRCoT (EM 0.4225, 2.48 calls/Q), verdict INCONCLUSIVE (p=0.1608); H4 ablation (NOT SUPPORTED), D2 SC-off + Fast-Path pair (H7 NOT SUPPORTED), MiniLM head-to-head (same direction, inconclusive), Adaptive-RAG E.1 (Gate AR-2 PASS; H8 NOT SUPPORTED) — see §2
+- Phase 2.5 H12 (2026-11-11): Dev-100 BM25 A/B, contested-claim resolution — EM 0.5500 vs baseline 0.5200 (dEM +0.0300, p=0.4531), +0.39 calls/Q; GATE PASS, mechanism enters the improved system — see §2
+- Phase 2.5 H13 (2026-11-11): Dev-100 BM25 A/B, second extraction pass — EM 0.5600 vs baseline 0.5400 (dEM +0.0200, p=0.7266), gold-in-claims rate 0.625 → 0.533 (fell), +1.60 calls/Q; GATE FAIL, mechanism DROPPED — see §2
 - E5 memory stream: evaluated on saved data (N=30) but uninformative — cache replay, not a null (see §1.4 and the step-6 §2 entry). Memory benefit is therefore NOT in this list.
 
 ### 4.4 Deferred or unimplemented
@@ -1456,10 +1483,10 @@ Only components with completed, saved experiment artifacts are listed.
 
 - Command (re-run for this update): `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`
 - Completed exit code: 1
-- Passed / failed / xfailed counts: **159 passed, 1 failed, 0 xfailed in 28:47** (HEAD `91a0f29`, after the Adaptive-RAG D.1 commit; wall time far above the 23.88s at HEAD `4c9576f` — the count is what matters here, and the slowdown is consistent with HF Hub retry delays during model loads)
+- Passed / failed / xfailed counts: **176 passed, 1 failed, 0 xfailed** (HEAD `8f215e0`, after the H13 implementation commit: +9 H12 tests, +8 H13 tests. No full re-run was done for this close-out — no code in `src/` changed after `8f215e0` before it (docs, result files, and the verdict script only), so the count stands. Previous measurement: 159 passed, 1 failed, 0 xfailed in 28:47 at HEAD `91a0f29`)
 - Remaining failure: `tests/test_retry_and_tracker.py::test_retry_exhaustion_raises_runtime_error` — the test expects the message "LLM call failed after 4 attempts"; the code retries 6 times (`src/llm/client.py:130`: "1 try + 5 retries = 6 attempts"; line 163 raises "LLM call failed after 6 attempts"). This is a test/code mismatch, not a system regression: the retry count in the code is 6 and the test was written for 4. The project record states it fails on base too; that was not independently re-verified in this draft (it would require checking out the base commit).
 - Remaining strict xfails: none observed in this run (0 xfailed).
-- Earlier counts for reference: 87 passed, 1 failed at HEAD `0ac6d99` (this draft's original measurement); 111 passed, 1 failed after the step-6 measurement build (`e5da900`). The growth is new tests (hopcap 9, memory-position 11, continuation-policy 8, analyzer-policy 7, plus mocked cap/mem tests), not behavior changes.
+- Earlier counts for reference: 87 passed, 1 failed at HEAD `0ac6d99` (this draft's original measurement); 111 passed, 1 failed after the step-6 measurement build (`e5da900`); 159 passed, 1 failed at HEAD `91a0f29` (Adaptive-RAG D.1); 168 passed, 1 failed at HEAD `b1c30e4` (H12 implementation, +9 tests); 176 passed, 1 failed at HEAD `8f215e0` (H13 implementation, +8 tests). The growth is new tests, not behavior changes.
 
 ### 4.6 Current repository state
 

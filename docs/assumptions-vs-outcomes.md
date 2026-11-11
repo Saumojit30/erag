@@ -386,6 +386,41 @@ replace them.
 
 ---
 
+### 2026-11-11 — Phase 2.5 H13: second extraction pass over the hop-0 pool (Dev-100 BM25 A/B)
+
+**Assumed (pre-registered, before the run):** an unconditional second
+extraction pass at hop 0 raises the gold-in-claims rate among
+full-recall wrong rows vs the fresh paired baseline (0.619 on the
+fresh H12 baseline file — dated clarification, not the stale step-2-era
+0.333), EM does not fall, calls/Q rise ≤ +1.0. The pass fires on every
+row (+1 call/Q max by construction); median `second_pass_added` > 0
+required, else the mechanism is dropped per the proposal's threat note.
+Diagnosis behind it: 33 Test-400 never-claimed rows, hop-0 recall 1.0
+on 27/33 — evidence retrieved, never extracted; max_claims=8 binds on
+only 2/33, parsing never fails, so the extractor skips the gold
+sentence (coverage failure, not capacity).
+
+**Actual (verified 2026-11-11, `scripts/phase25_h13_verdict.py`,
+independently re-checked):** baseline (tuned + contested) EM 0.5400 /
+F1 0.6400 at 4.35 calls/Q vs second-pass EM 0.5600 / F1 0.6656 at
+5.95 calls/Q — dEM +0.0200, 95% CI [−0.03, +0.08], McNemar b=3, c=5,
+p=0.7266; dF1 +0.0256; dcalls +1.60, 95% CI [+1.33, +1.88]. **Rate
+FELL: 0.625 (10/16) → 0.533 (8/15)** — same counts under the repo
+`normalize_answer`, so not a normalizer artifact. **Gate FAILS:**
+rate did not rise AND calls blew the +1.0 guardrail (whole CI above
+1.0). The pass fires heavily (median added 4.0, mean 3.88, only 10/100
+added 0) but adds the wrong claims — it does not surface the gold
+sentence. Surprise in the other direction: 4 of the 5 gained rows were
+base-'unknown' → answered correctly, so the pass un-blocks reader
+refusals more than it fixes claim selection; but it also flipped 3
+correct rows to 'unknown', net +2 EM is churn inside noise.
+Cache_hits/Q 0.00 both arms. **H13 NOT SUPPORTED; mechanism DROPPED,
+stays OFF; improved system remains tuned + contested (H12 only).**
+Files: `results/trueadaptive/erag_p25_h13_{base,second}_dev.jsonl`;
+implementation commit 8f215e0; chain log `~/workspace/phase25_h13.log`.
+
+---
+
 ## Going forward (from 2026-11-10)
 
 - Every experiment from here — step 6, Phase 2, Phase 3, the ablations,
