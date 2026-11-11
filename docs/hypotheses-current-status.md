@@ -369,6 +369,42 @@ at a reasonable computational cost?"
   tie, not a win. The hallucination-reduction claim rests on H6
   and the abstention mechanism, not on this comparison.
 
+### H12 — Contested-claim resolution at the final read (new, 2026-11-11, Phase 2.5)
+
+- **Claim:** when the final graph holds ≥2 supported answer-bearing claims
+  with different answers, a contested-resolution step — a re-read grounded
+  on the competing claims, choosing by evidence rather than by draft
+  agreement — raises EM on Dev-100 BM25 vs the tuned baseline at
+  ≤ +0.5 calls/Q. Exploratory.
+- **Evidence:** none yet. Diagnosis (stored Test-400 rows, 2026-11-11,
+  `docs/phase25-improvement-diagnosis.md`): 53 gold-in-claims wrong rows,
+  34/53 with the final answer inside a WRONG supported claim, re-read
+  never triggered on 41/53. Pre-registered before any new run.
+- **Verdict: NOT TESTED.**
+
+### H13 — Extraction recall, second pass over the hop-0 pool (new, 2026-11-11, Phase 2.5)
+
+- **Claim:** a second extraction pass over the hop-0 pool raises the
+  gold-in-claims rate among full-recall wrong rows on Dev-100 BM25 vs the
+  tuned baseline, without lowering EM. Exploratory.
+- **Evidence:** none yet. Diagnosis: 33 never-claimed rows, hop-0 recall
+  1.0 on 27/33 — evidence retrieved, never extracted. Pre-registered
+  before any new run.
+- **Verdict: NOT TESTED.**
+
+### H14 — Eager SC replicates the FP-control direction on dev (new, 2026-11-11, Phase 2.5)
+
+- **Claim:** making SC eager (`gate_sc_behind_fast_path=false`) reproduces
+  the FP-control direction on Dev-100 BM25: EM gain vs the tuned baseline
+  at ≤ +1.0 calls/Q. Exploratory.
+- **Evidence:** none yet on dev. **Circularity note:** the direction was
+  observed on Test-400 first (FP-control 0.4675 vs tuned 0.4500, 19 gains
+  / 12 losses, p=0.28) — dev is a replication check, and the Test-400
+  FP-control number cannot be re-judged. If it replicates on dev, the
+  mechanism enters the improved system, judged fresh as a whole on its
+  one Test-400 confirmation. Pre-registered before any new run.
+- **Verdict: NOT TESTED.**
+
 ### Scoreboard
 
 | ID | Verdict | Headline number |
@@ -384,15 +420,18 @@ at a reasonable computational cost?"
 | H9 | NOT TESTED | Phase 3 (2Wiki, then MuSiQue) |
 | H10 | NOT SUPPORTED (IRCoT leg) | Calls/correct tuned 9.18 vs IRCoT 5.88 vs Balanced 20.11 |
 | H11 | TIE (not a demonstrated reduction) | Wrong rate 0.4495 vs 0.4566 (0.7pts, inside noise); coverage better |
+| H12 | NOT TESTED | Phase 2.5 — contested-claim resolution |
+| H13 | NOT TESTED | Phase 2.5 — extraction recall, second pass |
+| H14 | NOT TESTED | Phase 2.5 — eager SC, dev replication of FP-control direction |
 
-Three supported, six not supported, one tie, one untested. That is
+Three supported, six not supported, one tie, four untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
 the component claims (H7, H8, H10) do not do what was hoped, and the
 hallucination claim (H11) is a tie. The tuning phase bought cost,
-not accuracy — and Phase 3 is where the generalization claim gets
-tested.
+not accuracy — and Phase 2.5 is where the system is improved before
+Phase 3 tests generalization.
 
 ## 2. Where TrueAdaptive is now
 
@@ -525,7 +564,14 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    archived, everything committed on `trueadaptive`, then push to
    origin (needs a fresh GitHub PAT, re-sent by the user). Refresh
    the short-point project report.
-2. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
+2. **Phase 2.5 — improvement round (user decision 2026-11-11).**
+   Diagnose-first: contested-claim resolution (H12), extraction
+   recall (H13), eager SC dev replication (H14) — each one OpenSpec
+   change, Dev-100 BM25 A/B, gate as smoke test; hypotheses
+   pre-registered 2026-11-11 in `docs/phase25-improvement-diagnosis.md`
+   before any new run. One Test-400 confirmation of the improved
+   system at the end.
+3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
    second check, frozen tuned system (the Inconclusive rule). New
    hypotheses written BEFORE touching either dataset (H9 already

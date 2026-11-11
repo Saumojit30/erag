@@ -353,6 +353,20 @@ replace them.
   skip-if-complete worked (FP-control + FP-off finished, MINILM-TUNED
   resumed at 202/400 after a restart at 201/400). No rows lost.
 
+- **Phase 2.5 decision + diagnosis (2026-11-11):** user challenged the
+  plan — if nothing is improving, why run the same system on a new
+  dataset? Assumed (pre-registration): the improvement targets are
+  (1) contested-claim selection at the final read, (2) extraction
+  recall, (3) eager SC. Diagnosis from stored Test-400 rows only
+  (`scripts/diagnose_phase25.py`, `docs/phase25-improvement-diagnosis.md`):
+  53 gold-in-claims wrong rows, 34/53 with the final answer inside a
+  WRONG supported claim, re-read never triggered on 41/53; 33
+  never-claimed rows with hop-0 recall 1.0 on 27/33; FP-control 19 gains
+  / 12 losses, net +7, both directions churning the answer/abstain
+  boundary. H12/H13/H14 pre-registered before any new run; theta_abs
+  explicitly NOT a lever (would raise the wrong-answer rate, against
+  the paper's first objective). No live runs yet in this phase.
+
 ---
 
 ## Going forward (from 2026-11-10)

@@ -869,6 +869,53 @@ sections) and the verification script (`scripts/verify_results.py`) must pass
 
 ---
 
+## 4.5 Phase 2.5 — Improvement round (user decision 2026-11-11)
+
+**Why:** Phase 2's verdict was INCONCLUSIVE, and the user asked the right
+question — if nothing is improving, why just run the same system on a new
+dataset? Phase 3 tests generalization; it does not make the system better.
+So before Phase 3, one focused improvement round on the tuned system,
+targeting the diagnosed bottlenecks. Diagnosis and pre-registration:
+`docs/phase25-improvement-diagnosis.md`; script:
+`scripts/diagnose_phase25.py`.
+
+**Diagnosis (stored Test-400 rows only, diagnostic, never selection):**
+- 53 gold-in-claims wrong rows: the final answer sits inside a WRONG
+  supported claim on 34/53; the re-read never triggers on 41/53 (it fires
+  only on disagreement/unknown, and these rows agree — with the wrong
+  claim). Failure is claim selection at the final read.
+- 33 never-claimed rows: hop-0 recall 1.0 on 27/33 — evidence retrieved,
+  never extracted. Extraction-recall failure.
+- Eager SC (FP-control): 19 gains / 12 losses, net +7, p=0.28 — churns the
+  answer/abstain boundary both ways; weak directional evidence.
+- theta_abs is NOT a lever: lowering it would raise EM but also the
+  wrong-answer rate, against the paper's first objective.
+
+**Pre-registered hypotheses (written 2026-11-11, before any new run):**
+- **H12** — contested-claim resolution at the final read (≥2 supported
+  answer-bearing claims disagree → re-read grounded on the competing
+  claims). Dev-100 BM25: EM gain ≥ +0.02 at ≤ +0.5 calls/Q.
+- **H13** — second extraction pass over the hop-0 pool. Dev-100 BM25:
+  gold-in-claims rate among full-recall wrong rows rises vs the tuned dev
+  baseline, EM does not fall.
+- **H14** — eager SC (`gate_sc_behind_fast_path=false`) replicates the
+  FP-control direction on Dev-100 BM25 at ≤ +1.0 calls/Q. Circularity
+  note: the direction was observed on Test-400 first, so dev is a
+  replication check and the Test-400 FP-control number cannot be re-judged.
+
+**Order:** H12, then H13, then H14 — one OpenSpec change each, same
+lifecycle as Phase 1 steps (diagnose → change with Threats → tests →
+flag → Dev-100 BM25 A/B, gate as smoke test). Then freeze the improved
+config and run **one** Test-400 confirmation (improved vs fresh IRCoT,
+same verdict shape as §4.2). Then Phase 3.
+
+**Rules:** no tuning against Test-400 (diagnosis only); no theta_abs
+change; no v1 substitution — the tuned system stays the base. If the
+improved system beats v1 on the confirmation run, that is reported as a
+result, not used to pick the system post-hoc.
+
+---
+
 ## 5. Phase 3 — New datasets (generalization)
 
 **Goal:** show the Phase 2 system generalizes beyond HotpotQA — or find
@@ -879,11 +926,15 @@ Phase 2 is HotpotQA ONLY (Test-400 confirmation of the tuned system vs a
 fresh IRCoT, BM25, plus the H4 ablation and H1 re-run). Phase 3 is the
 new datasets ONLY. Nothing from Phase 3 runs before Phase 2's verdict,
 and no Phase 3 result feeds back into tuning the HotpotQA system.
-- **Entry condition:** Phase 2's pre-registered verdict is judged (§4.2
-  decision table). **Win** → the tuned system is Phase 3's system.
-  **Inconclusive** → the tuned system still goes to Phase 3 (a null
+- **Entry condition (amended 2026-11-11 — Phase 2.5 inserted):** Phase 2's
+  pre-registered verdict is judged (§4.2 decision table), and the Phase 2.5
+  improvement round runs first (§4.5) with its one Test-400 confirmation.
+  The system that goes to Phase 3 is the **improved system** after that
+  confirmation. (Original Phase 2 rule, now superseded by the user's
+  2026-11-11 improve-first decision: **Win** → the tuned system is Phase 3's
+  system. **Inconclusive** → the tuned system still goes to Phase 3 (a null
   result is a result). **Loss** → revert to v1 (EM 0.4750, significant
-  vs IRCoT) for Phase 3 and report the tuning as a negative result.
+  vs IRCoT) for Phase 3 and report the tuning as a negative result.)
   The frozen config from the end of Phase 1 is what runs in Phase 3 —
   no changes after the freeze without a dated amendment.
 - **New hypotheses first:** before touching either new dataset, write
