@@ -1350,7 +1350,7 @@ The following four entries were supplied with the template for §3. Each was che
 
 ### 2026-11-11 — Phase 2.5 decided + H12 GATE PASS + H13 GATE FAIL (dev smoke tests)
 
-**Commit(s):** `ad97293` (Phase 2.5 pre-registration), `b1c30e4` (H12 implementation), `89db362` (H12 verdict + archive), `8f215e0` (H13 implementation); this commit (H13 verdict + close-out)
+**Commit(s):** `ad97293` (Phase 2.5 pre-registration), `b1c30e4` (H12 implementation), `89db362` (H12 verdict + archive), `8f215e0` (H13 implementation), `727a3c0` (H13 verdict + close-out; this entry's commit is recorded in the follow-up below)
 **Scope:** Phase 2.5 improvement round — user decision 2026-11-11 ("improve first, then Phase 3"), diagnose from stored Test-400 rows only, pre-register H12–H14, Dev-100 BM25 A/Bs, then one Test-400 confirmation of the improved system
 **Type:** improvement round (pre-registered hypotheses, dev smoke-test gates)
 **Prediction-changing:** yes — H12 enters the improved system, H13 is dropped
@@ -1490,7 +1490,7 @@ Only components with completed, saved experiment artifacts are listed.
 
 ### 4.6 Current repository state
 
-- HEAD: `bcbc40e` ("Phase 2 close-out: INCONCLUSIVE verdict + H1/H4 Holm + D2 + MiniLM + E.1 (H8)", 2026-11-11, branch `trueadaptive`), 2 commits ahead of `origin/trueadaptive`, unpushed (needs a fresh token). Master `88f2512` (.mailmap) is in sync with `origin/master` (pushed 2026-11-10).
+- HEAD: `727a3c0` ("Phase 2.5 H13 verdict: GATE FAIL, mechanism dropped (Dev-100 A/B) + archive", 2026-11-11, branch `trueadaptive`) is the last substantive commit; 9 commits ahead of `origin/trueadaptive` in total including this changelog-fix commit, all unpushed (needs a fresh token). Master `88f2512` (.mailmap) is in sync with `origin/master` (pushed 2026-11-10).
 - Uncommitted changes (as found at the time of this update): modified `results/cache.sqlite`, `results/nli_memo.pkl` (both run artifacts, deliberately uncommitted); untracked `configs/adaptive_rag_classifier/` (router weights gitignored; metadata/tokenizer uncommitted by choice), `configs/erag_adaptive.yaml` (old untested draft), `docs/audit-cache-dataset-integrity.md`, `docs/openspec-setup.md`.
 - Checkpoint tag target: the tag `checkpoint-pre-audit3` does not exist in this repository; the commit it is said to point at, `6aced98810227ce3404152799a426a97ca6d62a1`, exists (`6aced98`, 2026-11-08).
 - Historical result/cache changes: `results/cache.sqlite` was purged of 55 empty rows in `3064740` (backup recorded outside the repo, not verified in this draft) and has since grown with runs (26,488 rows at the last committed verification report, 27,617 rows when the verify script was re-run for this draft, 0 empty-text rows both times). No result JSONL was modified by the preparation of this document; the verify script's re-run rewrote `docs/verification-report.md` (timestamp and cache-row count only) and the file was restored with `git checkout` afterward.
