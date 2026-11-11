@@ -447,6 +447,36 @@ eager SC (H14); second extraction stays OFF (H13).** Files:
 `results/trueadaptive/erag_p25_h14_{base,eager}_dev.jsonl`;
 implementation none (config-only); chain log `~/workspace/phase25_h14.log`.
 
+### 2026-11-11 - Phase 2.6 H16: verifier threshold sweep (offline eval)
+
+**Assumed (pre-registered 2026-11-11, before any new run):** the NLI
+verifier's thresholds (theta_s/theta_c, both 0.5, never tuned) are the
+reason gold claims stay out of the supported set (H2: supported
+recall 0.60, macro-F1 0.6825 < 0.70). A sweep on a claim-level eval
+built from dev traces finds thresholds with binary macro-F1 >= 0.70
+AND supported recall >= 0.70 on held-out claims - the same bar H2
+missed - and the winning thresholds do not lower Dev-100 EM in the
+A/B (gate: dEM >= 0 at <= +0.2 calls/Q).
+
+**Actual (verified 2026-11-11, `scripts/sweep_nli_thresholds.py`,
+`results/nli_threshold_sweep.json`):** NO pair clears the bar on
+held-out claims. Best on selection (theta_s=0.6, theta_c=0.4): held
+macro-F1 0.2901, held supRec 1.0000. At 0.5/0.5: held macro-F1
+0.2857, held supRec 1.0000. The threshold surface is flat (held
+macro-F1 0.2768 -> 0.2901 across theta_s 0.30 -> 0.60; held supRec
+1.0 at every grid point). The 60-pair check: 0.6376 at 0.5/0.5,
+best 0.6532 at 0.55-0.60/0.4 - still below 0.70. **H16 NOT
+SUPPORTED on the eval leg; thresholds stay 0.5/0.5; no A/B runs.**
+Lesson recorded: the assumption was wrong - the thresholds were
+never the bottleneck. Supported recall on dev-trace claims is
+already 1.0 at 0.5/0.5; what the verifier misses is the NLI
+model's judgment and the pre-filter (pre_filter=True costs
+supported recall 0.60 -> 0.40 on the labeled pairs vs
+pre_filter=False). A stronger verifier is a model/pre-filter
+change, not a threshold change - future work, not this round.
+Files: `results/nli_threshold_sweep.json`; sweep
+`scripts/sweep_nli_thresholds.py`.
+
 ---
 
 ## Going forward (from 2026-11-10)

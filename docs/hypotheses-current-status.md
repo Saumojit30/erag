@@ -437,6 +437,38 @@ at a reasonable computational cost?"
   new run.
 - **Verdict: GATE PASS (dev smoke test).** Eager SC enters the improved system.
 
+### H16 — Verifier threshold sweep (new, 2026-11-11, Phase 2.6)
+
+- **Claim:** the NLI verifier's thresholds (theta_s/theta_c, both 0.5,
+  never tuned) are the reason gold claims stay out of the supported
+  set. A sweep on a claim-level eval built from dev traces finds
+  thresholds with binary macro-F1 ≥ 0.70 AND supported recall ≥ 0.70
+  on held-out claims — the same bar H2 missed — and the winning
+  thresholds do not lower Dev-100 EM in the A/B (gate: dEM ≥ 0 at
+  ≤ +0.2 calls/Q). Exploratory.
+- **Evidence:** Offline sweep 2026-11-11, stored traces only, no live
+  calls (`scripts/sweep_nli_thresholds.py`, output
+  `results/nli_threshold_sweep.json`): 486 claims from the H14
+  baseline Dev-100 file, proxy labels by gold-fact containment
+  (32 proxy-supported / 454 not-supported — the proxy under-labels
+  support, so the bar is harder here than on clean labels);
+  70/30 row split; 28 combos via the exact production
+  `nli.verify` call with pre_filter=True. **No pair clears the bar**
+  on held-out claims. Best on selection (theta_s=0.6, theta_c=0.4):
+  held macro-F1 0.2901, held supRec 1.0000. At 0.5/0.5: held
+  macro-F1 0.2857, held supRec 1.0000. The surface is flat — held
+  macro-F1 moves 0.2768 → 0.2901 across theta_s 0.30 → 0.60, and
+  held supRec is 1.0 at every grid point. The 60-pair H2 set
+  (reported alongside, never used for selection): 0.6376 at 0.5/0.5,
+  best 0.6532 at 0.55–0.60/0.4, still below 0.70 — and below H2's
+  0.6825, which used pre_filter=False. Pre-filtering itself costs
+  supported recall on the labeled pairs (0.60 → 0.40).
+  Pre-registered before any new run.
+- **Verdict: NOT SUPPORTED on the eval leg.** Thresholds stay
+  0.5/0.5; no Dev-100 A/B runs. The thresholds were never the
+  bottleneck — the verifier's errors sit in the NLI model's
+  judgment and the pre-filter.
+
 ### Scoreboard
 
 | ID | Verdict | Headline number |
@@ -455,8 +487,10 @@ at a reasonable computational cost?"
 | H12 | GATE PASS (dev smoke test) | EM +0.0300 at +0.39 calls/Q; fixed 3 > broke 1 on triggered rows; p=0.45 on N=100 |
 | H13 | NOT SUPPORTED | Rate 0.625 → 0.533 (fell); dcalls +1.60 > +1.0 guardrail; EM +0.02 n.s. |
 | H14 | GATE PASS (dev smoke test) | EM +0.0100 at +0.81 calls/Q; replicates FP-control direction on dev; p=1.0 on N=100 |
+| H15 | IN PROGRESS | Support-ranked re-read implemented; Dev-100 A/B running |
+| H16 | NOT SUPPORTED (eval leg) | No threshold clears macro-F1 ≥ 0.70 AND supRec ≥ 0.70 on held-out claims; surface flat; thresholds stay 0.5/0.5 |
 
-Three supported, seven not supported, one tie, two gate-pass, one untested. That is
+Three supported, eight not supported, one tie, two gate-pass, one untested, one in progress (H15). That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and

@@ -19,25 +19,35 @@
   theta_s {0.30–0.60} x theta_c {0.40–0.70} via the exact production
   `NLI.verify` call, 60-pair H2 set as a second check. Output
   `results/nli_threshold_sweep.json`.
-- [ ] A.2 Run the sweep; record the winning pair (if any clears binary
+- [x] A.2 Run the sweep; record the winning pair (if any clears binary
   macro-F1 ≥ 0.70 AND supported recall ≥ 0.70 on held-out claims),
   the held-out numbers, and the 60-pair check numbers. If no pair
   clears the bar, H16 is NOT SUPPORTED on the eval leg and the A/B
-  does not run.
+  does not run. DONE 2026-11-11 (session proc_e3cbdf89e9e4, exit 0,
+  ~4 min): NO pair clears (clearing list empty); best on selection
+  0.6/0.4, held macro-F1 0.2901, held supRec 1.0; at 0.5/0.5 held
+  macro-F1 0.2857, held supRec 1.0; 60-pair check 0.6376 at 0.5/0.5,
+  best 0.6532. Surface flat — thresholds are not the lever.
+  H16 NOT SUPPORTED on the eval leg; B.1/B.2 not applicable.
 
 ## B. A/B (only if the eval leg passes; needs Groq key)
 
-- [ ] B.1 Dev-100 BM25 A/B: baseline = improved system (frozen
+- [x] B.1 Dev-100 BM25 A/B: baseline = improved system (frozen
+  (NOT APPLICABLE — eval leg failed, A/B does not run; closed with the verdict)
   config), fresh namespace `dev_p26_h16_base_bm25`; thresholds arm =
   same + `nli.theta_s` / `nli.theta_c` overrides, fresh namespace
   `dev_p26_h16_thresh_bm25`. One `--set` per invocation. Gate:
   dEM ≥ 0 at ≤ +0.2 calls/Q.
-- [ ] B.2 Record in master plan §12 + assumptions-vs-outcomes +
+- [x] B.2 Record in master plan §12 + assumptions-vs-outcomes +
   hypotheses status (H16 verdict). If the gate fails, the thresholds
-  stay at 0.5/0.5 — no further tuning on dev.
+  stay at 0.5/0.5 — no further tuning on dev. DONE 2026-11-11 with
+  the verdict commit (records written before archiving).
 
 ## C. Close-out
 
-- [ ] C.1 Commit on `trueadaptive` (proper message, author
+- [x] C.1 Commit on `trueadaptive` (proper message, author
   Saumojit30). Do not push (PAT pending — separate blocked item).
-- [ ] C.2 Archive the change (`openspec archive -y`) and re-validate.
+  DONE 2026-11-11 with the H16 verdict commit.
+- [x] C.2 Archive the change (`openspec archive -y`) and re-validate.
+  DONE 2026-11-11: archived as 2026-11-11-tune-verifier-thresholds,
+  validate 15/15.

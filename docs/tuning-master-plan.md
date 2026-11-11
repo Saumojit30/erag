@@ -1773,6 +1773,48 @@ Note on the baseline: fresh baseline EM 0.5300 vs H13 baseline 0.5400
 vs H12 contested arm 0.5500 — ±2 rows of temp-0.0 noise between fresh
 runs, controlled by the paired fresh baseline.
 
+### 2026-11-11 - Phase 2.6 H16 threshold sweep: NOT SUPPORTED on the eval leg, thresholds stay 0.5/0.5 (offline, no live calls)
+
+OpenSpec change `tune-verifier-thresholds` (validate 15/15 at creation);
+sweep script `scripts/sweep_nli_thresholds.py` (committed `d02b97d`).
+Eval built from stored traces only: 486 claims from the H14-baseline
+Dev-100 file (`results/trueadaptive/erag_p25_h14_base_dev.jsonl`),
+passages reconstructed from the dev manifest, proxy labels by
+gold-supporting-fact containment (32 proxy-supported / 454
+not-supported - the proxy UNDER-labels support, so supported recall is
+a lower bound and precision is a lower bound; the bar is harder on
+this eval than on clean labels, which is why the 60-pair H2 set
+arbitrates). Split: first 70 rows selection, last 30 held out. Grid:
+theta_s {0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60} x theta_c {0.40,
+0.50, 0.60, 0.70} = 28 combos, each via the exact production call
+`nli.verify(text, passages, theta_s, theta_c, pre_filter=True)`.
+Sweep ran offline 2026-11-11 (~4 min, session proc_e3cbdf89e9e4, exit
+0); output `results/nli_threshold_sweep.json`. GATE: NO pair clears
+binary macro-F1 >= 0.70 AND supported recall >= 0.70 on held-out
+claims (clearing list empty). Best on selection: theta_s=0.6,
+theta_c=0.4 - sel macro-F1 0.2746, held macro-F1 0.2901, held
+supRec 1.0000. At the production point (0.5/0.5): sel macro-F1
+0.2674, held macro-F1 0.2857, sel supRec 0.8333, held supRec 1.0000,
+supported precision 0.081/0.068, pred-supported fraction 0.76/0.73.
+The surface is FLAT: held macro-F1 moves 0.2768 -> 0.2901 across
+the whole theta_s range, and held supRec is 1.0 at EVERY grid
+point - lowering theta_s gains no supported recall. The 60-pair
+check (reported alongside, never used for selection): at 0.5/0.5
+macro-F1 0.6376, supported recall 0.40, contradicted recall 0.80;
+best grid point (0.55-0.60/0.4) macro-F1 0.6532, contradicted
+recall 0.85 - still below the 0.70 bar, and below H2's 0.6825.
+Method note: H2's run used pre_filter=False (0.6825, supRec 0.60);
+the sweep uses pre_filter=True, the tuned config's production
+setting. Pre-filtering costs supported recall on the labeled pairs
+(0.60 -> 0.40) - the pre-filter, not the thresholds, is part of the
+verifier's conservatism. CONCLUSION: the thresholds are NOT the
+lever. The verifier's errors sit in the NLI model's judgment and
+the pre-filter, not the cutoffs; tuning theta_s/theta_c cannot fix
+H2. **H16 NOT SUPPORTED on the eval leg; thresholds stay 0.5/0.5;
+no Dev-100 A/B runs.** The remaining Phase 2.6 levers are H15
+(support-ranked re-read, A/B running) and the H17 candidate
+(calibrated abstention, not yet pre-registered).
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**
