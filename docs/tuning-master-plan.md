@@ -947,6 +947,14 @@ Phase 3 entry moves to the end of this round (it was the Phase 2.5
 confirmation; the system that enters Phase 3 is the one this round's
 confirmation judges).
 
+**DATED AMENDMENT 2026-11-11 (H15 gate pass):** support_ranked
+enters the system. The final frozen config is written AFTER H18's
+verdict (Phase 2.7, §4.7) — the final system is whichever
+combination passes its gates — and the ONE Test-400 confirmation
+judges that system vs fresh IRCoT. H15 alone is not frozen as a
+config yet; the flag is `erag.support_ranked_reread: true` on top of
+the improved config.
+
 ---
 
 ## 4.7 Phase 2.7 — Architecture round (user direction 2026-11-11)
@@ -1901,6 +1909,30 @@ protected, but the drift is a reminder that cross-day absolute
 numbers carry model-drift risk. The improved system enters Phase 3
 only after the Phase 2.6/2.7 rounds judge it; the next step is the
 H15 verdict, then the final Test-400 confirmation.
+
+### 2026-11-11 — Phase 2.6 H15 support-ranked final re-read: GATE PASS (dev smoke test)
+
+OpenSpec change `improve-support-ranked-reread` (validate 14/14 at
+creation); implementation behind `erag.support_ranked_reread`
+(default false, top_k 3), 10 new tests. When the final draft is not
+backed by the top-3 supported claims (by eff), a re-read grounded
+ONLY on those top-3 claims (plus the context block) chooses the
+answer. Dev-100 BM25 A/B, fresh namespaces, both arms re-run fresh
+(chain `~/workspace/phase26_h15_chain.sh`, session proc_9d5f72e58336,
+exit 0, both arms rc=0): baseline (frozen improved system) EM 0.5400
+/ F1 0.6422 at 5.02 calls/Q vs ranked EM 0.5600 / F1 0.6400 at 5.21
+calls/Q — dEM +0.0200, 95% CI [-0.05, +0.09], McNemar b=5, c=7,
+p=0.7744 (not significant on N=100, expected); dF1 -0.0022; dcalls
++0.19, 95% CI [+0.01, +0.37]. Trigger fired 9/100 (lower than the
+24/53 target-row rate predicted from the tuned Test-400 diagnosis —
+the dev baseline is the improved system, not the tuned one); on
+triggered rows fixed 3, broke 0. Gate PASSES on all three legs (dEM
+>= +0.02 exactly at the bar, dcalls <= +0.5, fixes > broke).
+**H15 enters the system.** Honest caveat: the +0.02 gain is exactly
+at the gate bar and only 3 of the 7 net gained rows were on
+triggered rows (the other 4 are temp-0.0 noise, as in the H12 A/B);
+the mechanism is real but small on dev. Cache_hits/Q 0.00 both arms
+(all live).
 
 ### 2026-11-11 — Phase 2.7 H19 extractive final read: GATE FAIL, MECHANISM DROPPED (dev smoke test)
 

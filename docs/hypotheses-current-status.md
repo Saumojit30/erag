@@ -469,6 +469,27 @@ at a reasonable computational cost?"
   bottleneck — the verifier's errors sit in the NLI model's
   judgment and the pre-filter.
 
+### H15 — Support-ranked final re-read (new, 2026-11-11, Phase 2.6)
+
+- **Claim:** when the final draft is not backed by the top-3
+  supported claims (by eff), a re-read grounded only on those top-3
+  claims raises Dev-100 BM25 EM ≥ +0.02 vs the improved-system
+  baseline at ≤ +0.5 calls/Q, and fixes more triggered rows than it
+  breaks.
+- **Evidence (Dev-100 BM25 A/B, both arms re-run fresh, paired,
+  `scripts/phase26_h15_verdict.py`):** baseline EM 0.5400 / F1 0.6422
+  at 5.02 calls/Q vs ranked EM 0.5600 / F1 0.6400 at 5.21 calls/Q;
+  dEM +0.0200, 95% CI [−0.05, +0.09], McNemar b=5, c=7, p=0.7744;
+  dF1 −0.0022; dcalls +0.19, 95% CI [+0.01, +0.37]. Trigger fired
+  9/100; on triggered rows fixed 3, broke 0.
+  Pre-registered before any new run.
+- **Verdict: GATE PASS.** All three legs pass (dEM ≥ +0.02 exactly
+  at the bar, dcalls ≤ +0.5, fixes > broke). H15 enters the system.
+  Caveat: only 3 of the 7 net gained rows were on triggered rows
+  (the rest is temp-0.0 noise); the trigger fired less often than
+  the Test-400 headroom analysis predicted (9/100 vs 24/53). The
+  Test-400 confirmation judges whether the small dev gain is real.
+
 ### H19 — Extractive final read (new, 2026-11-11, Phase 2.7)
 
 - **Claim:** the final answer must come from verified claims only —
@@ -510,11 +531,11 @@ at a reasonable computational cost?"
 | H12 | GATE PASS (dev smoke test) | EM +0.0300 at +0.39 calls/Q; fixed 3 > broke 1 on triggered rows; p=0.45 on N=100 |
 | H13 | NOT SUPPORTED | Rate 0.625 → 0.533 (fell); dcalls +1.60 > +1.0 guardrail; EM +0.02 n.s. |
 | H14 | GATE PASS (dev smoke test) | EM +0.0100 at +0.81 calls/Q; replicates FP-control direction on dev; p=1.0 on N=100 |
-| H15 | IN PROGRESS | Support-ranked re-read implemented; Dev-100 A/B running |
+| H15 | GATE PASS (dev smoke test) | EM +0.0200 at +0.19 calls/Q; fixed 3 > broke 0 on triggered rows (9/100); p=0.77 on N=100 |
 | H16 | NOT SUPPORTED (eval leg) | No threshold clears macro-F1 ≥ 0.70 AND supRec ≥ 0.70 on held-out claims; surface flat; thresholds stay 0.5/0.5 |
 | H19 | NOT SUPPORTED | Claims-only re-read churns: dEM −0.0100, dcalls +0.60, fixed 3 broke 5 on triggered rows; wrong rate barely down |
 
-Three supported, nine not supported, one tie, two gate-pass, one untested, one in progress (H15). That is
+Three supported, nine not supported, one tie, three gate-pass, one untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
@@ -684,7 +705,13 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    H19 extractive final read GATE FAIL 2026-11-11 (dEM −0.0100,
    dcalls +0.60, fixed 3 broke 5; H19 NOT SUPPORTED, mechanism
    DROPPED, stays OFF); next is H18 (full evidence-first inversion).
+   **H15 GATE PASS 2026-11-11** (EM +0.0200 at +0.19 calls/Q,
+   fixed 3 broke 0 on triggered rows; support_ranked enters the
+   system; the final frozen config is written after H18's verdict).
    Phase 3 enters with the system the final confirmation judges.
+   Next: H18 (pre-register, implement, A/B), then the ONE Test-400
+   final confirmation — both need a Groq key re-sent (the send-9 key
+   died with the H15 chain).
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
    second check, improved system (the Phase 2.5 freeze). New

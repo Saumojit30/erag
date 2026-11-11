@@ -44,23 +44,23 @@
 
 ## C. Dev-100 A/B (gate = smoke test; needs Groq key)
 
-- [ ] C.1 Baseline: improved system (tuned + contested + eager SC),
+- [x] C.1 Baseline: improved system (tuned + contested + eager SC),
   Dev-100 BM25, fresh namespace `dev_p26_h15_base_bm25`, output
   `results/trueadaptive/erag_p26_h15_base_dev.jsonl`.
-- [ ] C.2 H15 arm: same + `erag.support_ranked_reread=true`, fresh
+- [x] C.2 H15 arm: same + `erag.support_ranked_reread=true`, fresh
   namespace `dev_p26_h15_ranked_bm25`, output
   `results/trueadaptive/erag_p26_h15_ranked_dev.jsonl`. One `--set`
   per invocation (repeated `--set` overwrites).
-- [ ] C.3 Verify `cache_hits` on both files; compute EM/F1/calls-Q
+- [x] C.3 Verify `cache_hits` on both files; compute EM/F1/calls-Q
   paired (McNemar) + trigger rate + fixes/breaks on triggered rows.
   Gate: EM gain ≥ +0.02 at ≤ +0.5 calls/Q; fixes > breaks on
   triggered rows.
-- [ ] C.4 Record in master plan §12 + assumptions-vs-outcomes +
+- [x] C.4 Record in master plan §12 + assumptions-vs-outcomes +
   hypotheses status (H15 verdict). If the gate fails, the mechanism
   is dropped — no further tuning on dev.
 
 ## D. Close-out
 
-- [ ] D.1 Commit on `trueadaptive` (proper message, author
+- [x] D.1 Commit on `trueadaptive` (proper message, author
   Saumojit30). Do not push (PAT pending — separate blocked item).
-- [ ] D.2 Archive the change (`openspec archive -y`) and re-validate.
+- [x] D.2 Archive the change (`openspec archive -y`) and re-validate.

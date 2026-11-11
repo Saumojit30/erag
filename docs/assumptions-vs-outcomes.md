@@ -479,6 +479,34 @@ Files: `results/nli_threshold_sweep.json`; sweep
 
 ---
 
+## H15 — support-ranked final re-read (2026-11-11)
+
+**Assumed (pre-run, `docs/phase26-beat-ircot-plan.md` + OpenSpec
+change `improve-support-ranked-reread`):** when the final draft is
+not backed by the top-3 supported claims (by eff), a re-read
+grounded only on those top-3 claims raises Dev-100 EM >= +0.02 at
+<= +0.5 calls/Q and fixes more triggered rows than it breaks. The
+headroom was measured on stored tuned Test-400 rows: gold is in the
+top-3 supported claims on 48/53 target rows, and the trigger fires
+on 24/53 target rows vs 39/180 correct rows.
+
+**Actual (verified 2026-11-11, `scripts/phase26_h15_verdict.py`,
+`results/trueadaptive/erag_p26_h15_{base,ranked}_dev.jsonl`):**
+ranked EM 0.5600 vs baseline 0.5400, dEM +0.0200, 95% CI [-0.05,
++0.09], McNemar b=5, c=7, p=0.7744; dcalls +0.19; trigger fired
+9/100 (not 24/53 — the dev baseline is the improved system, and the
+trigger rate does not transfer from test to dev the way the
+headroom analysis suggested); on triggered rows fixed 3, broke 0.
+**GATE PASSES on all three legs; H15 enters the system.** Lesson
+recorded: the gate passes exactly at its bar (+0.0200), and only 3
+of the 7 net gained rows were on triggered rows — the mechanism is
+real but small on dev, and the trigger is rarer than the Test-400
+diagnosis predicted. The Test-400 confirmation judges whether the
+small dev gain is real at scale; the mechanism is not claimed as a
+win until then.
+
+---
+
 ## Phase 2.5 Test-400 confirmation — improved system vs fresh IRCoT (2026-11-11)
 
 **Assumed (pre-run, master plan §4.5/§4.6):** the improved system
