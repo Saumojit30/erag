@@ -982,7 +982,10 @@ bought by answering more):
   (this section + `openspec/changes/extractive-final-read/`): on
   Dev-100 BM25, the extractive arm raises EM >= +0.02 vs the
   improved-system baseline at <= +0.5 calls/Q AND does not raise the
-  wrong-answer rate. Exploratory. A/B running (see §12).
+  wrong-answer rate. Exploratory. **GATE FAIL 2026-11-11 (see §12):
+  dEM -0.0100, dcalls +0.60, fixed 3 broke 5 on triggered rows;
+  H19 NOT SUPPORTED, mechanism DROPPED, stays OFF.** The round moves
+  to H18 (the full evidence-first inversion).
 - H20 — compositional verification (verify the answer claim against
   the joint evidence of its supporting claims, not per-window).
 - H21 — cross-encoder reranking of the pool before the reader.
@@ -1869,6 +1872,65 @@ H2. **H16 NOT SUPPORTED on the eval leg; thresholds stay 0.5/0.5;
 no Dev-100 A/B runs.** The remaining Phase 2.6 levers are H15
 (support-ranked re-read, A/B running) and the H17 candidate
 (calibrated abstention, not yet pre-registered).
+
+### 2026-11-11 — Phase 2.5 Test-400 confirmation: INCONCLUSIVE (improved vs fresh IRCoT v3)
+
+Chain `~/workspace/phase26_confirmation_chain.sh` (session
+proc_9d5f72e58336, exit 0; both arms rc=0), on the send-9 Groq key.
+Improved system = frozen `configs/erag_trueadaptive_improved.yaml`
+(tuned + contested H12 + eager SC H14; second extraction OFF).
+Namespace `test_improved_v1_bm25`, output
+`results/trueadaptive/erag_trueadaptive_improved_test.jsonl`; fresh
+IRCoT v3 namespace `test_ircot_v3_bm25`, output
+`results/ircot_test_v3_bm25.jsonl`. Both files N=400 deduped, 0
+failed, cache_hits/Q 0.00 (all live, fresh namespaces). Verdict by
+`scripts/phase26_confirmation_verdict.py` (§4.2 shape + H11/H10):
+**improved EM 0.4600, F1 0.5893, 5.08 calls/Q, wrong-answer rate
+138/322 = 0.4286, calls/correct 11.04; IRCoT v3 EM 0.4350, F1 0.5697,
+2.52 calls/Q, wrong rate 136/310 = 0.4387, calls/correct 5.78; dEM
++0.0250, 95% CI [-0.0075, +0.0575], McNemar b=28, c=18, p=0.1839
+→ INCONCLUSIVE** (improved > IRCoT but p>=0.05). The Phase 2.5
+improvement round bought +0.0100 EM over the tuned system (0.4500)
+on Test-400 — inside noise — and the improved system is still below
+v1 (0.4750). Wrong-answer rate is down 1.0pt vs IRCoT (0.4286 vs
+0.4387) but the win bar needs p<0.05 too, so it is not a win. Cost
+vs IRCoT is still adverse: 5.08 vs 2.52 calls/Q, 11.04 vs 5.78
+calls/correct. Note: IRCoT itself drifted up across days (v1 0.4200,
+v2 0.4225, v3 0.4350) — same-window paired comparisons are
+protected, but the drift is a reminder that cross-day absolute
+numbers carry model-drift risk. The improved system enters Phase 3
+only after the Phase 2.6/2.7 rounds judge it; the next step is the
+H15 verdict, then the final Test-400 confirmation.
+
+### 2026-11-11 — Phase 2.7 H19 extractive final read: GATE FAIL, MECHANISM DROPPED (dev smoke test)
+
+OpenSpec change `extractive-final-read` (validate 16/16);
+implementation behind `erag.extractive_final_read` (default false),
+6 new tests. The final read is claims-only: the reader sees the
+supported claims by eff desc and NO context block, always on when
+supported claims exist, replacing the unknown/disagree/contested/
+support-ranked triggers for that row; row field `extractive` only
+when the flag is on; flag-off byte-identical. Dev-100 BM25 A/B,
+fresh namespaces, both arms re-run fresh (chain
+`~/workspace/phase26_h19_chain.sh`, session proc_7b7d222165d8, exit
+0, ~13 min, both arms rc=0): baseline (frozen improved system) EM
+0.5300 / F1 0.6256 at 5.05 calls/Q vs extractive EM 0.5200 / F1
+0.6146 at 5.65 calls/Q — dEM -0.0100, 95% CI [-0.07, +0.05],
+McNemar b=5, c=4, p=1.0; dF1 -0.0110; dcalls +0.60. Trigger fired
+96/100; fixed 3, broke 5 on triggered rows. Wrong-answer rate
+26/78 = 0.3333 vs 27/80 = 0.3375 (down 0.4pts — the only leg that
+passes, and barely). Gate FAILS on two of three legs (dEM < +0.02,
+dcalls > +0.5). **H19 NOT SUPPORTED; extractive mechanism DROPPED,
+stays OFF.** Reading: the claims-only restriction churns the answer
+rather than fixing it — the reader still composes a short answer
+from claim sentences, and when the gold claim is not in the
+supported set the re-read picks a wrong supported claim instead.
+The supported set is the bottleneck (as H16 showed for the
+verifier), not the reader's access to context. The round moves to
+H18 (the full evidence-first inversion). Baseline calls/Q 5.05 here
+vs 4.30 in the H14 baseline — SC sample counts are stochastic
+(temp-0.7 sampling); controlled by the paired fresh baseline.
+Cache_hits/Q 0.00 both arms (all live).
 
 ## Appendix — Key numbers (frozen)
 

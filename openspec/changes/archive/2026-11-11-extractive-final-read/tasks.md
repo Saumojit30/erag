@@ -38,24 +38,24 @@
 
 ## B. A/B (needs Groq key)
 
-- [ ] B.1 Dev-100 BM25 A/B via `~/workspace/phase26_h19_chain.sh`:
+- [x] B.1 Dev-100 BM25 A/B via `~/workspace/phase26_h19_chain.sh`:
   baseline = frozen improved config, fresh namespace
   `dev_p27_h19_base_bm25`; extractive arm = same +
   `erag.extractive_final_read=true`, fresh namespace
   `dev_p27_h19_extractive_bm25`. One `--set` per invocation.
   Verify the bar shows `erag:dev 0/100` right after launch.
-- [ ] B.2 Run `scripts/phase26_h19_verdict.py` on the two files;
+- [x] B.2 Run `scripts/phase26_h19_verdict.py` on the two files;
   judge the gate (dEM ≥ +0.02 AND wrong-answer rate not up AND
   dcalls ≤ +0.5). If the gate fails, the mechanism stays OFF and the
   round moves to H18.
 
 ## C. Close-out
 
-- [ ] C.1 Write the records (master plan §12, assumptions-vs-outcomes,
+- [x] C.1 Write the records (master plan §12, assumptions-vs-outcomes,
   hypotheses status H19 verdict + scoreboard, retrospective changelog
   §2 + §§4/5/7, project report refresh).
-- [ ] C.2 Commit on `trueadaptive` (proper message, author
+- [x] C.2 Commit on `trueadaptive` (proper message, author
   Saumojit30). Do not push (PAT pending — separate blocked item).
-- [ ] C.3 Archive the change (`openspec archive -y`) and re-validate.
-- [ ] C.4 Report the verdict to the user (H19 gate pass/fail + what
+- [x] C.3 Archive the change (`openspec archive -y`) and re-validate.
+- [x] C.4 Report the verdict to the user (H19 gate pass/fail + what
   it means for the Phase 2.7 round).

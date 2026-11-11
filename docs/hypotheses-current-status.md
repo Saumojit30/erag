@@ -469,6 +469,29 @@ at a reasonable computational cost?"
   bottleneck — the verifier's errors sit in the NLI model's
   judgment and the pre-filter.
 
+### H19 — Extractive final read (new, 2026-11-11, Phase 2.7)
+
+- **Claim:** the final answer must come from verified claims only —
+  a claims-only final re-read with NO context block, always on when
+  supported claims exist, replacing the other re-read triggers —
+  raises Dev-100 BM25 EM ≥ +0.02 vs the improved-system baseline at
+  ≤ +0.5 calls/Q without raising the wrong-answer rate.
+- **Evidence (Dev-100 BM25 A/B, both arms re-run fresh, paired,
+  `scripts/phase26_h19_verdict.py`):** baseline EM 0.5300 / F1 0.6256
+  at 5.05 calls/Q vs extractive EM 0.5200 / F1 0.6146 at 5.65
+  calls/Q; dEM −0.0100, 95% CI [−0.07, +0.05], McNemar b=5, c=4,
+  p=1.0; dF1 −0.0110; dcalls +0.60. Trigger fired 96/100; fixed 3,
+  broke 5 on triggered rows. Wrong-answer rate 0.3333 vs 0.3375
+  (down 0.4pts — the only leg that passes, barely).
+  Pre-registered before any new run.
+- **Verdict: NOT SUPPORTED.** Gate fails on two of three legs
+  (dEM < +0.02, dcalls > +0.5). The claims-only restriction churns
+  the answer rather than fixing it — the reader still composes a
+  short answer from claim sentences, and when the gold claim is not
+  ranked first the re-read picks a wrong supported claim. The
+  supported set's ranking is the bottleneck, not the reader's access
+  to context. Mechanism DROPPED, stays OFF; the round moves to H18.
+
 ### Scoreboard
 
 | ID | Verdict | Headline number |
@@ -489,8 +512,9 @@ at a reasonable computational cost?"
 | H14 | GATE PASS (dev smoke test) | EM +0.0100 at +0.81 calls/Q; replicates FP-control direction on dev; p=1.0 on N=100 |
 | H15 | IN PROGRESS | Support-ranked re-read implemented; Dev-100 A/B running |
 | H16 | NOT SUPPORTED (eval leg) | No threshold clears macro-F1 ≥ 0.70 AND supRec ≥ 0.70 on held-out claims; surface flat; thresholds stay 0.5/0.5 |
+| H19 | NOT SUPPORTED | Claims-only re-read churns: dEM −0.0100, dcalls +0.60, fixed 3 broke 5 on triggered rows; wrong rate barely down |
 
-Three supported, eight not supported, one tie, two gate-pass, one untested, one in progress (H15). That is
+Three supported, nine not supported, one tie, two gate-pass, one untested, one in progress (H15). That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
@@ -644,15 +668,23 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    straddles the +1.0 guardrail; eager SC enters the improved system).
    **Phase 2.5 is closed** — the improved system (tuned + contested +
    eager SC; second extraction OFF) is frozen in
-   `configs/erag_trueadaptive_improved.yaml`. Next: one Test-400
-   confirmation of the improved system vs fresh IRCoT (running).
+   `configs/erag_trueadaptive_improved.yaml`. **Phase 2.5
+   confirmation DONE 2026-11-11: INCONCLUSIVE** (improved EM 0.4600
+   vs fresh IRCoT v3 EM 0.4350, dEM +0.0250, McNemar p=0.1839;
+   wrong-answer rate down 1.0pt but the win bar needs p<0.05 too;
+   the improvement round bought +0.0100 EM over tuned on Test-400,
+   inside noise, and the improved system is still below v1's 0.4750).
    **Phase 2.6 — beat-IRCoT round (user direction 2026-11-11) sits
    between the confirmation and Phase 3:** H15 support-ranked final
    re-read (implemented, Dev-100 A/B running), H16 verifier threshold
    sweep NOT SUPPORTED on the eval leg 2026-11-11 (thresholds stay
    0.5/0.5, no A/B), then one final Test-400 confirmation vs fresh
    IRCoT, judged on EM up AND wrong-answer rate down with p < 0.05.
-   Phase 3 enters with the system that confirmation judges.
+   **Phase 2.7 — architecture round (user direction 2026-11-11):**
+   H19 extractive final read GATE FAIL 2026-11-11 (dEM −0.0100,
+   dcalls +0.60, fixed 3 broke 5; H19 NOT SUPPORTED, mechanism
+   DROPPED, stays OFF); next is H18 (full evidence-first inversion).
+   Phase 3 enters with the system the final confirmation judges.
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
    second check, improved system (the Phase 2.5 freeze). New

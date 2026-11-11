@@ -479,6 +479,63 @@ Files: `results/nli_threshold_sweep.json`; sweep
 
 ---
 
+## Phase 2.5 Test-400 confirmation — improved system vs fresh IRCoT (2026-11-11)
+
+**Assumed (pre-run, master plan §4.5/§4.6):** the improved system
+(tuned + H12 contested + H14 eager SC) beats the tuned system's
+Test-400 result (EM 0.4500, dEM +0.0275 n.s. vs IRCoT v2) — the
+improvement round was supposed to close the gap toward v1's 0.4750
+and toward significance vs IRCoT.
+
+**Actual (verified 2026-11-11,
+`scripts/phase26_confirmation_verdict.py`,
+`results/trueadaptive/erag_trueadaptive_improved_test.jsonl`,
+`results/ircot_test_v3_bm25.jsonl`):** improved EM 0.4600 vs IRCoT
+v3 EM 0.4350, dEM +0.0250, 95% CI [-0.0075, +0.0575], McNemar b=28,
+c=18, p=0.1839 — **INCONCLUSIVE** again. The improvement round
+bought +0.0100 EM over tuned on Test-400, inside noise; the improved
+system is still 1.5pts below v1. Wrong-answer rate down 1.0pt
+(0.4286 vs 0.4387) but the win bar needs p<0.05 too. Cost vs IRCoT
+still adverse (5.08 vs 2.52 calls/Q; 11.04 vs 5.78 calls/correct).
+IRCoT itself drifted up across days (0.4200 → 0.4225 → 0.4350).
+Lesson recorded: three gated mechanisms (H12, H14) each passed a
+Dev-100 smoke test and together moved Test-400 EM by one point —
+dev smoke-test gates select for direction, not magnitude, and the
+Test-400 confirmation is the only judge that matters. The paper
+reports this straight; the Phase 2.6/2.7 rounds are the attempt to
+change it, not a re-run of the same confirmation.
+
+---
+
+## H19 — extractive final read (2026-11-11)
+
+**Assumed (pre-run, master plan §4.7 + OpenSpec change
+`extractive-final-read`):** restricting the final answer to verified
+claims — a claims-only re-read with no context block, always on —
+raises Dev-100 EM >= +0.02 at <= +0.5 calls/Q without raising the
+wrong-answer rate, because the 53 gold-in-claims wrong rows show the
+draft choosing a wrong supported claim while gold sits in the set.
+
+**Actual (verified 2026-11-11, `scripts/phase26_h19_verdict.py`,
+`results/trueadaptive/erag_p27_h19_{base,extractive}_dev.jsonl`):**
+extractive EM 0.5200 vs baseline 0.5300, dEM -0.0100, 95% CI [-0.07,
++0.05], McNemar b=5, c=4, p=1.0; dcalls +0.60; trigger fired 96/100,
+fixed 3, broke 5 on triggered rows; wrong-answer rate 0.3333 vs
+0.3375 (the only leg that passes, barely). **GATE FAILS on two of
+three legs; H19 NOT SUPPORTED; mechanism DROPPED, stays OFF.**
+Lesson recorded: the assumption was wrong in the mechanism, not the
+diagnosis — the gold claim IS often in the supported set, but the
+reader composing a short answer from claim sentences still picks the
+wrong supported claim when the gold one is not ranked first, and the
+restriction removes the context the reader used to disambiguate.
+The supported set's ranking is the bottleneck (as H16 showed for
+the verifier), not the reader's access to context. H18 (the full
+inversion: claims from passages first, answer composed from verified
+claims) is the next attempt, since it changes what gets extracted
+rather than what the reader is allowed to see.
+
+---
+
 ## Going forward (from 2026-11-10)
 
 - Every experiment from here — step 6, Phase 2, Phase 3, the ablations,

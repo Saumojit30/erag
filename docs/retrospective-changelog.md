@@ -1375,6 +1375,30 @@ The following four entries were supplied with the template for §3. Each was che
 #### Evidence
 - Both A/B pairs N=100 deduped, 0 failed, cache_hits/Q 0.00 on all four files (all live, fresh namespaces). H12 paired stats from the chain output; H13 paired stats from `scripts/phase25_h13_verdict.py`, with EM/F1/calls and the gold-in-claims rate independently recomputed (repo `normalize_answer`, different normalizer from the script's regex) — identical numbers.
 
+### 2026-11-11 — Phase 2.5 Test-400 confirmation: INCONCLUSIVE + Phase 2.7 H19 GATE FAIL, MECHANISM DROPPED
+
+**Commit(s):** confirmation verdict + H19 verdict + close-out (this commit)
+**Scope:** Phase 2.5 Test-400 confirmation of the improved system vs fresh IRCoT v3 (§4.2 verdict shape); Phase 2.7 H19 extractive final read Dev-100 BM25 A/B
+**Type:** confirmation run (pre-registered verdict) + architecture-round A/B (pre-registered gate)
+**Prediction-changing:** no — both verdicts confirm the pattern: dev smoke-test gains do not transfer to Test-400 at significance, and restricting the reader does not fix claim selection
+
+#### What changed
+- **Phase 2.5 confirmation — INCONCLUSIVE.** Chain `~/workspace/phase26_confirmation_chain.sh` (session proc_9d5f72e58336, exit 0; both arms rc=0), on the send-9 Groq key. Improved system (frozen `configs/erag_trueadaptive_improved.yaml`: tuned + contested H12 + eager SC H14; second extraction OFF) vs fresh IRCoT v3, Test-400 BM25, fresh namespaces, both files N=400 deduped, 0 failed, cache_hits/Q 0.00 (all live). Verdict by `scripts/phase26_confirmation_verdict.py`: improved EM 0.4600 / F1 0.5893 at 5.08 calls/Q, wrong-answer rate 138/322 = 0.4286, calls/correct 11.04; IRCoT v3 EM 0.4350 / F1 0.5697 at 2.52 calls/Q, wrong rate 136/310 = 0.4387, calls/correct 5.78; dEM +0.0250, 95% CI [−0.0075, +0.0575], McNemar b=28, c=18, p=0.1839 → INCONCLUSIVE (improved > IRCoT but p≥0.05). The improvement round bought +0.0100 EM over the tuned system (0.4500) on Test-400 — inside noise — and the improved system is still below v1 (0.4750). Wrong-answer rate down 1.0pt vs IRCoT but the win bar needs p<0.05 too. Cost vs IRCoT still adverse (5.08 vs 2.52 calls/Q; 11.04 vs 5.78 calls/correct). Note: IRCoT itself drifted up across days (v1 0.4200, v2 0.4225, v3 0.4350) — same-window paired comparisons are protected, but cross-day absolute numbers carry model-drift risk.
+- **H19 — GATE FAIL (dev smoke test), MECHANISM DROPPED.** OpenSpec change `extractive-final-read` (validate 16/16); implementation behind `erag.extractive_final_read` (default false): claims-only final re-read, NO context block, always on when supported claims exist, replacing the other re-read triggers; `EXTRACTIVE_SYSTEM` + `extractive_answer_messages()` in `src/llm/prompts.py`; wiring in `src/systems/erag.py` (extractive branch first; grounded-messages and contested branches guarded); row field `extractive` only when the flag is on; flag-off byte-identical; 6 new tests, all pass. Dev-100 BM25 A/B, fresh namespaces, both arms re-run fresh (chain `~/workspace/phase26_h19_chain.sh`, session proc_7b7d222165d8, exit 0, ~13 min, both arms rc=0): baseline (frozen improved system) EM 0.5300 / F1 0.6256 at 5.05 calls/Q vs extractive EM 0.5200 / F1 0.6146 at 5.65 calls/Q — dEM −0.0100, 95% CI [−0.07, +0.05], McNemar b=5, c=4, p=1.0; dF1 −0.0110; dcalls +0.60. Trigger fired 96/100; fixed 3, broke 5 on triggered rows. Wrong-answer rate 26/78 = 0.3333 vs 27/80 = 0.3375 (down 0.4pts — the only leg that passes, and barely). Gate FAILS on two of three legs (dEM < +0.02, dcalls > +0.5). **H19 NOT SUPPORTED; extractive mechanism DROPPED, stays OFF.** Reading: the claims-only restriction churns the answer rather than fixing it — the reader still composes a short answer from claim sentences, and when the gold claim is not ranked first the re-read picks a wrong supported claim. The supported set's ranking is the bottleneck (as H16 showed for the verifier), not the reader's access to context. The round moves to H18 (the full evidence-first inversion). Baseline calls/Q 5.05 here vs 4.30 in the H14 baseline — SC sample counts are stochastic (temp-0.7 sampling); controlled by the paired fresh baseline. Cache_hits/Q 0.00 both arms (all live). Change archived as `2026-11-11-extractive-final-read` with this commit.
+- **Scoreboard after H19:** 3 supported (H1, H3, H6), 9 not supported (H2, H4, H5, H7, H8, H10, H13, H16, H19), 1 tie (H11), 2 gate-pass (H12, H14), 1 untested (H9), 1 in progress (H15).
+
+#### Why it changed
+- The Phase 2.5 confirmation was the pre-registered judge of the improvement round; it returned INCONCLUSIVE, as Phase 2 did for the tuned system. The H19 gate was pre-registered with a hallucination leg precisely so a mechanism that does not reduce the wrong-answer rate would be dropped — the gate did its job, and the failure is informative: it rules out "restrict the reader" and points the round at "change what gets extracted" (H18).
+
+#### Files changed
+- `src/systems/erag.py` (extractive branch + guards), `src/llm/prompts.py` (`EXTRACTIVE_SYSTEM`, `extractive_answer_messages`), `tests/test_extractive_final_read.py` (6 new), `scripts/phase26_h19_verdict.py` (new), `scripts/phase26_confirmation_verdict.py` (new, in the H16 close-out commit), `results/trueadaptive/erag_trueadaptive_improved_test.jsonl`, `results/ircot_test_v3_bm25.jsonl`, `results/trueadaptive/erag_p27_h19_{base,extractive}_dev.jsonl`, `docs/tuning-master-plan.md` (§4.7, §12), `docs/hypotheses-current-status.md` (H19, scoreboard, §3), `docs/assumptions-vs-outcomes.md`, this changelog
+
+#### Tests added or updated
+- 6 H19 tests, all pass. Full suite at the H19 implementation commit (`c01d11f`): 192 passed, 1 failed (known pre-existing retry mismatch) — see §4.5. No code in `src/` changed after that commit before this close-out (docs, result files, and the verdict script only), so the count stands without a re-run.
+
+#### Evidence
+- Confirmation pair N=400 deduped, 0 failed, cache_hits/Q 0.00 on both files (all live, fresh namespaces). H19 pair N=100 deduped, 0 failed, cache_hits/Q 0.00 on both files (all live, fresh namespaces). Paired stats from `scripts/phase26_confirmation_verdict.py` and `scripts/phase26_h19_verdict.py`.
+
 ## 3. Recent repair sequence
 
 Baseline:
@@ -1465,6 +1489,8 @@ Only components with completed, saved experiment artifacts are listed.
 - Phase 2.5 H13 (2026-11-11): Dev-100 BM25 A/B, second extraction pass — EM 0.5600 vs baseline 0.5400 (dEM +0.0200, p=0.7266), gold-in-claims rate 0.625 → 0.533 (fell), +1.60 calls/Q; GATE FAIL, mechanism DROPPED — see §2
 - Phase 2.5 H14 (2026-11-11): Dev-100 BM25 A/B, eager SC — EM 0.5400 vs baseline 0.5300 (dEM +0.0100, p=1.0), +0.81 calls/Q; GATE PASS, mechanism enters the improved system — see §2
 - Phase 2.6 H16 (2026-11-11): offline threshold sweep, 28 combos — NO pair clears macro-F1 >= 0.70 AND supRec >= 0.70 on held-out claims (best held macro-F1 0.2901); surface flat; NOT SUPPORTED on the eval leg, thresholds stay 0.5/0.5, no A/B — see §2
+- Phase 2.5 confirmation (2026-11-11): improved EM 0.4600 vs fresh IRCoT v3 EM 0.4350, dEM +0.0250, McNemar p=0.1839 — INCONCLUSIVE; wrong-answer rate down 1.0pt but the win bar needs p<0.05 too — see §2
+- Phase 2.7 H19 (2026-11-11): extractive final read, Dev-100 BM25 — dEM −0.0100, dcalls +0.60, fixed 3 broke 5; GATE FAIL, H19 NOT SUPPORTED, mechanism DROPPED — see §2
 - E5 memory stream: evaluated on saved data (N=30) but uninformative — cache replay, not a null (see §1.4 and the step-6 §2 entry). Memory benefit is therefore NOT in this list.
 
 ### 4.4 Deferred or unimplemented
@@ -1487,7 +1513,7 @@ Only components with completed, saved experiment artifacts are listed.
 
 - Command (re-run for this update): `HF_HUB_DISABLE_XET=1 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 .venv/bin/python -m pytest tests/ -q -p no:cacheprovider --tb=no`
 - Completed exit code: 1
-- Passed / failed / xfailed counts: **186 passed, 1 failed, 0 xfailed** (HEAD `d4121b8`, after the H15 implementation commit: +10 H15 tests. No full re-run was done for this close-out — no code in `src/` changed after `d4121b8` before it (docs, result files, and the sweep script only), so the count stands. Previous measurement: 176 passed, 1 failed at HEAD `8f215e0`)
+- Passed / failed / xfailed counts: **192 passed, 1 failed, 0 xfailed** (HEAD `c01d11f`, after the H19 implementation commit: +6 H19 tests. No full re-run was done for this close-out — no code in `src/` changed after `c01d11f` before it (docs, result files, and the verdict script only), so the count stands. Previous measurement: 186 passed, 1 failed at HEAD `d4121b8`)
 - Remaining failure: `tests/test_retry_and_tracker.py::test_retry_exhaustion_raises_runtime_error` — the test expects the message "LLM call failed after 4 attempts"; the code retries 6 times (`src/llm/client.py:130`: "1 try + 5 retries = 6 attempts"; line 163 raises "LLM call failed after 6 attempts"). This is a test/code mismatch, not a system regression: the retry count in the code is 6 and the test was written for 4. The project record states it fails on base too; that was not independently re-verified in this draft (it would require checking out the base commit).
 - Remaining strict xfails: none observed in this run (0 xfailed).
 - Earlier counts for reference: 87 passed, 1 failed at HEAD `0ac6d99` (this draft's original measurement); 111 passed, 1 failed after the step-6 measurement build (`e5da900`); 159 passed, 1 failed at HEAD `91a0f29` (Adaptive-RAG D.1); 168 passed, 1 failed at HEAD `b1c30e4` (H12 implementation, +9 tests); 176 passed, 1 failed at HEAD `8f215e0` (H13 implementation, +8 tests). The growth is new tests, not behavior changes.
