@@ -3,6 +3,7 @@
 import json
 import re
 from typing import Any, Dict, List
+from src.eval.metrics import normalize_answer
 from src.llm.prompts import context_block
 
 CLAIM_SYSTEM = (
@@ -19,7 +20,7 @@ CLAIM_SYSTEM = (
 )
 
 
-def _parse(raw: str, max_claims: int) -> List[Dict[str, Any]]:
+def _parse(raw: str, max_claims: int, default_source: str = "draft") -> List[Dict[str, Any]]:
     """Parse structured JSON claim decomposition from LLM response."""
     if not raw or not isinstance(raw, str):
         return []
@@ -43,10 +44,12 @@ def _parse(raw: str, max_claims: int) -> List[Dict[str, Any]]:
         # "source" is advisory metadata for measurement: "draft" for claims
         # supporting the given answer, "question" for claims from the context
         # that answer the question. Absent or invalid values default to
-        # "draft" (backward compatible with old mock JSON and stored responses).
+        # `default_source` ("draft" for the first pass, "question" for the
+        # second pass — the second pass only ever adds context claims).
+        # Backward compatible with old mock JSON and stored responses.
         source = r.get("source")
         if source not in ("draft", "question"):
-            source = "draft"
+            source = default_source
         out.append({
             "text": str(r["text"]).strip(),
             "answer_bearing": bool(r.get("answer")),
@@ -93,4 +96,69 @@ def extract_claims(
             }
         ]
     return claims
+
+
+SECOND_PASS_SYSTEM = (
+    "You already listed claims about this question. List ADDITIONAL short "
+    "factual claims from the Context that bear on the Question and are NOT "
+    "already covered by the claims below — especially claims stating a name, "
+    "date, or value that could be the answer. Each claim is one "
+    "self-contained sentence that names its entities (no pronouns). Mark "
+    "exactly one claim that states the final answer with \"answer\": true. "
+    "\"depends_on\" lists the 0-based indexes of EARLIER claims it relies on. "
+    "Use at most {n} claims. Return only JSON: "
+    "{{\"claims\": [{{\"text\": \"...\", \"answer\": false, \"depends_on\": [], "
+    "\"source\": \"question\"}}]}}"
+)
+
+
+def second_pass_messages(question: str, draft: str, existing_claims: List[Dict[str, Any]],
+                         paras: List[dict], max_claims: int = 5) -> List[Dict[str, Any]]:
+    """Messages for the coverage-driven second extraction pass (Phase 2.5 H13)."""
+    existing_block = "\n".join(
+        f"[{i + 1}] {c.get('text', '')}" for i, c in enumerate(existing_claims)
+    )
+    return [
+        {"role": "system", "content": SECOND_PASS_SYSTEM.format(n=max_claims)},
+        {
+            "role": "user",
+            "content": (
+                f"Question: {question}\nAnswer: {draft}\n\n"
+                f"Claims already listed:\n{existing_block}\n\n"
+                f"Context:\n{context_block(paras)}\n\nJSON:"
+            ),
+        },
+    ]
+
+
+def extract_claims_second_pass(
+    llm: Any,
+    question: str,
+    draft: str,
+    paras: List[dict],
+    existing_claims: List[Dict[str, Any]],
+    tracker: Any,
+    max_claims: int = 5,
+) -> List[Dict[str, Any]]:
+    """Second extraction pass (Phase 2.5 H13): additional claims the first
+    pass missed, given the claims already extracted. No fallback claim —
+    an empty second pass simply adds nothing."""
+    msgs = second_pass_messages(question, draft, existing_claims, paras, max_claims)
+    raw_response = llm.chat(msgs, tracker, temperature=0.0)
+    return _parse(raw_response, max_claims, default_source="question")
+
+
+def merge_claims(existing: List[Dict[str, Any]],
+                 additional: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge a second-pass claim list into the first-pass list (Phase 2.5 H13,
+    pure function). An additional claim whose normalized text matches an
+    existing claim is dropped; the rest append in returned order."""
+    seen = {normalize_answer(c.get("text", "")) for c in existing}
+    merged = list(existing)
+    for c in additional:
+        key = normalize_answer(c.get("text", ""))
+        if key and key not in seen:
+            seen.add(key)
+            merged.append(c)
+    return merged
 

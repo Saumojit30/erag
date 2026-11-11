@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 from src.epistemic.belief_graph import BeliefGraph
-from src.epistemic.claims import extract_claims
+from src.epistemic.claims import extract_claims, extract_claims_second_pass, merge_claims
 from src.epistemic.confidence import self_consistency, sequential_consistency
 from src.epistemic.continuation_policy import decide_policy, hop0_features, load_policy
 from src.eval.metrics import normalize_answer
@@ -209,6 +209,9 @@ def run_erag(
     sc_skipped_fast_path = False
     initial_draft = None
     prev_claims = None
+    # Phase 2.5 H13: second-pass bookkeeping (hop 0 only, flag-gated).
+    second_pass_added = 0
+    second_extraction_ran = False
 
     # Learned continuation policy (step 7, B.1): when erag.continuation_policy
     # names an artifact file, the policy replaces the fast-path + first
@@ -268,6 +271,23 @@ def run_erag(
             claims = prev_claims
         else:
             claims = extract_claims(llm, q, draft, pool, tracker, max_claims=e.get("max_claims", 5))
+            prev_claims = claims
+
+        # Phase 2.5 H13: second extraction pass at hop 0 only. The first
+        # pass skips the gold sentence on 33/400 tuned Test-400 rows (the
+        # max_claims cap binds on 2/33, parsing never fails), so the fix
+        # is coverage, not room: given the claims already extracted, list
+        # additional claims the first pass missed. At most +1 LLM call.
+        if (hop == 0 and e.get("second_extraction", False)
+                and claim_strategy != "single_atomic"):
+            extra = extract_claims_second_pass(
+                llm, q, draft, pool, claims, tracker,
+                max_claims=e.get("max_claims", 5),
+            )
+            merged = merge_claims(claims, extra)
+            second_pass_added = len(merged) - len(claims)
+            second_extraction_ran = True
+            claims = merged
             prev_claims = claims
 
         # c0 is None only when SC was deferred by the Fast-Path gate; the
@@ -490,5 +510,9 @@ def run_erag(
     # the flag is on (flag-off runs stay byte-identical to the tuned system).
     if e.get("contested_resolution", False):
         out["contested"] = contested
+    # Phase 2.5 H13: record the second pass, only when the flag is on.
+    if e.get("second_extraction", False):
+        out["second_pass_added"] = second_pass_added
+        out["second_extraction"] = second_extraction_ran
     return out
 
