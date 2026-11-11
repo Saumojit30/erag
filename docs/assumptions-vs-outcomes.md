@@ -367,6 +367,23 @@ replace them.
   explicitly NOT a lever (would raise the wrong-answer rate, against
   the paper's first objective). No live runs yet in this phase.
 
+- **H12 A/B (2026-11-11):** assumed the contested trigger (T2) would
+  raise Dev-100 EM ≥ +0.02 at ≤ +0.5 calls/Q with fixes > breaks on
+  triggered rows. Actual: baseline EM 0.5200 / F1 0.6430 at 3.99 calls/Q
+  vs contested EM 0.5500 / F1 0.6397 at 4.38 calls/Q — dEM +0.0300, 95%
+  CI [−0.02, +0.08], McNemar b=5, c=2, p=0.4531 (not significant on
+  N=100, expected — gate is a smoke test); dF1 −0.0033 (flat-to-down);
+  +0.39 calls/Q (inside budget). Trigger fired 25/100; fixed 3, broke 1,
+  net +2 on triggered rows; untriggered rows +1 (temp-0.0 noise — the
+  +3 total includes ~1 noise row). One triggered row flipped to
+  abstained/unknown in the contested arm. Cache_hits/Q 0.00 both arms
+  (all live, fresh namespaces). **Gate PASSES on all three legs; H12
+  enters the improved system.** Baseline is 2 rows above the step-7
+  Gate B file (0.5200 vs 0.5000) — noise/drift, controlled by the paired
+  fresh baseline. Files:
+  `results/trueadaptive/erag_p25_h12_{base,contested}_dev.jsonl`;
+  implementation commit b1c30e4; chain log `~/workspace/phase25_h12.log`.
+
 ---
 
 ## Going forward (from 2026-11-10)

@@ -1643,6 +1643,40 @@ accuracy. Files:
   (~10s/it vs ~2s/it). No rows lost; all namespaces fresh;
   cache_hits/Q ≈ 0 throughout.
 
+### 2026-11-11 — Phase 2.5 decided + diagnosis (user: improve first, then Phase 3)
+
+User challenged the plan: if nothing is improving, why run the same
+system on a new dataset? Decision: improve first. Diagnosis from stored
+Test-400 rows only (`scripts/diagnose_phase25.py`,
+`docs/phase25-improvement-diagnosis.md`): 53 gold-in-claims wrong rows,
+34/53 with the final answer inside a WRONG supported claim, re-read
+never fired on 41/53; 33 never-claimed rows with hop-0 recall 1.0 on
+27/33; FP-control 19 gains / 12 losses, net +7, churning the
+answer/abstain boundary both ways. Pre-registered before any new run:
+H12 contested-claim resolution, H13 second extraction pass, H14 eager
+SC (dev replication, circularity noted). theta_abs explicitly NOT a
+lever. Dated clarification: the pre-registered T1 trigger covers 2/53
+target rows on stored data — redefined to T2 (covers 16/53, 36%
+false-trigger rate). Committed ad97293.
+
+### 2026-11-11 — Phase 2.5 H12 A/B: GATE PASS (dev smoke test)
+
+OpenSpec change `improve-contested-claims` (validate 11/11);
+implementation behind `erag.contested_resolution` (default false), 9
+new tests, full suite 168 passed / 1 known pre-existing failure.
+Committed b1c30e4. Dev-100 BM25 A/B, fresh namespaces, both arms
+re-run fresh (chain `~/workspace/phase25_h12_chain.sh`, ~15 min):
+baseline EM 0.5200 / F1 0.6430 at 3.99 calls/Q vs contested EM 0.5500 /
+F1 0.6397 at 4.38 calls/Q — dEM +0.0300, 95% CI [−0.02, +0.08],
+McNemar b=5, c=2, p=0.4531 (not significant on N=100, expected);
+dF1 −0.0033; +0.39 calls/Q (inside the +0.5 budget). Trigger fired
+25/100; fixed 3, broke 1, net +2 on triggered rows (untriggered +1 is
+temp-0.0 noise). Cache_hits/Q 0.00 both arms (all live). Gate PASSES
+on all three legs; H12 enters the improved system. Baseline is 2 rows
+above the step-7 Gate B file (0.5200 vs 0.5000) — noise/drift,
+controlled by the paired fresh baseline. Files:
+`results/trueadaptive/erag_p25_h12_{base,contested}_dev.jsonl`.
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**

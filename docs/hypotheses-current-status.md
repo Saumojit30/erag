@@ -376,11 +376,19 @@ at a reasonable computational cost?"
   on the competing claims, choosing by evidence rather than by draft
   agreement — raises EM on Dev-100 BM25 vs the tuned baseline at
   ≤ +0.5 calls/Q. Exploratory.
-- **Evidence:** none yet. Diagnosis (stored Test-400 rows, 2026-11-11,
-  `docs/phase25-improvement-diagnosis.md`): 53 gold-in-claims wrong rows,
-  34/53 with the final answer inside a WRONG supported claim, re-read
-  never triggered on 41/53. Pre-registered before any new run.
-- **Verdict: NOT TESTED.**
+- **Evidence:** Dev-100 BM25 A/B, 2026-11-11, fresh namespaces, both
+  arms re-run fresh: baseline EM 0.5200 / F1 0.6430 at 3.99 calls/Q vs
+  contested EM 0.5500 / F1 0.6397 at 4.38 calls/Q — dEM +0.0300, 95%
+  CI [−0.02, +0.08], McNemar b=5, c=2, p=0.4531; dF1 −0.0033;
+  +0.39 calls/Q. Trigger fired 25/100; fixed 3, broke 1, net +2 on
+  triggered rows (untriggered +1 is temp-0.0 noise). Cache_hits/Q 0.00
+  both arms. Implementation commit b1c30e4; files
+  `results/trueadaptive/erag_p25_h12_{base,contested}_dev.jsonl`.
+- **Verdict: GATE PASS — criterion met on Dev-100 (EM +0.0300 ≥ +0.02,
+  +0.39 calls/Q ≤ +0.5, fixed 3 > broke 1).** McNemar p=0.45 on N=100
+  is expected — the gate is a smoke test, not a verdict — and F1 is
+  flat-to-down. The mechanism enters the improved system; the final
+  word is the one Test-400 confirmation at the end of Phase 2.5.
 
 ### H13 — Extraction recall, second pass over the hop-0 pool (new, 2026-11-11, Phase 2.5)
 
@@ -420,11 +428,11 @@ at a reasonable computational cost?"
 | H9 | NOT TESTED | Phase 3 (2Wiki, then MuSiQue) |
 | H10 | NOT SUPPORTED (IRCoT leg) | Calls/correct tuned 9.18 vs IRCoT 5.88 vs Balanced 20.11 |
 | H11 | TIE (not a demonstrated reduction) | Wrong rate 0.4495 vs 0.4566 (0.7pts, inside noise); coverage better |
-| H12 | NOT TESTED | Phase 2.5 — contested-claim resolution |
+| H12 | GATE PASS (dev smoke test) | EM +0.0300 at +0.39 calls/Q; fixed 3 > broke 1 on triggered rows; p=0.45 on N=100 |
 | H13 | NOT TESTED | Phase 2.5 — extraction recall, second pass |
 | H14 | NOT TESTED | Phase 2.5 — eager SC, dev replication of FP-control direction |
 
-Three supported, six not supported, one tie, four untested. That is
+Three supported, six not supported, one tie, one gate-pass, three untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
@@ -569,8 +577,10 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    recall (H13), eager SC dev replication (H14) — each one OpenSpec
    change, Dev-100 BM25 A/B, gate as smoke test; hypotheses
    pre-registered 2026-11-11 in `docs/phase25-improvement-diagnosis.md`
-   before any new run. One Test-400 confirmation of the improved
-   system at the end.
+   before any new run. **H12 GATE PASS 2026-11-11** (EM +0.0300 at
+   +0.39 calls/Q, fixed 3 > broke 1 on triggered rows; enters the
+   improved system). Next: H13, then H14. One Test-400 confirmation
+   of the improved system at the end.
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
    second check, frozen tuned system (the Inconclusive rule). New
