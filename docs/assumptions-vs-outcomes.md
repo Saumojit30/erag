@@ -418,6 +418,34 @@ Cache_hits/Q 0.00 both arms. **H13 NOT SUPPORTED; mechanism DROPPED,
 stays OFF; improved system remains tuned + contested (H12 only).**
 Files: `results/trueadaptive/erag_p25_h13_{base,second}_dev.jsonl`;
 implementation commit 8f215e0; chain log `~/workspace/phase25_h13.log`.
+---
+
+### 2026-11-11 — Phase 2.5 H14: eager SC dev replication (Dev-100 BM25 A/B)
+
+**Assumed (pre-registered 2026-11-11, before any new run):** making SC
+eager (`gate_sc_behind_fast_path=false`) reproduces the FP-control
+direction on Dev-100 BM25 — EM gain vs the tuned baseline at ≤ +1.0
+calls/Q. Dev is a replication check, not a fresh discovery: the
+direction was seen on Test-400 first (FP-control 0.4675 vs tuned
+0.4500, 19 gains / 12 losses, p=0.28), so the Test-400 number cannot
+be re-judged; if dev replicates, the mechanism enters the improved
+system, judged fresh as a whole on its one Test-400 confirmation.
+
+**Actual (verified 2026-11-11, `scripts/phase25_h14_verdict.py`):**
+baseline (tuned + contested) EM 0.5300 / F1 0.6488 at 4.30 calls/Q vs
+eager EM 0.5400 / F1 0.6380 at 5.11 calls/Q — dEM +0.0100, 95% CI
+[−0.03, +0.05], McNemar b=2, c=3, p=1.0; dF1 −0.0108; dcalls +0.81,
+95% CI [+0.55, +1.08]. **Gate PASSES** on its pre-registered terms
+(dEM > 0 and dcalls ≤ +1.0 on the point estimate). Caveat: the cost
+CI straddles the +1.0 guardrail (upper 1.08), so +0.81 is not a
+tightly-bounded cost win. The dev replication is smaller than the
+Test-400 direction (+0.0100 vs +0.0175) and likewise inside noise —
+consistent with the circularity note. Cache_hits/Q 0.00 both arms.
+**H14 GATE PASS (dev smoke test); eager SC enters the improved
+system. Phase 2.5 closes: improved = tuned + contested (H12) +
+eager SC (H14); second extraction stays OFF (H13).** Files:
+`results/trueadaptive/erag_p25_h14_{base,eager}_dev.jsonl`;
+implementation none (config-only); chain log `~/workspace/phase25_h14.log`.
 
 ---
 

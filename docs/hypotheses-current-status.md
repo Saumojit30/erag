@@ -421,13 +421,21 @@ at a reasonable computational cost?"
 - **Claim:** making SC eager (`gate_sc_behind_fast_path=false`) reproduces
   the FP-control direction on Dev-100 BM25: EM gain vs the tuned baseline
   at ≤ +1.0 calls/Q. Exploratory.
-- **Evidence:** none yet on dev. **Circularity note:** the direction was
-  observed on Test-400 first (FP-control 0.4675 vs tuned 0.4500, 19 gains
-  / 12 losses, p=0.28) — dev is a replication check, and the Test-400
-  FP-control number cannot be re-judged. If it replicates on dev, the
-  mechanism enters the improved system, judged fresh as a whole on its
-  one Test-400 confirmation. Pre-registered before any new run.
-- **Verdict: NOT TESTED.**
+- **Evidence:** Dev-100 BM25 A/B 2026-11-11, fresh namespaces, both arms
+  re-run fresh (chain `~/workspace/phase25_h14_chain.sh`, ~12 min, both
+  arms rc=0): baseline (tuned + contested) EM 0.5300 / F1 0.6488 at
+  4.30 calls/Q vs eager EM 0.5400 / F1 0.6380 at 5.11 calls/Q —
+  dEM +0.0100, 95% CI [−0.03, +0.05], McNemar b=2, c=3, p=1.0
+  (not significant on N=100, expected — the gate is directional);
+  dF1 −0.0108; dcalls +0.81, 95% CI [+0.55, +1.08]. The direction
+  replicates the Test-400 FP-control finding on dev, smaller (+0.0100
+  vs +0.0175) and likewise inside noise, consistent with the
+  circularity note. Cost caveat: the dcalls CI straddles the +1.0
+  guardrail (upper 1.08). Cache_hits/Q 0.00 both arms (all live).
+  Files: `results/trueadaptive/erag_p25_h14_{base,eager}_dev.jsonl`;
+  verdict `scripts/phase25_h14_verdict.py`. Pre-registered before any
+  new run.
+- **Verdict: GATE PASS (dev smoke test).** Eager SC enters the improved system.
 
 ### Scoreboard
 
@@ -446,9 +454,9 @@ at a reasonable computational cost?"
 | H11 | TIE (not a demonstrated reduction) | Wrong rate 0.4495 vs 0.4566 (0.7pts, inside noise); coverage better |
 | H12 | GATE PASS (dev smoke test) | EM +0.0300 at +0.39 calls/Q; fixed 3 > broke 1 on triggered rows; p=0.45 on N=100 |
 | H13 | NOT SUPPORTED | Rate 0.625 → 0.533 (fell); dcalls +1.60 > +1.0 guardrail; EM +0.02 n.s. |
-| H14 | NOT TESTED | Phase 2.5 — eager SC, dev replication of FP-control direction |
+| H14 | GATE PASS (dev smoke test) | EM +0.0100 at +0.81 calls/Q; replicates FP-control direction on dev; p=1.0 on N=100 |
 
-Three supported, seven not supported, one tie, one gate-pass, two untested. That is
+Three supported, seven not supported, one tie, two gate-pass, one untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
@@ -597,12 +605,16 @@ hygiene, the freeze, the Phase 2 runs — is all done.
    +0.39 calls/Q, fixed 3 > broke 1 on triggered rows; enters the
    improved system). **H13 GATE FAIL 2026-11-11** (gold-in-claims
    rate 0.625 → 0.533; dcalls +1.60 > +1.0 guardrail; mechanism
-   DROPPED, stays OFF). Next: H14, on the post-H13 improved system
-   (tuned + contested). One Test-400 confirmation of the improved
-   system at the end.
+   DROPPED, stays OFF). **H14 GATE PASS 2026-11-11** (EM +0.0100 at
+   +0.81 calls/Q, replicates the FP-control direction on dev; cost CI
+   straddles the +1.0 guardrail; eager SC enters the improved system).
+   **Phase 2.5 is closed** — the improved system (tuned + contested +
+   eager SC; second extraction OFF) is frozen in
+   `configs/erag_trueadaptive_improved.yaml`. Next: one Test-400
+   confirmation of the improved system vs fresh IRCoT, then Phase 3.
 3. **Phase 3 — new dataset.** 2WikiMultiHopQA first, then MuSiQue,
    on the FULL official dev sets, BM25 first then MiniLM as the
-   second check, frozen tuned system (the Inconclusive rule). New
+   second check, improved system (the Phase 2.5 freeze). New
    hypotheses written BEFORE touching either dataset (H9 already
    written); each dataset judged on its own. No tuning on the new
    test splits; no re-running Phase 2 to chase a Phase 3 number.

@@ -909,6 +909,18 @@ flag → Dev-100 BM25 A/B, gate as smoke test). Then freeze the improved
 config and run **one** Test-400 confirmation (improved vs fresh IRCoT,
 same verdict shape as §4.2). Then Phase 3.
 
+**DATED AMENDMENT 2026-11-11 (freeze after H14):** Phase 2.5 is
+closed. The improved system is frozen in
+`configs/erag_trueadaptive_improved.yaml`: the tuned config plus
+`erag.contested_resolution: true` (H12) and
+`erag.gate_sc_behind_fast_path: false` (H14);
+`erag.second_extraction: false` (H13 dropped); everything else
+identical to the frozen tuned config (theta_abs 0.50, memory OFF,
+continuation policy on, max_hops 2, max_claims 8). Nothing changes
+after this freeze without a dated amendment. Next: ONE Test-400
+confirmation (improved vs fresh IRCoT, same verdict shape as §4.2),
+then Phase 3 with the improved system.
+
 **Rules:** no tuning against Test-400 (diagnosis only); no theta_abs
 change; no v1 substitution — the tuned system stays the base. If the
 improved system beats v1 on the confirmation run, that is reported as a
@@ -1708,6 +1720,37 @@ system remains tuned + contested (H12 only). No further tuning on
 dev for this mechanism. Files:
 `results/trueadaptive/erag_p25_h13_{base,second}_dev.jsonl`;
 verdict `scripts/phase25_h13_verdict.py`.
+
+### 2026-11-11 — Phase 2.5 H14 A/B: GATE PASS, MECHANISM ENTERS THE IMPROVED SYSTEM (dev smoke test)
+
+OpenSpec change `eager-sc-replication` (validate 13/13); config-only,
+no code: `erag.gate_sc_behind_fast_path=false` on the post-H13
+improved system (tuned + contested; NO second extraction — H13
+failed). Dev-100 BM25 A/B, fresh namespaces, both arms re-run fresh
+(chain `~/workspace/phase25_h14_chain.sh`, ~12 min, both arms rc=0):
+baseline (tuned + contested) EM 0.5300 / F1 0.6488 at 4.30 calls/Q
+vs eager EM 0.5400 / F1 0.6380 at 5.11 calls/Q — dEM +0.0100,
+95% CI [−0.03, +0.05], McNemar b=2, c=3, p=1.0 (not significant on
+N=100, expected — the gate is directional, dEM > 0); dF1 −0.0108,
+95% CI [−0.056, +0.0345]; dcalls +0.81, 95% CI [+0.55, +1.08].
+Gate PASSES on its pre-registered terms (dEM > 0 AND dcalls ≤ +1.0
+on the point estimate). Honest caveat recorded: the cost CI
+straddles the +1.0 guardrail (upper 1.08), so the +0.81 is not a
+tightly-bounded cost win — the mechanism costs roughly +0.8 calls/Q
+for +1 noisy EM row. Cache_hits/Q 0.00 both arms (all live). The
+direction replicates the Test-400 FP-control finding on dev
+(0.4675 vs 0.4500, +0.0175) — smaller here (+0.0100) and likewise
+inside noise, which is consistent with the circularity note: dev
+was a replication check, not a fresh discovery. H14 is a GATE PASS
+(dev smoke test); eager SC enters the improved system. Phase 2.5
+closes with the improved system = tuned + contested (H12) + eager
+SC (H14); second extraction stays OFF (H13). Files:
+`results/trueadaptive/erag_p25_h14_{base,eager}_dev.jsonl`;
+verdict `scripts/phase25_h14_verdict.py`.
+
+Note on the baseline: fresh baseline EM 0.5300 vs H13 baseline 0.5400
+vs H12 contested arm 0.5500 — ±2 rows of temp-0.0 noise between fresh
+runs, controlled by the paired fresh baseline.
 
 ## Appendix — Key numbers (frozen)
 

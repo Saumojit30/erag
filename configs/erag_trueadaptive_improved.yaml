@@ -1,0 +1,65 @@
+# E-RAG-TrueAdaptive IMPROVED (FROZEN 2026-11-11 — end of Phase 2.5)
+#
+# The improved system for the Phase 2.5 Test-400 confirmation.
+# Frozen tuned config (configs/erag_trueadaptive_tuned.yaml, 2026-11-10)
+# PLUS:
+# - erag.contested_resolution: true  (H12 GATE PASS, Dev-100 BM25
+#   EM +0.0300 at +0.39 calls/Q, fixed 3 > broke 1; 89db362)
+# - erag.gate_sc_behind_fast_path: false  (H14 GATE PASS, Dev-100 BM25
+#   EM +0.0100 at +0.81 calls/Q; replicates the FP-control direction)
+# - erag.second_extraction: false  (H13 GATE FAIL, mechanism dropped)
+# Everything else identical to the frozen tuned config (theta_abs 0.50,
+# memory OFF, continuation policy on, max_hops 2, max_claims 8).
+# NOTHING changes after this freeze without a dated amendment in
+# docs/tuning-master-plan.md §4.5.
+#
+# Phase 2.5 confirmation usage (fresh namespace; see master plan §4.5):
+#   python scripts/run_experiment.py --config configs/base.yaml \
+#       configs/erag_trueadaptive_improved.yaml --set \
+#       retrieval.retriever_type=bm25 data.split=test \
+#       run.cache_namespace=test_improved_v1_bm25 \
+#       run.name=erag_trueadaptive_improved_test
+# (Single --set only — repeated --set flags overwrite.)
+#
+# Dev-100 live numbers for this exact configuration are NOT measured
+# as a whole: the H14 eager arm (tuned + contested + eager SC) is the
+# improved system on dev — EM 0.5400, F1 0.6380, 5.11 calls/Q
+# (erag_p25_h14_eager_dev.jsonl). The Test-400 confirmation judges it.
+
+erag:
+  mode: active
+  max_hops: 2
+  sc_samples: 3
+  sc_mode: sequential
+  sc_temperature: 0.7
+  gate_sc_behind_fast_path: false
+  post_hop_resample: never
+  claim_strategy: incremental
+  eig_strategy: direct
+  saturation_precheck: true
+  w_s: 1.0
+  w_c: 1.0
+  theta_fast: 0.8
+  theta_gap: 0.6
+  theta_abs: 0.5
+  max_claims: 8
+  pool_cap: 12
+  confidence_def: majority
+  ground_final_read: true
+  unknown_prompt: base
+  continuation_policy: configs/continuation_policy_dev.json
+  contested_resolution: true
+  second_extraction: false
+
+nli:
+  pre_filter: true
+
+memory:
+  enabled: false
+
+run:
+  name: erag_trueadaptive_improved_test
+  system: erag
+  cache: true
+  cache_namespace: test_improved_v1_bm25
+  out_dir: results/trueadaptive
