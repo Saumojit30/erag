@@ -194,6 +194,39 @@ def extractive_answer_messages(question: str, claims: list) -> list:
     ]
 
 
+COMPOSE_SYSTEM = (
+    "Answer only from the verified claims below. Reply with only the "
+    "short answer, no explanation. If none of the claims supports an "
+    "answer, reply exactly: unknown"
+)
+
+
+def compose_answer_messages(question: str, claims: list) -> list:
+    """Messages for composing a draft from verified claims (Phase 2.7 H18).
+
+    `claims` are supported claims (Claim objects or dicts) with a `text`
+    field. The user message carries ONLY the claims block — deliberately
+    NO context block, the same restriction as
+    `extractive_answer_messages()` — but this is the answer path, not a
+    re-read: the composed answer is the draft the rest of the pipeline
+    works with.
+    """
+    claims_block = "\n".join(
+        f"[{i + 1}] {c.text if hasattr(c, 'text') else c.get('text', '')}"
+        for i, c in enumerate(claims)
+    )
+    return [
+        {"role": "system", "content": COMPOSE_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Verified claims:\n{claims_block}\n\n"
+                f"Question: {question}\nAnswer:"
+            ),
+        },
+    ]
+
+
 CLOSED_BOOK_SYSTEM = (
     "Answer the question with only a short answer, no explanation. If you do not know, reply exactly: unknown"
 )

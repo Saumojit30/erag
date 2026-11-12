@@ -98,6 +98,43 @@ def extract_claims(
     return claims
 
 
+EVIDENCE_CLAIM_SYSTEM = (
+    "List the short factual claims from the Context that answer the "
+    "Question. Each claim is one self-contained sentence that names its "
+    "entities (no pronouns). Mark exactly one claim that states the final "
+    'answer with "answer": true. "depends_on" lists the 0-based indexes '
+    "of EARLIER claims it relies on. Use full names exactly as written "
+    "in the Context. Use at most {n} claims. Return only JSON: "
+    '{{"claims": [{{"text": "...", "answer": false, "depends_on": [], '
+    '"source": "question"}}]}}'
+)
+
+
+def extract_evidence_claims(
+    llm: Any,
+    question: str,
+    paras: List[dict],
+    tracker: Any,
+    max_claims: int = 5,
+) -> List[Dict[str, Any]]:
+    """Extract answer-bearing claims from passages only (Phase 2.7 H18).
+
+    The extractor receives the question and the pool — no Answer input,
+    so no draft exists yet to bias it. Reuses `_parse()` with
+    `default_source="question"`. An empty parse yields no claims: there
+    is no draft for a fallback atomic claim to state, and the hop
+    proceeds with an empty graph (see `run_erag`)."""
+    msgs = [
+        {"role": "system", "content": EVIDENCE_CLAIM_SYSTEM.format(n=max_claims)},
+        {
+            "role": "user",
+            "content": f"Question: {question}\nContext:\n{context_block(paras)}\n\nJSON:",
+        },
+    ]
+    raw_response = llm.chat(msgs, tracker, temperature=0.0)
+    return _parse(raw_response, max_claims, default_source="question")
+
+
 SECOND_PASS_SYSTEM = (
     "You already listed claims about this question. List ADDITIONAL short "
     "factual claims from the Context that bear on the Question and are NOT "

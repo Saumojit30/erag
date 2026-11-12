@@ -2,13 +2,19 @@
 
 from typing import Any, Dict, List, Optional
 from src.epistemic.belief_graph import BeliefGraph
-from src.epistemic.claims import extract_claims, extract_claims_second_pass, merge_claims
+from src.epistemic.claims import (
+    extract_claims,
+    extract_claims_second_pass,
+    extract_evidence_claims,
+    merge_claims,
+)
 from src.epistemic.confidence import self_consistency, sequential_consistency
 from src.epistemic.continuation_policy import decide_policy, hop0_features, load_policy
 from src.eval.metrics import normalize_answer
 from src.llm.client import Tracker
 from src.llm.prompts import (
     answer_messages,
+    compose_answer_messages,
     contested_answer_messages,
     extractive_answer_messages,
     grounded_answer_messages,
@@ -218,6 +224,8 @@ def run_erag(
     use_status = "no_nli" not in ablate
 
     # Phase 2 Optimization Controls (Defaulting strictly to Reference Baseline)
+    # Phase 2.7 H18: evidence-first answering (default false).
+    evidence_first = bool(e.get("evidence_first", False))
     claim_strategy = e.get("claim_strategy", "full_reextract") # full_reextract | incremental | single_atomic
     post_hop_resample = e.get("post_hop_resample", "always")    # always | conditional | never
     eig_strategy = e.get("eig_strategy", "llm")                 # llm | direct
@@ -257,75 +265,116 @@ def run_erag(
     policy_p = None
 
     while True:
-        # Step 2: Generation of draft answer (step 3: reader prompt variant
-        # from erag.unknown_prompt, default "base").
-        draft = llm.chat(answer_messages(q, pool, variant=e.get("unknown_prompt", "base")), tracker, temperature=0.0)
-        if hop == 0:
-            initial_draft = draft
-
-        # Step 3: Self-consistency confidence estimation.
-        # TrueAdaptive v1 gate (erag.gate_sc_behind_fast_path, active mode,
-        # hop 0 only): SC is DEFERRED until after the Fast-Path check, so a
-        # question whose claims are already supported costs draft + claims
-        # only. The provisional graph below is built with c0 = 1.0 (the
-        # same prior the no_conf ablation uses), so its min_eff reflects
-        # evidence strength alone; if SC runs, the graph is rebuilt with
-        # the real c0 and the provisional graph is never used for retrieval.
-        gate_sc = (
-            e.get("gate_sc_behind_fast_path", False)
-            and active
-            and hop == 0
-            and c0 is None
-            and "no_conf" not in ablate
-        )
-        deferred_sc = False
-        if c0 is None:
-            if "no_conf" in ablate:
-                c0 = 1.0
-                c0_source = "no_conf"
-            elif gate_sc:
-                deferred_sc = True
-            else:
-                sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
-                c0 = conf_value(sc, cfg)
-                c0_source = "sc"
-
-        # Step 4, 5, 6, 7: Claim decomposition, NLI verification, belief graph update & propagation
-        if claim_strategy == "single_atomic":
-            claims = [{
-                "text": f'The answer to "{q}" is {draft}.',
-                "answer_bearing": True,
-                "depends_on": [],
-                "fallback": False,
-            }]
-        elif claim_strategy == "incremental" and hop > 0 and normalize_answer(draft) == normalize_answer(initial_draft) and prev_claims:
-            claims = prev_claims
-        else:
-            claims = extract_claims(llm, q, draft, pool, tracker, max_claims=e.get("max_claims", 5))
-            prev_claims = claims
-
-        # Phase 2.5 H13: second extraction pass at hop 0 only. The first
-        # pass skips the gold sentence on 33/400 tuned Test-400 rows (the
-        # max_claims cap binds on 2/33, parsing never fails), so the fix
-        # is coverage, not room: given the claims already extracted, list
-        # additional claims the first pass missed. At most +1 LLM call.
-        if (hop == 0 and e.get("second_extraction", False)
-                and claim_strategy != "single_atomic"):
-            extra = extract_claims_second_pass(
-                llm, q, draft, pool, claims, tracker,
-                max_claims=e.get("max_claims", 5),
+        # Phase 2.7 H18: evidence-first inversion. When the flag is on,
+        # the hop is reordered: extract passage claims -> provisional
+        # graph (c0 = 1.0 prior) -> compose from supported claims ->
+        # SC -> rebuild with the real c0. No draft call is made; the
+        # single_atomic / incremental reuse and the H13 second pass are
+        # skipped on this path, and the pool is re-extracted every hop.
+        if evidence_first:
+            claims = extract_evidence_claims(
+                llm, q, pool, tracker, max_claims=e.get("max_claims", 5)
             )
-            merged = merge_claims(claims, extra)
-            second_pass_added = len(merged) - len(claims)
-            second_extraction_ran = True
-            claims = merged
             prev_claims = claims
+            graph = build_graph(
+                claims, pool + mem_passages, nli,
+                c0 if c0 is not None else 1.0, cfg, ablate,
+            )
+            supported = [c for c in graph.claims if c.status == "supported"]
+            top_supported = sorted(
+                supported, key=lambda c: -c.eff
+            )[: e.get("max_claims", 5)]
+            if top_supported:
+                draft = llm.chat(
+                    compose_answer_messages(q, top_supported),
+                    tracker, temperature=0.0,
+                )
+            else:
+                draft = "unknown"
+            if hop == 0:
+                initial_draft = draft
+            deferred_sc = False
+            if c0 is None:
+                if "no_conf" in ablate:
+                    c0 = 1.0
+                    c0_source = "no_conf"
+                else:
+                    sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
+                    c0 = conf_value(sc, cfg)
+                    c0_source = "sc"
+                    graph = build_graph(claims, pool + mem_passages, nli, c0, cfg, ablate)
+            gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
+            seen_contra |= any(c.status == "contradicted" for c in graph.claims)
+        else:
+            # Step 2: Generation of draft answer (step 3: reader prompt variant
+            # from erag.unknown_prompt, default "base").
+            draft = llm.chat(answer_messages(q, pool, variant=e.get("unknown_prompt", "base")), tracker, temperature=0.0)
+            if hop == 0:
+                initial_draft = draft
 
-        # c0 is None only when SC was deferred by the Fast-Path gate; the
-        # provisional graph then uses the 1.0 prior (see Step 3).
-        graph = build_graph(claims, pool + mem_passages, nli, c0 if c0 is not None else 1.0, cfg, ablate)
-        gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
-        seen_contra |= any(c.status == "contradicted" for c in graph.claims)
+            # Step 3: Self-consistency confidence estimation.
+            # TrueAdaptive v1 gate (erag.gate_sc_behind_fast_path, active mode,
+            # hop 0 only): SC is DEFERRED until after the Fast-Path check, so a
+            # question whose claims are already supported costs draft + claims
+            # only. The provisional graph below is built with c0 = 1.0 (the
+            # same prior the no_conf ablation uses), so its min_eff reflects
+            # evidence strength alone; if SC runs, the graph is rebuilt with
+            # the real c0 and the provisional graph is never used for retrieval.
+            gate_sc = (
+                e.get("gate_sc_behind_fast_path", False)
+                and active
+                and hop == 0
+                and c0 is None
+                and "no_conf" not in ablate
+            )
+            deferred_sc = False
+            if c0 is None:
+                if "no_conf" in ablate:
+                    c0 = 1.0
+                    c0_source = "no_conf"
+                elif gate_sc:
+                    deferred_sc = True
+                else:
+                    sc = _run_sc(llm, q, pool, draft, tracker, cfg, k=e.get("sc_samples", 5))
+                    c0 = conf_value(sc, cfg)
+                    c0_source = "sc"
+
+            # Step 4, 5, 6, 7: Claim decomposition, NLI verification, belief graph update & propagation
+            if claim_strategy == "single_atomic":
+                claims = [{
+                    "text": f'The answer to "{q}" is {draft}.',
+                    "answer_bearing": True,
+                    "depends_on": [],
+                    "fallback": False,
+                }]
+            elif claim_strategy == "incremental" and hop > 0 and normalize_answer(draft) == normalize_answer(initial_draft) and prev_claims:
+                claims = prev_claims
+            else:
+                claims = extract_claims(llm, q, draft, pool, tracker, max_claims=e.get("max_claims", 5))
+                prev_claims = claims
+
+            # Phase 2.5 H13: second extraction pass at hop 0 only. The first
+            # pass skips the gold sentence on 33/400 tuned Test-400 rows (the
+            # max_claims cap binds on 2/33, parsing never fails), so the fix
+            # is coverage, not room: given the claims already extracted, list
+            # additional claims the first pass missed. At most +1 LLM call.
+            if (hop == 0 and e.get("second_extraction", False)
+                    and claim_strategy != "single_atomic"):
+                extra = extract_claims_second_pass(
+                    llm, q, draft, pool, claims, tracker,
+                    max_claims=e.get("max_claims", 5),
+                )
+                merged = merge_claims(claims, extra)
+                second_pass_added = len(merged) - len(claims)
+                second_extraction_ran = True
+                claims = merged
+                prev_claims = claims
+
+            # c0 is None only when SC was deferred by the Fast-Path gate; the
+            # provisional graph then uses the 1.0 prior (see Step 3).
+            graph = build_graph(claims, pool + mem_passages, nli, c0 if c0 is not None else 1.0, cfg, ablate)
+            gaps = graph.gaps(e.get("theta_gap", 0.6), use_status=use_status)
+            seen_contra |= any(c.status == "contradicted" for c in graph.claims)
 
         trace.append({
             "hop": hop,
@@ -343,6 +392,12 @@ def run_erag(
                 c0 = graph.min_eff()
                 c0_source = "fast_path_min_eff"
                 sc_skipped_fast_path = True
+            break
+
+        # Evidence-first path with an empty extraction: there is no claim
+        # to target retrieval with and no answer claim to score, so the
+        # row ends "unknown" here.
+        if not graph.claims:
             break
 
         # Step 8 & 9: resolve a deferred SC call, then gap selection / Fast Path.
@@ -523,10 +578,13 @@ def run_erag(
             final_conf = conf_value(sc, cfg)
         graph = build_graph(claims, pool + mem_passages, nli, final_conf, cfg, ablate)
 
-    ans = graph.answer_claim()
+    # Empty graph (evidence-first path, empty extraction): no answer
+    # claim exists; ans None forces abstention below. Unreachable
+    # flag-off.
+    ans = graph.answer_claim() if graph.claims else None
 
     # Step 12: Safe abstention rule: withheld only if answer claim effective confidence is below threshold
-    abstain = "no_conf" not in ablate and (ans.eff < e.get("theta_abs", 0.4))
+    abstain = "no_conf" not in ablate and (ans is None or ans.eff < e.get("theta_abs", 0.4))
     answer = "unknown" if (active and abstain) else draft
 
     if memory is not None and active:
@@ -537,7 +595,7 @@ def run_erag(
         "draft": draft,
         "abstained": bool(active and abstain),
         "would_abstain": bool(abstain),
-        "answer_conf": float(ans.eff),
+        "answer_conf": float(ans.eff) if ans is not None else 0.0,
         "c0": float(c0),
         # TrueAdaptive v1: how c0 was obtained, and whether the Fast-Path
         # gate skipped SC. c0_source is "sc", "fast_path_min_eff"
@@ -579,6 +637,10 @@ def run_erag(
     # when the flag is on.
     if e.get("extractive_final_read", False):
         out["extractive"] = extractive
+    # Phase 2.7 H18: record whether the evidence-first path ran, only
+    # when the flag is on (flag-off runs stay byte-identical).
+    if e.get("evidence_first", False):
+        out["evidence_first"] = True
     # Phase 2.5 H13: record the second pass, only when the flag is on.
     if e.get("second_extraction", False):
         out["second_pass_added"] = second_pass_added

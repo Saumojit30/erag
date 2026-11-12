@@ -13,7 +13,7 @@
 
 ## A. Implementation (behind a flag)
 
-- [ ] A.1 Write `tests/test_evidence_first.py` FIRST (prompt
+- [x] A.1 Write `tests/test_evidence_first.py` FIRST (prompt
   builders + mocked end-to-end): no draft call is made when the flag
   is on (claims come from passages, not from a draft); the composed
   draft comes only from supported claims; no compose call and draft
@@ -22,14 +22,14 @@
   field); hop-1 re-extracts passage claims from the enlarged pool
   (no incremental reuse on the evidence-first path). Tests must fail
   at collection (ImportError) before the implementation lands.
-- [ ] A.2 Implement in `src/epistemic/claims.py`:
+- [x] A.2 Implement in `src/epistemic/claims.py`:
   `EVIDENCE_CLAIM_SYSTEM` + `extract_evidence_claims(llm, question,
   pool, tracker, max_claims)` — Context only, no Answer input; reuse
   `_parse()` with `default_source="question"`.
-- [ ] A.3 Implement in `src/llm/prompts.py`: `COMPOSE_SYSTEM` +
+- [x] A.3 Implement in `src/llm/prompts.py`: `COMPOSE_SYSTEM` +
   `compose_answer_messages(question, claims)` — claims block only,
   NO context block.
-- [ ] A.4 Wire in `src/systems/erag.py`: when
+- [x] A.4 Wire in `src/systems/erag.py`: when
   `erag.evidence_first` is true, the hop body runs extract →
   provisional graph (c0=1.0 prior) → compose → SC → rebuild graph
   with real c0; skip the draft call, skip `single_atomic` and the
@@ -37,7 +37,7 @@
   row field `evidence_first` written only when the flag is on;
   config key `erag.evidence_first` (default false). Flag-off runs
   must be byte-identical to the improved system.
-- [ ] A.5 Run the targeted suite + the full suite. Full suite must
+- [x] A.5 Run the targeted suite + the full suite. Full suite must
   stay at the H19 close-out level (192 passed / 1 failed, known
   pre-existing retry mismatch only).
 
