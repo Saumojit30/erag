@@ -90,15 +90,20 @@ the flag is on.
 
 - Baseline arm: frozen improved config
   (`configs/erag_trueadaptive_improved.yaml`), namespace
-  `dev_p27_h18_base_bm25`, run.name `erag_p27_h18_base_dev`.
+  `dev300_p27_h18_base_bm25`, run.name `erag_p27_h18_base_dev300`.
 - Evidence-first arm: same + `erag.evidence_first=true`, namespace
-  `dev_p27_h18_evidence_bm25`, run.name
-  `erag_p27_h18_evidence_dev`.
-- Both arms re-run fresh, Dev-100 BM25, one `--set` per invocation.
+  `dev300_p27_h18_evidence_bm25`, run.name
+  `erag_p27_h18_evidence_dev300`.
+- Both arms re-run fresh, Dev-300 BM25 (first 300 rows of
+  `data/manifests_dev500/dev.jsonl`; corpus = Dev-500 + Test-400
+  passages, 8,812 after dedupe), `--limit 300`, one `--set` per
+  invocation, per-experiment cache
+  `results/cache/cache_p27_h18.sqlite` (`run.cache_path`).
   The baseline is re-run fresh (as for H15/H19) — do not reuse an
   older baseline file, the paired comparison must be same-day.
 - Verdict: `scripts/phase26_h18_verdict.py` (paired EM/F1/calls +
   McNemar + bootstrap CIs + wrong-answer rate + gold-in-claims rate
   on the evidence-first arm + fixed/broke on rows where the two arms'
   answers differ). Gate: dEM ≥ +0.02 AND wrong-answer rate not up
-  AND dcalls ≤ +0.5.
+  AND dcalls ≤ +0.5. Extend rule: dEM in [+0.01, +0.04] with the
+  95% CI straddling 0 → AMBIGUOUS, extend to the full Dev-500.

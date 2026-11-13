@@ -63,15 +63,18 @@ idea to every row, from the first hop.
   construction, so any dcalls comes from different continuation
   decisions, not from the mechanism itself.
 
-## H18 (pre-registered 2026-11-11, before any new run)
+## H18 (pre-registered 2026-11-11, before any new run; decision set amended 2026-11-13, before the run)
 
-On Dev-100 BM25, the evidence-first arm raises EM ≥ +0.02 vs the
+On Dev-300 BM25, the evidence-first arm raises EM ≥ +0.02 vs the
 improved-system baseline at ≤ +0.5 calls/Q AND does not raise the
-wrong-answer rate. Exploratory. Gate = all three legs. If the gate
-fails, the mechanism stays OFF and the round moves to H20/H21 (joint
-verification / reranking — the ranking of the supported set, which H19
-showed is the bottleneck, is what those attack), not to another reader
-restriction.
+wrong-answer rate. Exploratory. Gate = all three legs. Extend rule
+(pre-registered 2026-11-13, before the run): if dEM lands in
+[+0.01, +0.04] with the 95% CI straddling 0, the verdict is
+AMBIGUOUS and the A/B extends to the full Dev-500 instead of calling
+it. If the gate fails, the mechanism stays OFF and the round moves
+to H20/H21 (joint verification / reranking — the ranking of the
+supported set, which H19 showed is the bottleneck, is what those
+attack), not to another reader restriction.
 
 ## Threats to validity
 
@@ -93,6 +96,11 @@ restriction.
   behaviour for the hallucination objective and costs EM on rows the
   current system guesses right — the wrong-answer-rate leg is the
   more sensitive measure here, and the gate requires EM up as well.
-- Dev-100 (N=100) is a smoke test, not a verdict: the gate is
-  directional (dEM ≥ +0.02). The Test-400 confirmation judges the
-  mechanism as part of the final system, never alone.
+- Dev-300 (N=300) is a decision set, not a verdict: the gate is
+  directional (dEM ≥ +0.02) and the extend rule applies — if dEM
+  lands in [+0.01, +0.04] with the 95% CI straddling 0, the A/B
+  extends to the full Dev-500 instead of calling it. Dev-100 (N=100)
+  was the original decision set; it was abandoned 2026-11-13, before
+  the run, because its CI (±0.04–0.07) cannot resolve a +0.02 effect.
+  The Test-400 confirmation judges the mechanism as part of the final
+  system, never alone.

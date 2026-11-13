@@ -494,13 +494,19 @@ at a reasonable computational cost?"
 
 - **Claim:** inverting the pipeline — claims extracted from the
   passages (no draft), verified, answer composed only from supported
-  claims — raises Dev-100 BM25 EM ≥ +0.02 vs the improved-system
+  claims — raises Dev-300 BM25 EM ≥ +0.02 vs the improved-system
   baseline at ≤ +0.5 calls/Q without raising the wrong-answer rate.
+  Extend rule (pre-registered 2026-11-13, before the run): dEM in
+  [+0.01, +0.04] with the 95% CI straddling 0 → AMBIGUOUS, extend
+  to the full Dev-500 instead of calling it.
 - **Evidence:** none yet. Pre-registered 2026-11-11, before any new
   run (master plan §4.7 + `openspec/changes/evidence-first-answering/`
   + `scripts/phase26_h18_verdict.py`, dry-run verified on the H12
-  pair; chain `~/workspace/phase26_h18_chain.sh`). A/B not yet run —
-  needs a Groq key (the send-9 key died with the H15 chain).
+  pair; chain `~/workspace/phase26_h18_chain.sh`). Decision set
+  amended 2026-11-13, before the run (Dev-100 → Dev-300 + extend
+  rule; Dev-500 manifest committed `7486fa2`; per-experiment cache
+  `results/cache/cache_p27_h18.sqlite`). A/B launching 2026-11-13
+  on a re-sent Groq key, user-confirmed.
 - **Verdict: NOT TESTED.**
 
 ### H19 — Extractive final read (new, 2026-11-11, Phase 2.7)
@@ -547,7 +553,7 @@ at a reasonable computational cost?"
 | H15 | GATE PASS (dev smoke test) | EM +0.0200 at +0.19 calls/Q; fixed 3 > broke 0 on triggered rows (9/100); p=0.77 on N=100 |
 | H16 | NOT SUPPORTED (eval leg) | No threshold clears macro-F1 ≥ 0.70 AND supRec ≥ 0.70 on held-out claims; surface flat; thresholds stay 0.5/0.5 |
 | H19 | NOT SUPPORTED | Claims-only re-read churns: dEM −0.0100, dcalls +0.60, fixed 3 broke 5 on triggered rows; wrong rate barely down |
-| H18 | NOT TESTED | Pre-registered 2026-11-11; Dev-100 A/B vs improved system awaits a Groq key |
+| H18 | NOT TESTED | Pre-registered 2026-11-11; decision set amended 2026-11-13 (Dev-100 → Dev-300 + extend rule); A/B launching 2026-11-13 |
 
 Three supported, nine not supported, one tie, three gate-pass, two untested. That is
 an honest scoreboard for a research system: the core mechanism claim

@@ -1,8 +1,13 @@
 """Phase 2.7 H18 verdict: evidence-first answering vs improved-system baseline.
 
-Dev-100 BM25 A/B, both arms re-run fresh, paired on question id,
-deduped keeping the last row per id. Gate (pre-registered 2026-11-11):
+Dev-300 BM25 A/B (first 300 rows of data/manifests_dev500/dev.jsonl),
+both arms re-run fresh, paired on question id, deduped keeping the
+last row per id. Gate (pre-registered 2026-11-11, decision set amended
+2026-11-13 before the run — Dev-100 cannot resolve a +0.02 effect):
 dEM >= +0.02 AND wrong-answer rate not up AND dcalls <= +0.5.
+Extend rule (pre-registered 2026-11-13, before the run): if dEM lands
+in [+0.01, +0.04] with the 95% CI straddling 0, the verdict is
+AMBIGUOUS and the A/B extends to the full Dev-500 instead of calling it.
 
 The mechanism applies to every row (no trigger), so fixed/broke is
 reported on rows where the two arms' answers differ, and the
@@ -11,8 +16,8 @@ reported per arm: extractor coverage IS the mechanism here.
 
 Usage:
     .venv/bin/python scripts/phase26_h18_verdict.py \\
-        results/trueadaptive/erag_p27_h18_base_dev.jsonl \\
-        results/trueadaptive/erag_p27_h18_evidence_dev.jsonl
+        results/trueadaptive/erag_p27_h18_base_dev300.jsonl \\
+        results/trueadaptive/erag_p27_h18_evidence_dev300.jsonl
 """
 
 import json
@@ -106,6 +111,15 @@ def main(base_path, ev_path):
           f"{wr_ev:.4f} vs {wr_base:.4f} (need not up), "
           f"dcalls {dcalls:+.2f} (need <= +0.5) -> "
           f"{'PASS' if gate else 'FAIL'}")
+    # Pre-registered extend rule (2026-11-13, before the run): a dEM in
+    # the ambiguous band with a 95% CI straddling 0 is underpowered at
+    # N=300 — extend to the full Dev-500 instead of calling a verdict.
+    _, ci_lo, ci_hi = paired_bootstrap(a_em, b_em)
+    ambiguous = (0.01 <= d_em <= 0.04) and (ci_lo <= 0.0 <= ci_hi)
+    print(f"EXTEND RULE: dEM 95% CI [{ci_lo:+.4f}, {ci_hi:+.4f}] "
+          f"(straddles 0: {ci_lo <= 0.0 <= ci_hi}) -> "
+          f"{'AMBIGUOUS — extend A/B to the full Dev-500, do not call a verdict'
+             if ambiguous else 'decided on N=300'}")
 
 
 if __name__ == "__main__":

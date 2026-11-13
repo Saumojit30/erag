@@ -123,6 +123,31 @@ def test_key_changes_with_version():
     assert base == l._key(msgs, 0.0, 10, 0)
 
 
+def test_init_uses_configured_cache_path(tmp_path):
+    """Per-experiment cache (2026-11-13): LLM honours an explicit cache_path."""
+    path = tmp_path / "exp.sqlite"
+    cfg = {"model": {"name": "m", "reasoning_effort": "low", "max_tokens": 10}}
+    l = LLM(cfg, use_cache=True, namespace="ns", cache_path=str(path))
+    try:
+        l._client = _StubGroq("hello")
+        tr = Tracker()
+        assert l.chat([{"role": "user", "content": "hi"}], tr) == "hello"
+        assert path.exists()
+        assert l.db.execute("SELECT COUNT(*) FROM c").fetchone()[0] == 1
+        assert l.chat([{"role": "user", "content": "hi"}], tr) == "hello"
+        assert l._client.chat.completions.calls == 1
+        assert tr.cache_hits == 1
+    finally:
+        l.close()
+
+
+def test_default_cache_path_unchanged():
+    """No cache_path configured: the shared default is still used."""
+    cfg = {"model": {"name": "m", "reasoning_effort": "low", "max_tokens": 10}}
+    l = LLM(cfg, use_cache=False, namespace="ns")
+    assert l.cache_path == "results/cache.sqlite"
+
+
 def test_empty_completion_is_not_cached():
     """Audit M1: an empty Groq response must never be written to the cache."""
     l, path = _llm_with_db("")

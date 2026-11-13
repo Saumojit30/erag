@@ -564,6 +564,41 @@ rather than what the reader is allowed to see.
 
 ---
 
+## Dev-100 cannot decide mechanisms + per-experiment LLM cache (2026-11-13, pre-run)
+
+**Assumed (the protocol since Phase 1):** a Dev-100 BM25 A/B with a
+dEM ≥ +0.02 gate can decide whether a mechanism enters the system.
+**Actual (from the recorded verdicts, no new run):** the paired
+95% CIs at N=100 are ±0.04–0.07 wide (H14 [+0.01, +0.37] on dcalls
+and dEM CI [−0.03, +0.05]; H15 dEM CI [−0.05, +0.09], p=0.7744;
+H19 dEM CI [−0.07, +0.05], p=1.0) — a +0.02 gate pass at N=100 is
+inside noise. H15's pass was exactly at the bar with only 3 of 7
+net gained rows on triggered rows. The user challenged this
+directly 2026-11-13 (work since v1 has been parameter tweaks, not
+architecture change) and confirmed the fix: mechanism decisions move
+to Dev-300 (resolves ~+0.04) with a pre-registered extend rule —
+dEM in [+0.01, +0.04] with the 95% CI straddling 0 → AMBIGUOUS,
+extend to the full Dev-500. Dev-500 manifest built from the
+re-downloaded full official dev set (7,405 rows, `7486fa2`).
+**Cache, assumed:** one shared `results/cache.sqlite` is fine.
+**Actual (checked 2026-11-13):** 16.7MB, 49,272 rows, zero lock
+errors — SQLite is not the problem. The problems are that the file
+is shared by every experiment, tracked in git (always dirty), and
+unprunable: the namespace is hashed into each key, so one
+experiment's entries cannot be listed or deleted — the only prune
+is deleting the whole file. Fix, user-confirmed: `run.cache_path`
+wired through the runner (`configs/base.yaml` default unchanged);
+each experiment writes its own file under `results/cache/`; the
+shared file and `results/nli_memo.pkl` are untracked from git
+(files stay on disk). No result changes: keys are computed the
+same way, only the file differs. Files:
+`scripts/run_experiment.py`, `src/llm/client.py` (already accepted
+`cache_path`), `tests/test_cache.py` (2 new tests, all 7 pass),
+`.gitignore`, `scripts/make_dev500_manifest.py`,
+`data/manifests_dev500/`.
+
+---
+
 ## Going forward (from 2026-11-10)
 
 - Every experiment from here — step 6, Phase 2, Phase 3, the ablations,

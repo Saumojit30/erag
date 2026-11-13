@@ -53,6 +53,7 @@ run:
   name: standard_dev
   cache: true            # set false for latency runs
   cache_namespace: dev_v1
+  cache_path: results/cache.sqlite   # per-experiment override via --set run.cache_path=results/cache/<exp>.sqlite
   out_dir: results
   seed: 13
 

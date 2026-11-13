@@ -974,26 +974,41 @@ and the system must be unable to output an answer it cannot derive.
 The LLM is a black-box API, so all changes are pipeline-level
 (prompts, verification, retrieval, answer space), not model-level.
 
-Program (each item = one OpenSpec change, one Dev-100 BM25 A/B vs the
+Program (each item = one OpenSpec change, one Dev-300 BM25 A/B vs the
 improved system, fresh namespaces, both arms re-run fresh, paired;
 gate = dEM >= +0.02 AND wrong-answer rate not up AND dcalls <= +0.5/Q
 — the hallucination leg is part of every gate, since EM alone can be
-bought by answering more):
+bought by answering more. Decision set amended 2026-11-13, before any
+H18 run: Dev-100 → Dev-300 (first 300 rows of
+`data/manifests_dev500/dev.jsonl`, 500 fresh HotpotQA dev Qs, seed 29,
+disjoint from dev-100/test-400; corpus Dev-500 + Test-400 passages).
+Dev-100 CIs (±0.04–0.07) cannot resolve a +0.02 effect — the H15
+"pass" at exactly +0.02 was noise-level — so Dev-300 (resolves
+~+0.04) with a pre-registered extend rule: dEM in [+0.01, +0.04]
+with the 95% CI straddling 0 → AMBIGUOUS, extend to the full Dev-500
+instead of calling it. The Dev-500 manifest is committed `7486fa2`;
+the full 7,405-row official dev set was re-downloaded from
+HuggingFace (CMU URL dead) to build it):
 
 - H18 — evidence-first answering (invert the pipeline: claims from
   passages, answer only from verified claims). Highest value, highest
   cost. **Pre-registered 2026-11-11 (this section +
   `openspec/changes/evidence-first-answering/` +
   `scripts/phase26_h18_verdict.py` + `~/workspace/phase26_h18_chain.sh`):
-  on Dev-100 BM25, the evidence-first arm raises EM ≥ +0.02 vs the
+  on Dev-300 BM25, the evidence-first arm raises EM ≥ +0.02 vs the
   improved-system baseline at ≤ +0.5 calls/Q AND does not raise the
-  wrong-answer rate. Exploratory. Per hop the draft call + claims
-  call are replaced 1:1 by a passage-claims call + a compose call,
-  so any dcalls comes from continuation decisions, not the mechanism.
+  wrong-answer rate. Decision set amended 2026-11-13, before the run
+  (Dev-100 → Dev-300 + extend rule; see the Program note above).
+  Exploratory. Per hop the draft call + claims call are replaced 1:1
+  by a passage-claims call + a compose call, so any dcalls comes
+  from continuation decisions, not the mechanism.
   H15 support-ranked stays OFF in both arms (not in the frozen
   improved config); the final combination is judged at confirmation.
-  A/B not yet run — needs a Groq key (the send-9 key died with the
-  H15 chain).
+  A/B launching 2026-11-13 on a re-sent Groq key (user-confirmed
+  Dev-300 + per-experiment cache); per-experiment cache
+  `results/cache/cache_p27_h18.sqlite` (`run.cache_path`,
+  `7486fa2` also splits the cache: the shared `results/cache.sqlite`
+  is untracked, one file per experiment from here).
 - **H19 — extractive answering (FIRST, user direction 2026-11-11):**
   the final answer must come from supported claims only — a claims-only
   final re-read with NO context block, always on (not trigger-gated),
@@ -1974,6 +1989,51 @@ H18 (the full evidence-first inversion). Baseline calls/Q 5.05 here
 vs 4.30 in the H14 baseline — SC sample counts are stochastic
 (temp-0.7 sampling); controlled by the paired fresh baseline.
 Cache_hits/Q 0.00 both arms (all live).
+
+### 2026-11-13 — Phase 2.7 H18 Dev-300 A/B setup (pre-run record, no verdict yet)
+
+User challenge 2026-11-13 (honest assessment requested): work since
+v1 has been parameter tweaks and small bolt-ons around the same
+draft-first pipeline, not architecture change — and Dev-100 A/Bs
+cannot decide the mechanisms being tested. The numbers agree: v1
+Test-400 EM 0.4750 still beats tuned (0.4500) and improved (0.4600);
+H15's gate pass was dEM exactly +0.02 with 95% CI [−0.05, +0.09],
+p=0.7744 — noise-level. Decision, user-confirmed 2026-11-13:
+H18 (the one structural change built, `ddb18c1`) is tested first,
+on Dev-300, then H20/H21 if it fails. Protocol change, recorded
+BEFORE the run (dated amendment, HARKing rule): decision set
+Dev-100 → Dev-300 (first 300 rows of
+`data/manifests_dev500/dev.jsonl`; the Dev-500 manifest was built
+2026-11-13 from the re-downloaded full official dev set — 7,405
+rows, HuggingFace parquet, CMU URL dead — 500 fresh Qs, seed 29,
+stratified bridge/hard 400 + comparison/hard 100, disjoint from
+debug-50/dev-100/test-400, sha256 ae030ccd...; corpus = Dev-500 +
+Test-400 passages, 8,812 after dedupe; committed + pushed
+`7486fa2`). Gate unchanged (dEM ≥ +0.02 AND wrong-answer rate not
+up AND dcalls ≤ +0.5), plus a pre-registered extend rule: dEM in
+[+0.01, +0.04] with the 95% CI straddling 0 → AMBIGUOUS, extend to
+the full Dev-500 instead of calling it. Verdict script updated
+(`scripts/phase26_h18_verdict.py` prints the extend assessment;
+dry-run on the H12 pair reproduces the recorded numbers exactly:
+dEM +0.0300, dF1 −0.0033, dcalls +0.39, McNemar p=0.4531, GATE
+PASS — and flags AMBIGUOUS on N=100, as the rule intends). Chain
+updated (`~/workspace/phase26_h18_chain.sh`: manifest
+`data/manifests_dev500`, `--limit 300`, fresh namespaces
+`dev300_p27_h18_{base,evidence}_bm25`). Cache split, same commit:
+`run.cache_path` wired through the runner into the LLM client
+(`configs/base.yaml` default `results/cache.sqlite`; 2 new tests in
+`tests/test_cache.py`, all 7 pass); H18 writes its own file
+`results/cache/cache_p27_h18.sqlite`; the shared
+`results/cache.sqlite` (16.7MB, 49,272 rows, zero lock errors) and
+`results/nli_memo.pkl` are untracked from git (files stay on disk;
+the namespace is hashed into each key, so one experiment's entries
+cannot be pruned from the shared file — the reason for the split).
+Groq key re-sent 2026-11-13 (smoke-tested 200, live; used
+transiently only, never saved; rotation advised since pasted in
+chat) and the 15-commit backlog pushed (`af77d52` → `ddb18c1`,
+verified, 0 ahead). A/B launching now; verdict goes here when it
+lands. Expected ~40 min for both arms (~3,000 calls); the run also
+calibrates the new key's throughput/rate limits.
 
 ## Appendix — Key numbers (frozen)
 

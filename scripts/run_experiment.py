@@ -176,6 +176,7 @@ def main():
         cfg,
         use_cache=cfg["run"]["cache"],
         namespace=cfg["run"]["cache_namespace"],
+        cache_path=cfg["run"].get("cache_path", "results/cache.sqlite"),
     )
 
     nli = None

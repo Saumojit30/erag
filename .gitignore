@@ -81,9 +81,13 @@ data/raw/
 data/cache/
 
 # 8. Experimental Outputs & Prediction Tracking
-# (Experimental results, predictions, plots, cache and benchmark outputs are continuously tracked)
-!results/cache.sqlite
-!results/nli_memo.pkl
+# LLM caches and the NLI memo are derived data, not source: the shared
+# cache.sqlite is untracked (2026-11-13), and each experiment writes its
+# own cache file under results/cache/ (see run.cache_path). Result JSONLs
+# stay tracked as experiment evidence.
+results/cache.sqlite
+results/nli_memo.pkl
+results/cache/
 
 # 9. Logs, Temp Files & Editor Backups
 *.log
