@@ -599,6 +599,34 @@ same way, only the file differs. Files:
 
 ---
 
+## H18 evidence-first: the draft-first pipeline was the bottleneck (2026-11-13, verdict)
+
+**Assumed (since v1, through H19):** the draft-first pipeline is
+sound and the failure mode is the final read — the reader just needs
+better access to, or a stricter restriction on, the verified claims
+(H19 extractive re-read tested exactly that and failed: dEM −0.0100,
+fixed 3 broke 5).
+**Actual (Dev-300 BM25 A/B, `scripts/phase26_h18_verdict.py`):**
+inverting the pipeline — extract claims from the passages first,
+verify, compose only from supported claims, no draft — gives dEM
++0.0533 (95% CI [+0.0067, +0.1000], McNemar p=0.0328, fixed 33
+broke 17), wrong-answer rate 0.4427 → 0.3403 (down 10.2pts), at
+−0.34 calls/Q. The gate passes on all three legs with margin, the
+CI excludes 0, and the extend rule is not triggered (decided on
+N=300). **The bottleneck was the draft itself, not the final read:**
+once the answer is composed from supported claims instead of
+drafted first and then checked, the system is both more accurate
+and cheaper — and, for the first time, measurably less wrong. The
+Dev-300 decision paid off: at N=100 this effect (dEM +0.0533)
+would have been inside the ±0.04–0.07 noise band and the verdict
+would have been weaker. Caveat, recorded honestly: this is a Dev-300
+result, not Test-400 — the confirmation against fresh IRCoT is
+still to come, and the wrong-rate drop is on answered questions
+(selective EM still unmeasured). The final frozen config and the
+Test-400 confirmation are next; H20/H21 do not run first.
+
+---
+
 ## Going forward (from 2026-11-10)
 
 - Every experiment from here — step 6, Phase 2, Phase 3, the ablations,

@@ -499,15 +499,24 @@ at a reasonable computational cost?"
   Extend rule (pre-registered 2026-11-13, before the run): dEM in
   [+0.01, +0.04] with the 95% CI straddling 0 → AMBIGUOUS, extend
   to the full Dev-500 instead of calling it.
-- **Evidence:** none yet. Pre-registered 2026-11-11, before any new
-  run (master plan §4.7 + `openspec/changes/evidence-first-answering/`
-  + `scripts/phase26_h18_verdict.py`, dry-run verified on the H12
-  pair; chain `~/workspace/phase26_h18_chain.sh`). Decision set
-  amended 2026-11-13, before the run (Dev-100 → Dev-300 + extend
-  rule; Dev-500 manifest committed `7486fa2`; per-experiment cache
-  `results/cache/cache_p27_h18.sqlite`). A/B launching 2026-11-13
-  on a re-sent Groq key, user-confirmed.
-- **Verdict: NOT TESTED.**
+- **Evidence (Dev-300 BM25 A/B, both arms fresh, paired,
+  `scripts/phase26_h18_verdict.py`):** baseline (improved system)
+  EM 0.4700 / F1 0.6057 at 5.13 calls/Q vs evidence-first EM 0.5233
+  / F1 0.6178 at 4.78 calls/Q; dEM +0.0533, 95% CI [+0.0067,
+  +0.1000], McNemar p=0.0328 (fixed 33, broke 17, changed 103/300);
+  dF1 +0.0121; dcalls −0.34. Wrong-answer rate 0.3403 vs 0.4427
+  (DOWN 10.2pts); gold-in-claims wrong 0.604 vs 0.657. Both arms
+  N=300, 0 failed, 0 dup ids; cache_hits/Q 0.01 / 0.03 (13 hits
+  total — negligible). A VM restart killed the chain at 98/300
+  baseline; relaunched, runner resumed from the output file
+  (verified 101/300). Chain finished 2026-11-13 09:12 Asia, exit 0.
+- **Verdict: GATE PASS.** All three legs pass with margin (dEM
+  +0.0533 ≥ +0.02; wrong rate down; dcalls −0.34 ≤ +0.5), CI
+  excludes 0, McNemar p < 0.05 — decided on N=300, no extension to
+  Dev-500. First mechanism to reduce the wrong-answer rate (the
+  paper's primary objective) while raising EM at lower cost.
+  Evidence-first enters the system; the final frozen config is
+  written next, then ONE Test-400 confirmation vs fresh IRCoT.
 
 ### H19 — Extractive final read (new, 2026-11-11, Phase 2.7)
 
@@ -553,16 +562,18 @@ at a reasonable computational cost?"
 | H15 | GATE PASS (dev smoke test) | EM +0.0200 at +0.19 calls/Q; fixed 3 > broke 0 on triggered rows (9/100); p=0.77 on N=100 |
 | H16 | NOT SUPPORTED (eval leg) | No threshold clears macro-F1 ≥ 0.70 AND supRec ≥ 0.70 on held-out claims; surface flat; thresholds stay 0.5/0.5 |
 | H19 | NOT SUPPORTED | Claims-only re-read churns: dEM −0.0100, dcalls +0.60, fixed 3 broke 5 on triggered rows; wrong rate barely down |
-| H18 | NOT TESTED | Pre-registered 2026-11-11; decision set amended 2026-11-13 (Dev-100 → Dev-300 + extend rule); A/B launching 2026-11-13 |
+| H18 | GATE PASS (Dev-300, significant) | dEM +0.0533, CI [+0.0067, +0.1000] excludes 0; McNemar p=0.0328; wrong rate 0.4427 → 0.3403; dcalls −0.34 |
 
-Three supported, nine not supported, one tie, three gate-pass, two untested. That is
+Three supported, nine not supported, one tie, four gate-pass, one untested. That is
 an honest scoreboard for a research system: the core mechanism claim
 (H6) and the head-to-head claim (H1, confirmatory) hold, the verifier
 (H2), the memory (H5), the adaptivity claim (H4, confirmatory) and
 the component claims (H7, H8, H10) do not do what was hoped, and the
 hallucination claim (H11) is a tie. The tuning phase bought cost,
 not accuracy — and Phase 2.5 is where the system is improved before
-Phase 3 tests generalization.
+Phase 3 tests generalization. Phase 2.7 changed the picture: H18
+evidence-first is the first mechanism that reduces the wrong-answer
+rate while raising EM at lower cost (Dev-300, significant).
 
 ## 2. Where TrueAdaptive is now
 

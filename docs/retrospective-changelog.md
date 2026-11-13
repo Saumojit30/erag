@@ -1449,6 +1449,32 @@ The following four entries were supplied with the template for §3. Each was che
 #### Evidence
 - Verdict-script dry-run on the H12 pair reproduces the recorded numbers exactly (see above). Dev-500 offline validation numbers above. No live H18 run yet — the A/B launches with this commit.
 
+### 2026-11-13 — Phase 2.7 H18 verdict: GATE PASS on Dev-300 (significant; first wrong-rate reduction)
+
+**Commit(s):** H18 verdict + close-out (this commit)
+**Scope:** Phase 2.7 H18 Dev-300 BM25 A/B verdict
+**Type:** mechanism verdict (pre-registered gate, decided on N=300, no extension)
+**Prediction-changing:** yes — evidence-first enters the system; the final frozen config and the Test-400 confirmation are next; H20/H21 do not run first
+
+#### What changed
+- **Verdict: GATE PASS, all three legs with margin.** Baseline (improved system) EM 0.4700 / F1 0.6057 at 5.13 calls/Q vs evidence-first EM 0.5233 / F1 0.6178 at 4.78 calls/Q; dEM +0.0533, 95% CI [+0.0067, +0.1000] (does NOT straddle 0), McNemar p=0.0328 (fixed 33, broke 17, changed 103/300); dF1 +0.0121; dcalls −0.34. Wrong-answer rate 0.3403 vs 0.4427 (DOWN 10.2pts); gold-in-claims wrong 0.604 vs 0.657; full-recall wrong 48 vs 67. Extend rule not triggered — decided on N=300, no extension to Dev-500.
+- **First mechanism to reduce the wrong-answer rate** (the paper's primary objective) while raising EM at lower cost. The draft-first pipeline was the bottleneck, not the final read: H19's claims-only re-read failed (dEM −0.0100, fixed 3 broke 5); inverting the pipeline — claims first, compose only from supported claims — works.
+- **Run notes.** A VM restart killed the chain at 98/300 baseline (29:56 elapsed); relaunched with the same transient Groq key, runner resumed from the output file (skipped the 98 done rows, verified 101/300 within a minute). Chain finished 2026-11-13 09:12 Asia, exit 0, both arms rc=0, api_failures 0. Total wall ~1h52m including the restart — Groq ran slow (~15s/Q vs ~2s/Q normal), so the 40-min estimate was wrong. Per-experiment cache worked: `results/cache/cache_p27_h18.sqlite` (1.0MB) holds only this experiment's entries. Both arms N=300, 0 failed, 0 dup ids; cache_hits/Q 0.01 base / 0.03 evidence-first (13 hits total across 600 rows — negligible, cannot drive the result).
+- **Scoreboard now:** 3 supported (H1, H3, H6), 9 not supported (H2, H4, H5, H7, H8, H10, H13, H16, H19), 1 tie (H11), 4 gate-pass (H12, H14, H15, H18), 1 untested (H9).
+- **Next (decision goes to the user):** freeze the final system (improved + evidence-first; H15 support-ranked undecided — its Dev-100 evidence is noise-level), then ONE Test-400 confirmation vs fresh IRCoT (win = EM up AND McNemar p < 0.05 AND wrong-answer rate down).
+
+#### Why it changed
+- The pre-registered gate passed with margin on all three legs, and the CI excludes 0 with McNemar p < 0.05 — the first mechanism result that is significant rather than noise-level. The Dev-300 decision (recorded 2026-11-13, before the run) is what made the verdict decidable: at N=100 this effect would have sat inside the ±0.04–0.07 noise band.
+
+#### Files changed
+- `results/trueadaptive/erag_p27_h18_{base,evidence}_dev300.jsonl` (new, 300 rows each), `results/cache/cache_p27_h18.sqlite` (new, per-experiment cache), `docs/tuning-master-plan.md` (§12), `docs/hypotheses-current-status.md` (H18, scoreboard), `docs/assumptions-vs-outcomes.md`, this changelog
+
+#### Tests added or updated
+- None — no code in `src/` changed for this verdict. Full suite count stands at 201 passed, 1 failed (known pre-existing retry mismatch) — see §4.5.
+
+#### Evidence
+- Both arms N=300 deduped, 0 failed, cache_hits/Q 0.01 / 0.03 (13 hits total, verified per-row: 1 base row with 4 hits — the restart-interrupted question — 9 evidence rows with 1 hit each). Paired stats from `scripts/phase26_h18_verdict.py`.
+
 ## 3. Recent repair sequence
 
 Baseline:
@@ -1515,7 +1541,7 @@ What does exist instead (the actual repair in this repository): row-level retrie
 - Retrievers: MiniLM-L6-v2 + FAISS, BM25/BM25Plus, E5, BGE (`src/retrieval/index.py`)
 - Audit remediation: empty-completion cache guard, cache key `v: 2` with namespace rotation, row-level retriever provenance, results provenance record (`results/README.md`), verification script (`scripts/verify_results.py`)
 - Evaluation: EM/F1/recall/ECE/Brier/AUROC, paired bootstrap, McNemar, Holm (`src/eval/metrics.py`, `src/eval/stats.py`); hypothesis analysis scripts (`scripts/analyze_hypotheses_h1_h6.py`, `scripts/analyze_trueadaptive_test400.py`)
-- H18 evidence-first answering — `src/epistemic/claims.py` (`EVIDENCE_CLAIM_SYSTEM`, `extract_evidence_claims`), `src/llm/prompts.py` (`COMPOSE_SYSTEM`, `compose_answer_messages`), wiring in `src/systems/erag.py` behind `erag.evidence_first` (default false); implemented 2026-11-12, committed `ddb18c1`; NOT TESTED — Dev-300 A/B launching 2026-11-13
+- H18 evidence-first answering — `src/epistemic/claims.py` (`EVIDENCE_CLAIM_SYSTEM`, `extract_evidence_claims`), `src/llm/prompts.py` (`COMPOSE_SYSTEM`, `compose_answer_messages`), wiring in `src/systems/erag.py` behind `erag.evidence_first` (default false); implemented 2026-11-12, committed `ddb18c1`; TESTED 2026-11-13 on Dev-300 — GATE PASS, enters the system: dEM +0.0533, CI [+0.0067, +0.1000], McNemar p=0.0328, wrong rate 0.4427 → 0.3403, dcalls −0.34 (first mechanism to reduce the wrong-answer rate while raising EM at lower cost)
 - Per-experiment LLM cache — `run.cache_path` in `configs/base.yaml`, threaded through `scripts/run_experiment.py` into `src/llm/client.py` (which already accepted `cache_path`); each experiment writes its own file under `results/cache/`; shared `results/cache.sqlite` and `results/nli_memo.pkl` untracked from git 2026-11-13 (files stay on disk)
 - Dev-500 decision-set manifest — `scripts/make_dev500_manifest.py`, `data/manifests_dev500/` (500 fresh HotpotQA dev Qs, seed 29, disjoint from debug-50/dev-100/test-400); committed + pushed `7486fa2`
 
@@ -1621,7 +1647,7 @@ Only components with completed, saved experiment artifacts are listed.
 | H10 / H11 (Phase 2) | N/A (analysis) | N/A (analysis of stored rows) | N/A | `bcbc40e` | stored Phase 2 rows | H10 NOT SUPPORTED on IRCoT leg (9.18 vs 5.88); H11 tie (0.4495 vs 0.4566) |
 | Dev-500 decision-set manifest | `scripts/make_dev500_manifest.py` | offline validation (BM25 recall@3, disjointness) | N/A (master plan §4.7) | `7486fa2` | `data/manifests_dev500/dev.jsonl` (+ `manifest.json`, sha256 ae030ccd...) | Built 2026-11-13: 500 fresh Qs, disjoint from debug-50/dev-100/test-400; corpus 8,812 passages; mean gold-title recall@3 0.620 (n=50 sample) |
 | Per-experiment LLM cache | `scripts/run_experiment.py` (`run.cache_path`), `src/llm/client.py` | `tests/test_cache.py` (2 new tests) | N/A (infra) | this commit | `results/cache/cache_p27_h18.sqlite` (from the H18 run) | Implemented 2026-11-13: shared cache untracked; each experiment writes its own file; keys computed identically |
-| H18 evidence-first answering | `src/epistemic/claims.py`, `src/llm/prompts.py`, `src/systems/erag.py` | `tests/test_evidence_first.py` (7 new) | `evidence-first-answering` | `ddb18c1` | A/B not yet run — Dev-300 launching 2026-11-13 | Implemented, NOT TESTED; decision set Dev-300 + extend rule (amended 2026-11-13) |
+| H18 evidence-first answering | `src/epistemic/claims.py`, `src/llm/prompts.py`, `src/systems/erag.py` | `tests/test_evidence_first.py` (7 new) | `evidence-first-answering` | `ddb18c1` | `results/trueadaptive/erag_p27_h18_{base,evidence}_dev300.jsonl`, `results/cache/cache_p27_h18.sqlite` | Evaluated Dev-300 BM25 2026-11-13: GATE PASS — dEM +0.0533, CI excludes 0, McNemar p=0.0328, wrong rate 0.4427 → 0.3403, dcalls −0.34; enters the system |
 
 ## 6. Claims discipline
 

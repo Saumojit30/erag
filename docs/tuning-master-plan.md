@@ -2035,6 +2035,46 @@ verified, 0 ahead). A/B launching now; verdict goes here when it
 lands. Expected ~40 min for both arms (~3,000 calls); the run also
 calibrates the new key's throughput/rate limits.
 
+### 2026-11-13 — Phase 2.7 H18 verdict: GATE PASS (Dev-300 BM25 A/B)
+
+**GATE PASS — and the strongest mechanism result so far.** Baseline
+(improved system) EM 0.4700 / F1 0.6057 at 5.13 calls/Q vs
+evidence-first EM 0.5233 / F1 0.6178 at 4.78 calls/Q; dEM +0.0533,
+95% CI [+0.0067, +0.1000] (does NOT straddle 0 — decided on N=300,
+no extension to Dev-500 needed), McNemar p=0.0328 (fixed 33, broke
+17, changed 103/300); dF1 +0.0121; dcalls −0.34. All three gate legs
+pass with margin: dEM +0.0533 ≥ +0.02; wrong-answer rate 0.3403 vs
+0.4427 — DOWN 10.2pts; dcalls −0.34 ≤ +0.5. **First mechanism to
+reduce the wrong-answer rate (the paper's primary objective) while
+also raising EM and costing FEWER calls.** Gold-in-claims wrong rate
+also down (0.604 vs 0.657); full-recall wrong 48 vs 67. Both arms
+N=300, 0 failed, 0 dup ids; cache_hits/Q 0.01 base / 0.03
+evidence-first (13 hits total across 600 rows — 1 base row with 4
+hits, the question interrupted by the restart; 9 evidence rows with
+1 hit each — negligible, cannot drive the result). Paired stats
+from `scripts/phase26_h18_verdict.py`.
+
+**Run notes:** a VM restart killed the chain at 98/300 baseline
+(29:56 elapsed); relaunched with the same transient key and the
+runner resumed from the output file (skipped the 98 done rows,
+verified 101/300 within a minute). Chain finished 2026-11-13
+09:12 Asia, exit 0, both arms rc=0, api_failures 0. Total wall
+~1h52m including the restart — Groq ran slow (~15s/Q vs ~2s/Q
+normal), so the 40-min estimate was wrong; the new key's throughput
+is ~15s/Q under current load. Per-experiment cache worked:
+`results/cache/cache_p27_h18.sqlite` (1.0MB) holds only this
+experiment's entries.
+
+**Consequence:** H18 enters the system. The final frozen config is
+written next (improved + evidence-first; H15 support-ranked NOT yet
+decided — its Dev-100 evidence is noise-level, see the H15 entry —
+the freeze decision goes to the user), then ONE Test-400 confirmation
+vs fresh IRCoT (win = EM up AND McNemar p < 0.05 AND wrong-answer
+rate down). H20/H21 do NOT run first: H18 passed, so the round
+moves to confirmation, not to the next mechanism. Scoreboard now:
+3 supported (H1, H3, H6), 9 not supported, 1 tie (H11), 4 gate-pass
+(H12, H14, H15, H18), 1 untested (H9).
+
 ## Appendix — Key numbers (frozen)
 
 **TrueAdaptive v1, Test-400 BM25 (N=400, 0 failed, 0 cache hits):**
